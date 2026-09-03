@@ -1,0 +1,23 @@
+# 机密文件（严禁提交）
+data/.amap_key.txt
+*.key
+.env
+
+# 数据文件（体积大，不入库；processed 结果可用脚本重新生成）
+data/*.csv
+data/*.xlsx
+data/*.xls
+data/processed/
+data/归档_旧版命名/
+mysql-data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# 系统与编辑器
+.DS_Store
+*.icloud
+.idea/
+.vscode/

@@ -1,0 +1,57 @@
+name: hospital-spark
+
+services:
+  # ---------- Spark Standalone 集群（Mac M1 原生 arm64） ----------
+  spark-master:
+    image: apache/spark:3.5.3
+    container_name: spark-master
+    command: /opt/spark/sbin/start-master.sh
+    environment:
+      - SPARK_NO_DAEMONIZE=true
+      - SPARK_MASTER_HOST=spark-master
+      - SPARK_MASTER_PORT=7077
+      - SPARK_MASTER_WEBUI_PORT=8080
+    ports:
+      - "8080:8080"   # Master Web UI
+      - "7077:7077"   # 提交作业端口
+    volumes:
+      - ./data:/opt/workspace/data:ro
+      - ./spark:/opt/workspace/jobs
+    restart: unless-stopped
+
+  spark-worker:
+    image: apache/spark:3.5.3
+    container_name: spark-worker
+    command: /opt/spark/sbin/start-worker.sh spark://spark-master:7077
+    environment:
+      - SPARK_NO_DAEMONIZE=true
+      - SPARK_WORKER_MEMORY=4G
+      - SPARK_WORKER_CORES=4
+      - SPARK_WORKER_WEBUI_PORT=8081
+    depends_on:
+      - spark-master
+    volumes:
+      - ./data:/opt/workspace/data:ro
+      - ./spark:/opt/workspace/jobs
+    ports:
+      - "8081:8081"   # Worker Web UI
+    restart: unless-stopped
+
+  # ---------- MySQL（ADS 层结果存储，供 Flask 查询） ----------
+  mysql:
+    image: mysql:8.0
+    container_name: hospital-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: hospital123
+      MYSQL_DATABASE: hospital
+      MYSQL_USER: app
+      MYSQL_PASSWORD: app123
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3307:3306"   # 宿主机 3306 被本地 MySQL 占用，改用 3307
+    volumes:
+      - mysql-data:/var/lib/mysql
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
