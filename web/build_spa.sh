@@ -14,11 +14,13 @@ def q(sql):
     with conn.cursor() as cur:
         cur.execute(sql); return cur.fetchall()
 rows = q("""SELECT id, name, district, level_norm AS level, category_norm AS category,
+    category_sub, ownership, feature, feature_level,
     dept_count, beds, key_specialty_count, lng, lat, coord_precision, key_depts, grade_scope
     FROM ads_inst_search""")
 for r in rows:
     r['id'] = str(r['id']).strip()
-    for k in ('name','district','level','category','coord_precision','key_depts','grade_scope'):
+    for k in ('name','district','level','category','category_sub','ownership',
+              'feature','feature_level','coord_precision','key_depts','grade_scope'):
         v = r.get(k); r[k] = ('' if v is None else v.strip() if isinstance(v, str) else v)
     for k in ('dept_count','beds','key_specialty_count','lng','lat'):
         r[k] = None if r.get(k) in (None, '') else r[k]

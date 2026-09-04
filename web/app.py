@@ -175,6 +175,7 @@ def api_institutions():
     items = query(
         "SELECT t.id, t.name, t.district, t.category_norm AS category, t.level_norm AS level,"
         " t.level_sub, t.addr, t.phone, t.beds, t.key_depts,"
+        " t.category_sub, t.ownership, t.feature, t.feature_level,"
         " t.lng, t.lat, t.coord_precision, t.dept_count, t.key_specialty_count,"
         " d.distance_km, " + score_expr + " AS score " + base_select +
         f" ORDER BY {order_sql} LIMIT %s OFFSET %s",
@@ -193,8 +194,8 @@ def api_institutions():
 @app.route("/api/institutions/<inst_id>")
 def api_detail(inst_id):
     inst = query(
-        "SELECT id, name, district, category, category_norm, level, level_sub, level_norm,"
-        " grade_scope,"
+        "SELECT id, name, district, category, category_norm, category_sub, level, level_sub, level_norm,"
+        " grade_scope, ownership, ownership_basis, feature, feature_level,"
         " addr, phone, postal, beds, key_depts,"
         " lng, lat, coord_formatted, coord_precision, coord_source,"
         " src_count_int, source_files, dept_count, key_specialty_count"

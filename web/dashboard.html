@@ -58,6 +58,13 @@
   .b-l2{background:#f7b95522;color:#f7b955;border:1px solid #f7b95544}
   .b-l1{background:#5fd3c022;color:#5fd3c0;border:1px solid #5fd3c044}
   .b-l0{background:#8aa1c822;color:#8aa1c8;border:1px solid #8aa1c844}
+  .b-pub{background:#5fd3c022;color:#5fd3c0;border:1px solid #5fd3c044}
+  .b-pri{background:#f7b95522;color:#f7b955;border:1px solid #f7b95544}
+  .row .feat{color:#a9c4ef;font-size:10px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .feat .fk{font-weight:700}
+  .row .feat .f1{color:#ff9b9b;font-weight:700}
+  .row .feat .f2{color:#f7b955;font-weight:700}
+  .row .feat .f3{color:#8aa1c8;font-weight:600}
   .row .num{text-align:right;color:#5fd3c0;font-size:12px;font-weight:600}
   .row .dist{text-align:right;color:#3aa0ff;font-size:11px}
   .row .score{text-align:right;color:#f7b955;font-size:11px;font-weight:600}
@@ -106,7 +113,7 @@
 </style>
 </head>
 <body>
-<div class="loading" id="loading"><span class="pulse"></span>正在加载数据快照（9791 家机构）…</div>
+<div class="loading" id="loading"><span class="pulse"></span>正在加载数据快照（9789 家机构）…</div>
 
 <div class="header">
   <div>
@@ -204,7 +211,8 @@
 <div class="footer">
   <b>技术栈：</b>Spark 3.5.3 (ARM64) · MySQL 8 · Flask · ECharts · Docker Compose &nbsp;|&nbsp;
   <b>数仓分层：</b>ODS → DWD → DWS → ADS (5+3+4+4 张表) &nbsp;|&nbsp;
-  <b>筛选主表：</b><code>ads_inst_search</code> 9,791 行
+  <b>筛选主表：</b><code>ads_inst_search</code> 9,789 行 &nbsp;|&nbsp;
+  <b>治理列：</b>公立/民营归属 · 类别细分 · 擅长科室三级分级
 </div>
 
 <div class="modal" id="modal">
@@ -216,7 +224,7 @@
     <div class="info" id="m_info"></div>
     <h4>关键科室分布</h4>
     <div id="modalChart"></div>
-    <h4>重点专科归属</h4>
+    <h4>擅长科室（权威优先分级：重点专科 &gt; 优势科室 &gt; 诊疗科室）</h4>
     <div class="depts" id="m_depts"></div>
   </div>
 </div>

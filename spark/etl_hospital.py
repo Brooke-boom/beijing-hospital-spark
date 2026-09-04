@@ -11,7 +11,8 @@
   4. ADS：服务应用的宽表与统计（写 MySQL，Flask 直接查）
 
 输入：
-  - /opt/workspace/data/processed/master_institutions.csv  (9,791 家机构)
+  - /opt/workspace/data/processed/master_institutions.csv  (9,789 家机构，govern_master.py 治理后含
+    ownership/ownership_basis/category_sub/feature/feature_level 5 个治理列)
   - /opt/workspace/data/processed/hospital_depts.csv       (16,310 条科室映射)
   - /opt/workspace/data/processed/dept_dict.csv            (32 个标准科室)
   - /opt/workspace/data/processed/specialty_departments.csv (20 家重点专科)
@@ -192,8 +193,11 @@ def main():
         .withColumn("src_count_int", F.col("src_count").cast("int"))
         .select(
             "id", "name", "district_clean", "category", "category_norm",
+            "category_sub",
             "level", "level_sub", "level_norm", "grade_scope",
             "addr", "phone", "postal", "beds", "key_depts",
+            "feature", "feature_level",
+            "ownership", "ownership_basis",
             "lng_d", "lat_d", "coord_formatted", "coord_level", "coord_source", "coord_precision",
             "econ", "profit", "category_raw", "src_count_int", "source_files",
         )
@@ -241,6 +245,10 @@ def main():
             F.sum(F.when(F.col("coord_precision") == "high", 1).otherwise(0)).alias("coord_high_count"),
             F.sum(F.when(F.col("coord_precision") == "rough", 1).otherwise(0)).alias("coord_rough_count"),
             F.sum(F.when(F.col("coord_precision") == "missing", 1).otherwise(0)).alias("coord_missing_count"),
+            # 公立/民营归属（govern_master.py 规则引擎产出）
+            F.sum(F.when(F.col("ownership") == "公立", 1).otherwise(0)).alias("public_count"),
+            F.sum(F.when(F.col("ownership") == "民营", 1).otherwise(0)).alias("private_count"),
+            F.sum(F.when(F.col("ownership") == "未标注", 1).otherwise(0)).alias("ownership_unknown_count"),
         )
         .filter(F.col("district").isNotNull() & (F.length(F.col("district")) > 0))
         .orderBy(F.desc("inst_count"))
@@ -313,6 +321,7 @@ def main():
         "district", "inst_count", "category_diversity",
         "level_3_count", "level_2_count",
         "coord_high_count", "coord_rough_count", "coord_missing_count",
+        "public_count", "private_count", "ownership_unknown_count",
     )
     write_mysql(ads_district, "ads_district_overview")
     print("  ✓ ads_district_overview: %d 行" % ads_district.count())

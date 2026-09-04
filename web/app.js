@@ -15,7 +15,7 @@ const LEVEL_RANK = {'三级':4, '二级':3, '一级':2, '未定级':1};
 // 评分权重
 const W_LEVEL = 0.4, W_DIST = 0.3, W_DEPT = 0.2, W_BED = 0.1;
 
-const DASHBOARD_VERSION = 'v3.1-20260904-1140-init-order';
+const DASHBOARD_VERSION = 'v3.2-20260904-1900-ownership-feature';
 console.log('[dashboard] 加载版本:', DASHBOARD_VERSION);
 console.log('[dashboard] BASE_POINTS 初始值:', JSON.stringify(BASE_POINTS, null, 2));
 let FILTERED = [];        // 筛选后
@@ -295,6 +295,22 @@ function levelBadge(lv) {
 function catBadge(c) {
   return c ? `<span class="badge b-l0" style="margin-left:4px">${c}</span>` : '';
 }
+// 公立/民营徽章（govern_master.py 规则引擎产出；「未标注」不显示，避免噪音）
+function ownBadge(o) {
+  if (o === '公立') return `<span class="badge b-pub" title="依据：登记注册类型/政府办属性">公立</span>`;
+  if (o === '民营') return `<span class="badge b-pri" title="依据：营利性/私有/非政府办属性">民营</span>`;
+  return '';
+}
+// 擅长科室三级分级（权威优先）：L1 重点专科 > L2 登记诊疗科目 > L3 普通临床科室
+const FEAT_LABEL = {1: '重点专科', 2: '优势科室', 3: '诊疗科室'};
+function featLine(r) {
+  if (!r.feature) return '';
+  const depts = r.feature.split(';').filter(x => x);
+  if (!depts.length) return '';
+  const lv = r.feature_level || '3';
+  const show = depts.slice(0, 4).join(' / ') + (depts.length > 4 ? ` 等${depts.length}项` : '');
+  return `<div class="feat"><span class="fk f${lv}">${FEAT_LABEL[lv] || '擅长'}</span> ${show}</div>`;
+}
 function renderList() {
   const start = (PAGE - 1) * PAGE_SIZE;
   const end = Math.min(start + PAGE_SIZE, FILTERED.length);
@@ -319,7 +335,8 @@ function renderList() {
     return `<div class="row" data-id="${r.id}">
       <div>
         <div class="name">${r.name}</div>
-        <div class="meta">${levelBadge(r.level)}${catBadge(r.category)} ${r.district} · ${r.dept_count||0} 科室</div>
+        <div class="meta">${levelBadge(r.level)}${catBadge(r.category)}${ownBadge(r.ownership)} ${r.district} · ${r.dept_count||0} 科室</div>
+        ${featLine(r)}
       </div>
       <div class="num">${r.beds||'—'}<div class="meta" style="color:#8aa1c8">床位</div></div>
       <div class="dist">${dist}<div class="meta" style="color:#8aa1c8">${distMeta}</div></div>
@@ -540,17 +557,24 @@ function showDetail(id) {
   document.getElementById('m_info').innerHTML = `
     <div><div class="l">区 域</div><div class="v">${r.district}</div></div>
     <div><div class="l">等 级</div><div class="v">${levelBadge(r.level)} ${r.level === '不适用医院分级' ? '（该机构类型不参加医院等级评审）' : r.level}</div></div>
-    <div><div class="l">类 型</div><div class="v">${r.category || '—'}</div></div>
+    <div><div class="l">类 型</div><div class="v">${r.category || '—'}${r.category_sub && r.category_sub !== '未细分' ? ' · ' + r.category_sub : ''}</div></div>
+    <div><div class="l">办 别</div><div class="v">${ownBadge(r.ownership) || (r.ownership || '未标注')}${r.ownership_basis ? ` <span style="color:#8aa1c8;font-size:10px">依据 ${r.ownership_basis}</span>` : ''}</div></div>
     <div><div class="l">床 位</div><div class="v">${r.beds || '—'}</div></div>
     <div><div class="l">科 室 数</div><div class="v">${r.dept_count || 0}</div></div>
     <div><div class="l">重点专科数</div><div class="v">${r.key_specialty_count || 0}</div></div>
     <div><div class="l">坐 标 精 度</div><div class="v">${r.coord_precision || '—'}</div></div>
     <div><div class="l">综 合 评 分</div><div class="v" style="color:#f7b955">${(r._score||0).toFixed(3)}</div></div>
   `;
+  // 擅长科室：权威优先三级分级（L1 重点专科 > L2 优势科室 > L3 诊疗科室），无 feature 时回退 key_depts
+  const featDepts = r.feature ? r.feature.split(/[;；]/).map(x => x.trim()).filter(x => x) : [];
   const keyDepts = r.key_depts ? r.key_depts.split(/[,,、;\s]+/).filter(x => x) : [];
-  document.getElementById('m_depts').innerHTML = keyDepts.length
-    ? keyDepts.map(d => `<span>${d}</span>`).join('')
-    : '<span style="color:#8aa1c8">无重点科室标注</span>';
+  const lv = r.feature_level;
+  document.getElementById('m_depts').innerHTML = featDepts.length
+    ? `<span style="color:#8aa1c8;font-size:10px;width:100%">${FEAT_LABEL[lv] || '擅长'}（权威度分级 L${lv}，共 ${featDepts.length} 项）：</span>` +
+      featDepts.map(d => `<span ${lv === '1' ? 'style="border:1px solid #ff6b6b;color:#ff9b9b"' : lv === '2' ? 'style="border:1px solid #f7b955;color:#f7b955"' : ''}>${d}</span>`).join('')
+    : (keyDepts.length
+        ? keyDepts.map(d => `<span>${d}</span>`).join('')
+        : '<span style="color:#8aa1c8">无重点科室标注</span>');
 
   // 弹窗里的 mini chart：当前机构在所属区的科室数对比
   const sameDist = DATA.institutions.filter(x => x.district === r.district && x.dept_count);
