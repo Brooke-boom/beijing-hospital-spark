@@ -104,7 +104,7 @@ def main():
         if not lng or not lat:
             precision = "missing"
             missing_ids.append(cid)
-        if cache.get("status") == "failed":
+        if cache and not lng and not lat:
             failed_ids.append(cid)
         precision_counter[precision] += 1
 
@@ -117,7 +117,7 @@ def main():
         row["coord_formatted"] = (cache.get("formatted") or "").strip()
         row["coord_level_raw"] = level_raw
         row["coord_precision"] = precision
-        row["coord_source"] = (cache.get("source") or "").strip()
+        row["coord_source"] = (cache.get("src") or "").strip()
         row["dept_count"] = len(depts)
         row["dept_list"] = "|".join(depts)
         row["key_specialty_count"] = len(key_specs)

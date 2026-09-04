@@ -86,7 +86,7 @@ def main():
     print_section("ODS 层：原始数据入库")
     inst_ods = spark.read.csv(
         os.path.join(DATA, "master_institutions.csv"),
-        header=True, encoding="utf-8",
+        header=True, encoding="utf-8", multiLine=True,
     )
     print("  ods_institution: %d 行 × %d 列" % (inst_ods.count(), len(inst_ods.columns)))
     write_mysql(inst_ods, "ods_institution")
@@ -94,7 +94,7 @@ def main():
 
     depts_ods = spark.read.csv(
         os.path.join(DATA, "hospital_depts.csv"),
-        header=True, encoding="utf-8",
+        header=True, encoding="utf-8", multiLine=True,
     )
     print("  ods_dept_relation: %d 行" % depts_ods.count())
     write_mysql(depts_ods, "ods_dept_relation")
@@ -118,7 +118,7 @@ def main():
 
     geo_ods = spark.read.csv(
         os.path.join(DATA, "geocode_cache.csv"),
-        header=True, encoding="utf-8",
+        header=True, encoding="utf-8", multiLine=True,
     )
     geo_count = geo_ods.count()
     print("  ods_geocode: %d 行" % geo_count)
@@ -129,10 +129,13 @@ def main():
     print_section("DWD 层：清洗关联")
 
     # 机构主表清洗 + 关联坐标
+    # 防御性清洗：id 必须是纯数字（multiLine 修复前的历史脏行防御）+ 按 id 去重
     inst_dwd = (
         inst_ods
         .filter(F.col("id").isNotNull() & (F.length(F.col("id")) > 0))
+        .filter(F.col("id").rlike("^\\d+$") & (F.length(F.col("id")) <= 6))
         .filter(F.col("name").isNotNull() & (F.length(F.col("name")) > 0))
+        .dropDuplicates(["id"])
         # 区名清洗：去掉 "北京xx区" 中的 "北京"
         .withColumn(
             "district_clean",
@@ -162,9 +165,10 @@ def main():
             .when(F.col("category").contains("体检"), F.lit("体检中心"))
             .otherwise(F.lit("其他机构"))
         )
-        # 坐标关联
+        # 坐标关联（geocode 缓存按 id 去重，防止 join 膨胀）
         .join(
             geo_ods.select("id", "lng", "lat", "level", "formatted", "src")
+                   .dropDuplicates(["id"])
                    .withColumnRenamed("level", "coord_level")
                    .withColumnRenamed("formatted", "coord_formatted")
                    .withColumnRenamed("src", "coord_source"),
