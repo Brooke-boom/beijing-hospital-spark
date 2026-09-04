@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>北京市医院医疗资源整合与智能筛选可视化系统</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0b1530;color:#e8eefc;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Heiti SC','Microsoft YaHei',sans-serif;font-size:13px;min-height:100vh}
+  .header{background:linear-gradient(90deg,#0b1530 0%,#14213d 50%,#0b1530 100%);padding:18px 32px;border-bottom:2px solid #1f3a68;display:flex;align-items:center;justify-content:space-between}
+  .header h1{font-size:22px;font-weight:700;background:linear-gradient(90deg,#3aa0ff,#5fd3c0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  .header .sub{color:#8aa1c8;font-size:11px;margin-top:2px;letter-spacing:1px}
+  .header .meta{color:#3aa0ff;font-size:12px;text-align:right}
+  .header .meta b{color:#5fd3c0}
+  .main{padding:18px 32px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px}
+  .card{background:#14213d;border:1px solid #1f3a68;border-left:4px solid #3aa0ff;border-radius:8px;padding:14px 16px;position:relative;overflow:hidden}
+  .card::before{content:'';position:absolute;top:0;right:0;width:60px;height:60px;background:radial-gradient(circle at 100% 0%,rgba(58,160,255,0.15),transparent 70%);pointer-events:none}
+  .card.c2{border-left-color:#5fd3c0}.card.c3{border-left-color:#f7b955}.card.c4{border-left-color:#a78bfa}
+  .card .l{color:#8aa1c8;font-size:11px;font-weight:700;letter-spacing:1px}
+  .card .v{font-size:30px;font-weight:700;margin:4px 0 2px;color:#3aa0ff;line-height:1.1}
+  .card.c2 .v{color:#5fd3c0}.card.c3 .v{color:#f7b955}.card.c4 .v{color:#a78bfa}
+  .card .s{color:#8aa1c8;font-size:10px}
+  .card .delta{display:inline-block;background:rgba(58,160,255,0.18);color:#3aa0ff;padding:1px 6px;border-radius:8px;font-size:10px;margin-left:6px}
+  .filterbar{background:#14213d;border:1px solid #1f3a68;border-radius:8px;padding:14px 16px;margin:14px 32px 0}
+  .filterbar h3{font-size:13px;color:#3aa0ff;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+  .filterbar h3 .right{color:#8aa1c8;font-weight:normal;font-size:11px}
+  .filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr 1fr;gap:10px;align-items:center}
+  .filters label{color:#8aa1c8;font-size:11px;display:block;margin-bottom:3px}
+  .filters input,.filters select{width:100%;background:#0b1530;border:1px solid #1f3a68;color:#e8eefc;padding:6px 8px;border-radius:4px;font-size:12px;font-family:inherit;outline:none;transition:border 0.15s}
+  .filters input:focus,.filters select:focus{border-color:#3aa0ff}
+  .filters select{cursor:pointer}
+  .filters .btn{padding:7px 12px;background:linear-gradient(180deg,#3aa0ff,#2680d8);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;margin-top:14px}
+  .filters .btn:hover{filter:brightness(1.15)}
+  .filters .btn.gray{background:linear-gradient(180deg,#1f3a68,#152849);color:#8aa1c8;font-weight:normal}
+  .grid2{display:grid;grid-template-columns:1.2fr 1fr;gap:14px;padding:14px 32px}
+  .panel{background:#14213d;border:1px solid #1f3a68;border-radius:8px;padding:14px 16px;display:flex;flex-direction:column}
+  .panel h3{font-size:13px;color:#e8eefc;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+  .panel h3 .tag{color:#8aa1c8;font-size:10px;font-weight:700;letter-spacing:1px}
+  .listwrap{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:520px}
+  .listhead{display:flex;justify-content:space-between;align-items:center;padding:6px 0;color:#8aa1c8;font-size:11px;border-bottom:1px solid #1f3a68;margin-bottom:6px}
+  .listhead .pager{display:flex;gap:6px;align-items:center}
+  .pager button{background:#1f3a68;color:#8aa1c8;border:none;padding:3px 8px;border-radius:3px;cursor:pointer;font-size:11px}
+  .pager button:hover{background:#2a4a78;color:#e8eefc}
+  .pager button:disabled{opacity:0.3;cursor:not-allowed}
+  .pager span{color:#3aa0ff;font-weight:600}
+  .list{flex:1;overflow-y:auto;max-height:520px}
+  .list::-webkit-scrollbar{width:6px}.list::-webkit-scrollbar-track{background:#0b1530}.list::-webkit-scrollbar-thumb{background:#1f3a68;border-radius:3px}
+  .row{padding:8px 10px;border-bottom:1px solid #1f3a6833;cursor:pointer;display:grid;grid-template-columns:1fr 80px 80px 50px 50px;gap:6px;align-items:center;transition:background 0.1s}
+  .row:hover{background:#1a2a4a}
+  .row .name{color:#e8eefc;font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .meta{color:#8aa1c8;font-size:10px;margin-top:1px}
+  .row .badge{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;margin-right:2px;font-weight:600}
+  .b-l3{background:#ff6b6b22;color:#ff6b6b;border:1px solid #ff6b6b44}
+  .b-l2{background:#f7b95522;color:#f7b955;border:1px solid #f7b95544}
+  .b-l1{background:#5fd3c022;color:#5fd3c0;border:1px solid #5fd3c044}
+  .b-l0{background:#8aa1c822;color:#8aa1c8;border:1px solid #8aa1c844}
+  .row .num{text-align:right;color:#5fd3c0;font-size:12px;font-weight:600}
+  .row .dist{text-align:right;color:#3aa0ff;font-size:11px}
+  .row .score{text-align:right;color:#f7b955;font-size:11px;font-weight:600}
+  .mapwrap{height:600px;display:flex;flex-direction:column}
+  #map{flex:1;min-height:520px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;padding:0 32px 18px}
+  .panel.sm{height:240px}
+  #ch1,#ch2,#ch3,#ch4,#ch5{width:100%;height:100%}
+  .specgrid{padding:0 32px 18px}
+  .specgrid h3{color:#e8eefc;font-size:13px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+  .specgrid h3 .tag{color:#8aa1c8;font-size:10px;font-weight:700;letter-spacing:1px}
+  .specgrid .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+  .spec{background:#14213d;border:1px solid #1f3a68;border-radius:6px;padding:10px 12px;cursor:pointer;transition:all 0.15s}
+  .spec:hover{transform:translateY(-2px);border-color:#3aa0ff;box-shadow:0 4px 12px rgba(58,160,255,0.2)}
+  .spec .dn{color:#3aa0ff;font-weight:700;font-size:13px;margin-bottom:4px}
+  .spec .cnt{color:#5fd3c0;font-size:18px;font-weight:700;margin:2px 0}
+  .spec .cnt small{color:#8aa1c8;font-size:10px;font-weight:normal;margin-left:3px}
+  .spec .top{color:#8aa1c8;font-size:10px;margin-top:6px;border-top:1px solid #1f3a6833;padding-top:4px}
+  .spec .top div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .spec .top .hn{color:#e8eefc}
+  .footer{padding:14px 32px;color:#8aa1c8;font-size:11px;border-top:1px solid #1f3a68;text-align:center}
+  .footer code{background:#1f3a68;padding:2px 6px;border-radius:3px;color:#3aa0ff}
+  /* 详情弹窗 */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+  .modal.show{display:flex}
+  .modal .box{background:#14213d;border:1px solid #3aa0ff;border-radius:10px;width:720px;max-height:85vh;overflow-y:auto;padding:20px 24px;box-shadow:0 0 40px rgba(58,160,255,0.3)}
+  .modal .box::-webkit-scrollbar{width:6px}.modal .box::-webkit-scrollbar-track{background:#0b1530}.modal .box::-webkit-scrollbar-thumb{background:#1f3a68;border-radius:3px}
+  .modal .hd{display:flex;justify-content:space-between;align-items:start;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #1f3a68}
+  .modal h2{color:#3aa0ff;font-size:18px;margin:0}
+  .modal .close{cursor:pointer;color:#8aa1c8;font-size:22px;background:none;border:none;padding:0 6px}
+  .modal .close:hover{color:#ff6b6b}
+  .modal .info{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-bottom:14px}
+  .modal .info div{padding:6px 10px;background:#0b1530;border-radius:4px;border-left:2px solid #3aa0ff}
+  .modal .info .l{color:#8aa1c8;font-size:10px;font-weight:700;letter-spacing:1px}
+  .modal .info .v{color:#e8eefc;font-size:13px;margin-top:2px}
+  .modal h4{color:#5fd3c0;font-size:13px;margin:10px 0 6px}
+  .modal .depts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  .modal .depts span{background:#1f3a68;color:#3aa0ff;padding:3px 8px;border-radius:10px;font-size:11px}
+  #modalChart{width:100%;height:220px}
+  .loading{position:fixed;top:0;left:0;right:0;background:linear-gradient(90deg,#3aa0ff,#5fd3c0);color:#fff;text-align:center;padding:6px;font-size:12px;z-index:200;transition:opacity 0.3s}
+  .loading.hide{opacity:0;pointer-events:none}
+  .pulse{display:inline-block;width:8px;height:8px;background:#5fd3c0;border-radius:50%;margin-right:6px;animation:p 1.5s infinite}
+  @keyframes p{0%{opacity:0.3;transform:scale(0.8)}50%{opacity:1;transform:scale(1.2)}100%{opacity:0.3;transform:scale(0.8)}}
+</style>
+</head>
+<body>
+<div class="loading" id="loading"><span class="pulse"></span>正在加载数据快照（9791 家机构）…</div>
+
+<div class="header">
+  <div>
+    <h1>北京市医院医疗资源整合与智能筛选可视化系统</h1>
+    <div class="sub">Beijing Hospital Resource Integration &amp; Smart Filtering Dashboard</div>
+  </div>
+  <div class="meta">
+    <div>数据快照 · <b id="m_total">—</b> 家机构</div>
+    <div>后端 MySQL + Spark 3.5.3 (ARM64) + Flask</div>
+  </div>
+</div>
+
+<div class="main" id="cards">
+  <div class="card"><div class="l">CURRENT · 筛选后</div><div class="v" id="v_match">0</div><div class="s">符合当前条件</div></div>
+  <div class="card c2"><div class="l">LEVEL 3 · 三级</div><div class="v" id="v_l3">0</div><div class="s">筛选结果中的三级</div></div>
+  <div class="card c3"><div class="l">WITH COORD · 含坐标</div><div class="v" id="v_coord">0</div><div class="s">可参与距离排序</div></div>
+  <div class="card c4"><div class="l">AVG DEPT · 平均科室</div><div class="v" id="v_dept">0</div><div class="s">筛选结果平均</div></div>
+</div>
+
+<div class="filterbar">
+  <h3>多维筛选 <span class="right">5 维筛选 · 5 种排序 · 加权评分 · Haversine 距离</span></h3>
+  <div class="filters">
+    <div><label>关键词（机构名/地址）</label><input id="f_kw" placeholder="如：协和 / 海淀 / 中医"></div>
+    <div><label>区域</label><select id="f_district"><option value="">全部 16 区</option></select></div>
+    <div><label>等级</label><select id="f_level"><option value="">全部等级</option></select></div>
+    <div><label>类型</label><select id="f_cat"><option value="">全部类型</option></select></div>
+    <div><label>距离基准</label><select id="f_base"><option value="tiananmen">天安门</option><option value="capital_airport">首都机场</option><option value="daxing_airport">大兴机场</option><option value="custom">自定义</option></select></div>
+    <div><label>半径 (km)</label><input id="f_radius" type="number" value="999" min="0" step="1"></div>
+    <div><label>排序</label><select id="f_sort">
+      <option value="score">综合评分 ↓</option>
+      <option value="distance">距离 ↑</option>
+      <option value="level">等级 ↓</option>
+      <option value="beds">床位数 ↓</option>
+      <option value="depts">科室数 ↓</option>
+      <option value="name">名称 A-Z</option>
+    </select></div>
+  </div>
+  <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+    <button class="btn gray" id="btn_reset">↺ 重置筛选</button>
+    <span style="color:#8aa1c8;font-size:11px;margin-left:auto">数据加载时间：<span id="m_time">—</span></span>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="panel">
+    <h3>机构列表 <span class="tag" id="listTag">LIST · 共 0 家</span></h3>
+    <div class="listwrap">
+      <div class="listhead">
+        <div>点击行查看详情</div>
+        <div class="pager">
+          <button id="pg_prev">‹ 上一页</button>
+          <span id="pg_info">— / —</span>
+          <button id="pg_next">下一页 ›</button>
+          <select id="pg_size" style="background:#1f3a68;color:#e8eefc;border:none;padding:2px 4px;border-radius:3px;font-size:11px">
+            <option value="10">10/页</option>
+            <option value="20" selected>20/页</option>
+            <option value="50">50/页</option>
+          </select>
+        </div>
+      </div>
+      <div class="list" id="list"></div>
+    </div>
+  </div>
+  <div class="panel mapwrap">
+    <h3>北京地图散点 <span class="tag">MAP · 16 区 · 散点 + 热力</span></h3>
+    <div id="map"></div>
+  </div>
+</div>
+
+<div class="grid3">
+  <div class="panel sm"><h3>等级分布 <span class="tag">LEVELS</span></h3><div id="ch1"></div></div>
+  <div class="panel sm"><h3>类型分布 <span class="tag">CATEGORIES</span></h3><div id="ch2"></div></div>
+  <div class="panel sm"><h3>各区机构数 <span class="tag">DISTRICTS</span></h3><div id="ch3"></div></div>
+</div>
+
+<div class="specgrid">
+  <h3>重点专科 <span class="tag">SPECIALTY · 15 组 · 点击专科查看代表医院</span></h3>
+  <div class="grid" id="spec_grid"></div>
+</div>
+
+<div class="footer">
+  <b>技术栈：</b>Spark 3.5.3 (ARM64) · MySQL 8 · Flask · ECharts · Docker Compose &nbsp;|&nbsp;
+  <b>数仓分层：</b>ODS → DWD → DWS → ADS (5+3+4+4 张表) &nbsp;|&nbsp;
+  <b>筛选主表：</b><code>ads_inst_search</code> 9,791 行
+</div>
+
+<div class="modal" id="modal">
+  <div class="box">
+    <div class="hd">
+      <h2 id="m_title">机构详情</h2>
+      <button class="close" onclick="closeModal()">×</button>
+    </div>
+    <div class="info" id="m_info"></div>
+    <h4>关键科室分布</h4>
+    <div id="modalChart"></div>
+    <h4>重点专科归属</h4>
+    <div class="depts" id="m_depts"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

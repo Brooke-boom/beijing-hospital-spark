@@ -243,6 +243,27 @@ def api_specialty():
     ))
 
 
+@app.route("/api/specialty/groups")
+def api_specialty_groups():
+    """按重点专科（dept_name）分组聚合，附该专科下医院列表 + 数量"""
+    rows = query(
+        "SELECT dept_name, name AS hospital, district, level_norm AS level, hospital_id"
+        " FROM ads_specialty_hospital ORDER BY dept_name, hospital"
+    )
+    groups = {}
+    for r in rows:
+        d = r["dept_name"]
+        if d not in groups:
+            groups[d] = {"dept_name": d, "hospital_count": 0, "hospitals": []}
+        groups[d]["hospital_count"] += 1
+        groups[d]["hospitals"].append({
+            "id": r["hospital_id"], "name": r["hospital"],
+            "district": r["district"], "level": r["level"],
+        })
+    out = sorted(groups.values(), key=lambda x: -x["hospital_count"])
+    return jsonify(out)
+
+
 # ============== API：筛选项可选值 ==============
 @app.route("/api/meta/filters")
 def api_filters():
@@ -276,4 +297,4 @@ def api_health():
 
 if __name__ == "__main__":
     # macOS 端口 5000 常被 AirPlay Receiver 占用，默认使用 5001
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=False)
