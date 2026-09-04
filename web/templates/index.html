@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>北京市医院医疗资源智能筛选系统</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header>
+    <h1>北京市医院医疗资源整合与智能筛选系统</h1>
+    <div class="stats" id="statsBar">
+      <div class="stat"><b id="statTotal">--</b><span>机构总数</span></div>
+      <div class="stat"><b id="statL3">--</b><span>三级机构</span></div>
+      <div class="stat"><b id="statL2">--</b><span>二级机构</span></div>
+      <div class="stat"><b id="statCoord">--</b><span>坐标覆盖</span></div>
+      <div class="stat"><b id="statDept">--</b><span>标准科室</span></div>
+    </div>
+  </header>
+
+  <section class="filters">
+    <input type="text" id="fQ" placeholder="🔍 搜索机构名称…">
+    <select id="fDistrict"><option value="">全部区域</option></select>
+    <select id="fLevel"><option value="">全部等级</option></select>
+    <select id="fCategory"><option value="">全部类型</option></select>
+    <select id="fDept"><option value="">全部科室</option></select>
+    <select id="fSort">
+      <option value="score">综合评分排序</option>
+      <option value="distance">距离优先</option>
+      <option value="level">等级优先</option>
+      <option value="beds">床位规模</option>
+      <option value="depts">科室数量</option>
+    </select>
+    <button id="btnSearch">查 询</button>
+    <button id="btnReset" class="ghost">重 置</button>
+  </section>
+
+  <main>
+    <aside class="list-panel">
+      <div class="list-head">
+        <span id="resultCount">共 0 家</span>
+        <div class="pager" id="pager"></div>
+      </div>
+      <ul id="instList"></ul>
+    </aside>
+
+    <section class="viz-panel">
+      <div id="mapChart" class="chart map"></div>
+      <div class="charts-row">
+        <div id="districtChart" class="chart"></div>
+        <div id="levelChart" class="chart"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 详情弹窗 -->
+  <div class="modal-mask" id="detailModal" hidden>
+    <div class="modal">
+      <button class="modal-close" onclick="closeModal()">×</button>
+      <div id="detailBody"></div>
+    </div>
+  </div>
+
+  <script src="/static/js/echarts.min.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

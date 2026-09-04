@@ -1,0 +1,205 @@
+/* 北京市医院医疗资源智能筛选系统 —— 样式 */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0b1526;
+  --panel: #101f38;
+  --card: #16294a;
+  --line: #24406b;
+  --text: #e8eef7;
+  --muted: #8ba3c7;
+  --accent: #3d8bff;
+  --accent2: #2fd6c3;
+  --danger: #ff6b6b;
+}
+
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+header {
+  padding: 18px 24px 12px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #0e1c33, var(--bg));
+}
+header h1 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+.stats { display: flex; gap: 28px; margin-top: 12px; }
+.stat { text-align: center; }
+.stat b {
+  display: block;
+  font-size: 22px;
+  color: var(--accent2);
+  font-variant-numeric: tabular-nums;
+}
+.stat span { font-size: 12px; color: var(--muted); }
+
+/* 筛选栏 */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.filters input, .filters select {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  min-width: 130px;
+}
+.filters input { min-width: 220px; }
+.filters button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 22px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.filters button:hover { filter: brightness(1.15); }
+.filters button.ghost {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+/* 主体布局 */
+main {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 16px;
+  padding: 16px 24px;
+  height: calc(100vh - 190px);
+}
+
+/* 左侧列表 */
+.list-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--muted);
+}
+.pager { display: flex; gap: 6px; }
+.pager button {
+  background: var(--card);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 9px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.pager button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.pager button:disabled { opacity: .35; cursor: default; }
+
+#instList { list-style: none; overflow-y: auto; flex: 1; }
+#instList li {
+  padding: 11px 14px;
+  border-bottom: 1px solid rgba(36, 64, 107, .5);
+  cursor: pointer;
+}
+#instList li:hover { background: var(--card); }
+.inst-name { font-size: 14px; font-weight: 600; }
+.inst-meta { margin-top: 4px; font-size: 12px; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; }
+.tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+.tag.l3 { background: rgba(255, 107, 107, .18); color: #ff9d9d; }
+.tag.l2 { background: rgba(255, 183, 77, .18); color: #ffc46b; }
+.tag.l1 { background: rgba(61, 139, 255, .18); color: #8db9ff; }
+.tag.l0 { background: rgba(139, 163, 199, .15); color: var(--muted); }
+.inst-score { color: var(--accent2); font-variant-numeric: tabular-nums; }
+.inst-dist { color: var(--accent); }
+
+/* 右侧可视化 */
+.viz-panel {
+  display: grid;
+  grid-template-rows: 1fr 260px;
+  gap: 16px;
+  min-width: 0;
+}
+.chart {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; min-height: 0; }
+
+/* 详情弹窗 */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 10, 20, .72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99;
+}
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  width: min(680px, 92vw);
+  max-height: 84vh;
+  overflow-y: auto;
+  padding: 26px 30px;
+  position: relative;
+}
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 26px;
+  cursor: pointer;
+}
+.detail-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.detail-sub { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+.detail-grid {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 6px 12px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.detail-grid .k { color: var(--muted); }
+.dept-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.chip.key { border-color: var(--accent2); color: var(--accent2); }
+.sec-title { font-size: 14px; font-weight: 600; margin: 14px 0 8px; border-left: 3px solid var(--accent); padding-left: 8px; }
+
+.empty { text-align: center; color: var(--muted); padding: 40px 0; font-size: 13px; }
