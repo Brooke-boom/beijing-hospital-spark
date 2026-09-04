@@ -355,18 +355,34 @@ def main():
     print("  ✓ ads_level_overview: %d 行" % ads_level.count())
 
     # ADS4: 专科查医院列表
-    ads_specialty = (
-        depts_dwd.filter(F.col("is_key_specialty") == "1")
-        .join(inst_dwd.select("id", "name", "district", "level_norm", "lng", "lat"),
-              depts_dwd["hospital_id"] == inst_dwd["id"], "left")
+    # 口径治理：
+    #   旧实现 depts_dwd.filter(is_key_specialty=='1') 依赖 hospital_depts.csv 中稀少的标记，
+    #   只剩 20 家 / 16 组，而主表 key_specialty_count 已用 feature L1 权威口径(68 家)。
+    #   二者不同步。故改为从 inst_dwd.feature(feature_level=='1') 分段展开科室名，
+    #   与主表 key_specialty_count 同源，确保专科板与列表数据一致。
+    def _clean_spec(seg):
+        seg = F.trim(F.regexp_replace(seg, r"[（(][^（）()]{0,80}[)）]", ""))
+        seg = F.trim(F.regexp_replace(seg, r"^(另有|另设|另|含|包括|国家|省|市|院级|首都区域|其中)\s*", ""))
+        seg = F.trim(F.regexp_replace(seg, r"[;；、,，\s]+$", ""))
+        return seg
+
+    spec_flat = (
+        inst_dwd
+        .filter(F.col("feature_level") == "1")
+        .filter(F.col("feature").isNotNull() & (F.length(F.col("feature")) > 0))
+        .withColumn("seg", F.explode(F.split(F.col("feature"), "[;；]")))
+        .withColumn("seg", _clean_spec(F.col("seg")))
+        .filter(F.length(F.col("seg")) >= 2)   # 过滤空/超短噪声
+        .filter(F.length(F.col("seg")) <= 14)  # 过滤超长注解残留
         .select(
-            inst_dwd["id"].alias("hospital_id"),
+            F.col("id").alias("hospital_id"),
             "name", "district", "level_norm", "lng", "lat",
-            "dept_name", "source",
+            F.col("seg").alias("dept_name"),
+            F.lit("feature_l1").alias("source"),
         )
     )
-    write_mysql(ads_specialty, "ads_specialty_hospital")
-    print("  ✓ ads_specialty_hospital: %d 行（专科找医院）" % ads_specialty.count())
+    write_mysql(spec_flat, "ads_specialty_hospital")
+    print("  ✓ ads_specialty_hospital: %d 行（专科找医院，feature L1 权威口径）" % spec_flat.count())
 
     # ============== 验证 ==============
     print_section("校验")

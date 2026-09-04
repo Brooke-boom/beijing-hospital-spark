@@ -35,15 +35,66 @@ overviews = {
     'depts':      q("SELECT dept_name, hospital_count, key_specialty_count FROM dws_dept_coverage ORDER BY hospital_count DESC LIMIT 20"),
 }
 spec = q("SELECT dept_name, name AS hospital, district, level_norm AS level, hospital_id FROM ads_specialty_hospital ORDER BY dept_name, hospital")
+import re as _re
+# —— 专科名清洗：去括号注解/噪声词 + 同义症候归并，得到可读的标准科室名 ——
+_DEPT_SYN = {
+ '心血管科':'心血管内科','心内科':'心血管内科','高血压科':'心血管内科',
+ '脾胃科':'脾胃病科','脾胃病':'脾胃病科','消化科':'消化内科',
+ '呼吸科':'呼吸内科','肺病科':'呼吸内科','肺病':'呼吸内科',
+ '康复科':'康复医学科','中西医结合康复医学科':'康复医学科','中西结合康复医学科':'康复医学科',
+ '肾内科':'肾病科','肾病':'肾病科','肾脏病科':'肾病科',
+ '风湿病科':'风湿免疫科','风湿':'风湿免疫科',
+ '针灸科':'针灸推拿科','推拿科':'针灸推拿科',
+ '普外科':'普通外科','外科':'普通外科',
+ '神经病科':'神经内科','脑病科':'神经内科',
+ '肛肠科':'肛肠外科','肛肠':'肛肠外科','眼病科':'眼科',
+ '肿瘤':'肿瘤科','骨质疏松科':'骨科','骨伤科':'骨科',
+ '急症科':'急诊科','急救医学部':'急诊科','急诊医学科':'急诊科',
+ '重症医学':'重症医学科','心脏外科':'心外科','皮肤病科':'皮肤科','泌外科':'泌尿外科',
+ '内分泌':'内分泌科','老年医学科':'老年病科','脑外科':'神经外科','血液科':'血液内科',
+ '甲状腺科':'乳腺外科','疼痛医学部':'疼痛科','儿科(儿科学)':'儿科',
+}
+_DEPT_NOISE = _re.compile(r'(口径|建设单位|官网|平台|特色|重点专科等|重点专科$|重点专科\s|另有|另设|暂无|未公开|公开|名单|博采|百科|项目|科室情况|科室设置|为特色|设有|包含|主要|为准|查询|参考|来源|信息)')
+def _cdept(dept):
+    if not dept: return None
+    s = _re.sub(r'[（(][^（）()]{0,80}[)）]', '', dept).strip()
+    s = _re.sub(r'^(另有|另设|另|含|包括|国家|省|市|院级|首都区域|其中|北京市|首都|国家级|北京市级|区级|全国|北京)', '', s)
+    s = _re.sub(r'[;；、,，\s]+$', '', s).strip('（()）· ')
+    if not s or len(s) < 2 or len(s) > 12: return None
+    if _DEPT_NOISE.search(s): return None
+    if _re.search(r'[0-9"，。、＝=]', s): return None
+    if not _re.search(r'(科|室|学|病|痛|免疫|风湿|内|外|儿|妇|口腔|眼|耳鼻|肛|骨|脑|心|呼吸|消化|神经|内分泌|肿瘤|皮肤|泌尿|血液|康复|针灸|放射|超声|影像|营养|麻醉|急诊|感染|传染|老年|护理|检验|病理|变态)', s): return None
+    return _DEPT_SYN.get(s, s)
+def _norm(hospital, district):
+    # 医院镜像归并（同一物理医院的多条名称变体）：
+    #   1) 截断到首个“（”前的机构主体名（如“北京市隆福医院（北京中西医结合老年医院）”）
+    #   2) 截断到空格分隔的并列别名（“北京中医药大学附属…医院/第一临床医学院”）
+    #   3) 去掉机构挂靠前缀 + 同址共同体后缀
+    n = _re.sub(r'[（(].*$', '', hospital).strip()
+    n = _re.sub(r'\s+(附属|北京|中国|首都|北京中医药|第一|第二).*$', '', n)
+    n = _re.sub(r'(中国中医研究院|中国中医科学院|北京中医药大学附属?|首都医科大学附属?|北京大学附属?|中国医学科学院)', '', n)
+    n = _re.sub(r'(第一临床医学院|第二临床医学院|第一临床医药研究所|第二临床医药研究所)', '', n)
+    n = _re.sub(r'(社区卫生服务中心|社区卫生服务站|卫生服务站|门诊部|诊所|卫生服务中心|南区|北区)', '', n)
+    n = _re.sub(r'[、\s，,。]', '', n)
+    return (n, district)
 groups = {}
 for r in spec:
-    d = r.pop('dept_name'); r['id'] = str(r.pop('hospital_id')).strip()
+    d = _cdept(r.pop('dept_name'))
+    if not d: continue
+    r['id'] = str(r.pop('hospital_id')).strip()
     if d not in groups:
-        groups[d] = {'dept_name': d, 'hospital_count': 0, 'top_hospitals': []}
+        groups[d] = {'dept_name': d, 'hospital_count': 0, 'top_hospitals': [], '_seen': set()}
+    # 镜像实体（同一物理医院名称变体）在同一专科内只计一次
+    core = _norm(r['hospital'], r['district'])
+    if core in groups[d]['_seen']:
+        continue
+    groups[d]['_seen'].add(core)
     groups[d]['hospital_count'] += 1
     if len(groups[d]['top_hospitals']) < 3:
         groups[d]['top_hospitals'].append({'id': r['id'], 'name': r['hospital'], 'district': r['district'], 'level': r['level']})
 spec_out = sorted(groups.values(), key=lambda x: -x['hospital_count'])
+for g in spec_out:
+    g.pop('_seen', None)
 meta = {
     'districts': overviews['districts'], 'levels': overviews['levels'],
     'categories': overviews['categories'],
