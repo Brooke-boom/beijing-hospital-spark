@@ -76,7 +76,6 @@ function init() {
     fillSelect('f_cat',       DATA.meta.categories.map(d => d.category), '全部类型');
 
     bindEvents();
-    renderSpecGrid();
     initCharts();     // 必须先初始化图表实例
     applyFilter();    // 再筛选并更新图表
   } catch (e) {
@@ -517,62 +516,6 @@ function updateCharts() {
   } catch (e) {
     console.error('[updateCharts] 散点更新失败:', e);
   }
-}
-
-// ========== 10. 重点专科卡片 ==========
-function renderSpecGrid() {
-  const grid = document.getElementById('spec_grid');
-  const meta = document.getElementById('spec_meta');
-  if (meta && DATA.specialty_groups) {
-    const seen = new Set();
-    DATA.specialty_groups.forEach(g => (g.top_hospitals||[]).forEach(h => seen.add(h.id)));
-    meta.textContent = `${DATA.specialty_groups.length} 组 · ${seen.size} 家重点医院 · 点击专科查看代表医院`;
-  }
-  grid.innerHTML = DATA.specialty_groups.map(g => `
-    <div class="spec" data-dept="${g.dept_name}">
-      <div class="dn">${g.dept_name}</div>
-      <div class="cnt">${g.hospital_count}<small>家医院</small></div>
-      <div class="top">
-        ${g.top_hospitals.map((h, i) => `<div><span class="rn ${i < 2 ? (i === 0 ? 'top1' : 'top2') : ''}">${i+1}</span><span class="hn">${h.name}</span> · ${h.district}</div>`).join('')}
-      </div>
-    </div>
-  `).join('');
-  grid.querySelectorAll('.spec').forEach(el => {
-    el.addEventListener('click', () => {
-      const dept = el.dataset.dept;
-      const ids = DATA.specialty_groups.find(g => g.dept_name === dept).top_hospitals.map(h => h.id);
-      const idset = new Set(ids);
-      // 滚动到顶部并筛出该专科
-      document.getElementById('f_kw').value = '';
-      document.getElementById('f_district').value = '';
-      document.getElementById('f_level').value = '';
-      document.getElementById('f_cat').value = '';
-      // 临时筛选：仅显示该专科代表医院
-      FILTERED = DATA.institutions.filter(r => idset.has(r.id));
-      const base = BASE_POINTS[document.getElementById('f_base').value];
-      let maxBed=0, maxDept=0, maxDist=0;
-      FILTERED.forEach(r => {
-        if (r.beds) maxBed=Math.max(maxBed,r.beds);
-        if (r.dept_count) maxDept=Math.max(maxDept,r.dept_count);
-        if (r.lng!=null) {
-          r._dist = haversine(base.lng, base.lat, r.lng, r.lat);
-          maxDist = Math.max(maxDist, r._dist);
-        } else r._dist = null;
-      });
-      FILTERED.forEach(r => {
-        const lv = (LEVEL_RANK[r.level]||1)/4;
-        const ds = r._dist==null?0.5:Math.max(0, 1-r._dist/(maxDist||1));
-        const dp = (r.dept_count||0)/(maxDept||1);
-        const bd = (r.beds||0)/(maxBed||1);
-        r._score = W_LEVEL*lv + W_DIST*ds + W_DEPT*dp + W_BED*bd;
-      });
-      PAGE = 1;
-      renderCards();
-      renderList();
-      updateCharts();
-      document.getElementById('list').scrollIntoView({behavior:'smooth', block:'start'});
-    });
-  });
 }
 
 // ========== 11. 详情弹窗 ==========

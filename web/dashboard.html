@@ -91,24 +91,6 @@
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;padding:0 32px 18px}
   .panel.sm{height:240px}
   #ch1,#ch2,#ch3,#ch4,#ch5{width:100%;height:100%}
-  .specgrid{padding:0 32px 18px}
-  .specgrid h3{color:#e8eefc;font-size:13px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
-  .specgrid h3 .tag{color:#8aa1c8;font-size:10px;font-weight:700;letter-spacing:1px}
-  .specgrid .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
-  .spec{background:linear-gradient(160deg,#16234a 0%,#111d38 100%);border:1px solid #1f3a68;border-radius:8px;padding:12px 14px;cursor:pointer;transition:all .18s;position:relative;overflow:hidden}
-  .spec::after{content:'';position:absolute;left:0;top:0;width:100%;height:2px;background:linear-gradient(90deg,#3aa0ff,transparent);opacity:.5;transition:opacity .18s}
-  .spec:hover{transform:translateY(-3px);border-color:#3aa0ff;box-shadow:0 8px 20px rgba(58,160,255,0.22)}
-  .spec:hover::after{opacity:1}
-  .spec .dn{color:#3aa0ff;font-weight:700;font-size:13px;margin-bottom:6px;display:flex;align-items:center;gap:6px}
-  .spec .dn::before{content:'◆';color:#5fd3c0;font-size:9px}
-  .spec .cnt{color:#5fd3c0;font-size:20px;font-weight:800;margin:2px 0;line-height:1}
-  .spec .cnt small{color:#8aa1c8;font-size:10px;font-weight:normal;margin-left:4px}
-  .spec .top{color:#8aa1c8;font-size:10px;margin-top:7px;border-top:1px solid #1f3a6844;padding-top:6px;display:flex;flex-direction:column;gap:3px}
-  .spec .top div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:4px}
-  .spec .top .hn{color:#e8eefc}
-  .spec .top .rn{flex:none;width:14px;height:14px;border-radius:4px;background:#1f3a68;color:#5fd3c0;font-size:9px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
-  .spec .top .rn.top1{background:#f7b955;color:#0b1530}
-  .spec .top .rn.top2{background:#3aa0ff;color:#0b1530}
   .footer{padding:14px 32px;color:#8aa1c8;font-size:11px;border-top:1px solid #1f3a68;text-align:center}
   .footer code{background:#1f3a68;padding:2px 6px;border-radius:3px;color:#3aa0ff}
   /* 详情弹窗 */
@@ -223,11 +205,6 @@
   <div class="panel sm"><h3>等级分布 <span class="tag">LEVELS</span></h3><div id="ch1"></div></div>
   <div class="panel sm"><h3>类型分布 <span class="tag">CATEGORIES</span></h3><div id="ch2"></div></div>
   <div class="panel sm"><h3>各区机构数 <span class="tag">DISTRICTS</span></h3><div id="ch3"></div></div>
-</div>
-
-<div class="specgrid">
-  <h3>重点专科 <span class="tag">SPECIALTY · <span id="spec_meta">…</span></span></h3>
-  <div class="grid" id="spec_grid"></div>
 </div>
 
 <div class="footer">
