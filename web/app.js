@@ -396,10 +396,11 @@ function initCharts() {
         emphasis:{label:{color:'#fff'}, itemStyle:{areaColor:'#3aa0ff'}},
       },
       visualMap: {
-        min:0, max:1300, left:12, bottom:16, itemWidth:10, itemHeight:130,
-        text:['高','低'], calculable:true,
+        min:0, max:1300, type:'continuous',
+        // 色阶条隐藏：仅用 inRange 给地图区县配色；显示用底部 HTML 图例(.maplg)
+        show:false,
+        orient:'vertical', left:'left', top:'bottom',
         inRange:{color:['#0b1530','#1f3a68','#3aa0ff','#5fd3c0']},
-        textStyle:{color:SUB, fontSize:10},
       },
       series: [{
         name: '机构数', type:'map', geoIndex:0,

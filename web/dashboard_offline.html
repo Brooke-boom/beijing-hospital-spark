@@ -134,6 +134,9 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
   .row.hit{background:#1a2a4a66}
   .mapwrap{height:520px;display:flex;flex-direction:column}
   #map{flex:1;min-height:440px;background:#0b1530;border:1px solid #1f3a68;position:relative}
+  .maplg{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;font-size:10px;color:#8aa1c8}
+  .maplg i{width:150px;height:8px;border-radius:4px;display:inline-block;
+    background:linear-gradient(90deg,#0b1530,#1f3a68,#3aa0ff,#5fd3c0)}
   #map_diag{position:absolute;top:8px;left:8px;right:8px;background:rgba(11,21,48,0.92);color:#5fd3c0;padding:8px 12px;font-size:12px;border-radius:4px;z-index:99;pointer-events:none;border:1px solid #1f3a68;line-height:1.5}
   #map_diag.err{color:#ff9b9b;border-color:#ff6b6b;background:rgba(60,20,20,0.92)}
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;padding:0 32px 18px}
@@ -246,6 +249,7 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
     <div id="map">
       <div id="map_diag">⏳ 等待地图初始化…<br><span style="color:#8aa1c8">若 5 秒后仍空白，请按 Cmd+Shift+R 硬刷新</span></div>
     </div>
+    <div class="maplg"><span>低</span><i></i><span>高</span></div>
   </div>
 </div>
 
@@ -676,10 +680,11 @@ function initCharts() {
         emphasis:{label:{color:'#fff'}, itemStyle:{areaColor:'#3aa0ff'}},
       },
       visualMap: {
-        min:0, max:1300, left:12, bottom:16, itemWidth:10, itemHeight:130,
-        text:['高','低'], calculable:true,
+        min:0, max:1300, type:'continuous',
+        // 色阶条隐藏：仅用 inRange 给地图区县配色；显示用底部 HTML 图例(.maplg)
+        show:false,
+        orient:'vertical', left:'left', top:'bottom',
         inRange:{color:['#0b1530','#1f3a68','#3aa0ff','#5fd3c0']},
-        textStyle:{color:SUB, fontSize:10},
       },
       series: [{
         name: '机构数', type:'map', geoIndex:0,
