@@ -8,48 +8,88 @@ const BASE_POINTS = {
   tiananmen:       {name:'天安门',       lng:116.397, lat:39.909},
   capital_airport: {name:'首都机场',     lng:116.609, lat:40.080},
   daxing_airport:  {name:'大兴机场',     lng:116.411, lat:39.510},
-  custom:          {name:'自定义',       lng:116.397, lat:39.909},
+  geo:             {name:'我的位置',     lng:null,    lat:null},
 };
 const LEVEL_RANK = {'三级':4, '二级':3, '一级':2, '未定级':1};
 
 // 评分权重
 const W_LEVEL = 0.4, W_DIST = 0.3, W_DEPT = 0.2, W_BED = 0.1;
 
-let DATA = null;          // 全量数据
+const DASHBOARD_VERSION = 'v3.1-20260904-1140-init-order';
+console.log('[dashboard] 加载版本:', DASHBOARD_VERSION);
+console.log('[dashboard] BASE_POINTS 初始值:', JSON.stringify(BASE_POINTS, null, 2));
 let FILTERED = [];        // 筛选后
 let PAGE = 1;
 let PAGE_SIZE = 20;
 let MAP_CHART, CH1, CH2, CH3, MODAL_CHART;
 
 // ========== 1. 加载数据 ==========
-async function loadData() {
+// 内嵌模式：从 window.__SNAPSHOT__ 读取（已注入到本 HTML 之前）
+// HTTP-only 模式：从 fetch snapshot_data.json 读取
+function loadData() {
   try {
-    const resp = await fetch('snapshot_data.json');
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    DATA = await resp.json();
-    console.log('数据加载完成:', DATA.total, '家');
-    init();
+    if (window.__SNAPSHOT__) {
+      DATA = window.__SNAPSHOT__;
+      console.log('✅ 数据加载完成（内嵌）:', DATA.total, '家');
+      init();
+      return;
+    }
+    // 兜底走 fetch
+    fetch('snapshot_data.json').then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(d => {
+      DATA = d;
+      console.log('✅ 数据加载完成（fetch）:', DATA.total, '家');
+      init();
+    }).catch(e => showLoadError(e));
   } catch (e) {
-    document.getElementById('loading').innerHTML =
-      '❌ 数据加载失败：' + e.message + '<br>请确保 <code>snapshot_data.json</code> 与 HTML 在同一目录';
+    showLoadError(e);
   }
+}
+function showLoadError(e) {
+  console.error('loadData 失败:', e);
+  const html = document.documentElement.outerHTML.length;
+  document.getElementById('loading').innerHTML =
+    '<div style="text-align:left;font-size:13px;line-height:1.6;color:#ff9b9b">' +
+    '❌ <b>' + (e.message || e) + '</b><br><br>' +
+    '<b>诊断：</b><br>' +
+    '• HTML 总长: ' + (html/1024).toFixed(0) + ' KB<br>' +
+    '• 当前 URL: ' + location.href + '<br>' +
+    '• document.lastModified: ' + (document.lastModified || '未知') + '<br><br>' +
+    '<b>🔧 解决：</b><br>' +
+    '1. <b>硬刷新</b> Mac <code>Cmd+Shift+R</code> / Win <code>Ctrl+F5</code><br>' +
+    '2. 地址栏加 <code>?v=' + Date.now() + '</code><br>' +
+    '3. 用离线版 <code>file://...web/dashboard_offline.html</code></div>';
 }
 
 // ========== 2. 初始化 ==========
 function init() {
-  document.getElementById('loading').classList.add('hide');
-  document.getElementById('m_total').textContent = DATA.total.toLocaleString();
-  document.getElementById('m_time').textContent = DATA.snapshot_time;
+  try {
+    document.getElementById('loading').classList.add('hide');
+    document.getElementById('m_total').textContent = DATA.total.toLocaleString();
+    document.getElementById('m_time').textContent = DATA.snapshot_time;
 
-  // 填充下拉
-  fillSelect('f_district', DATA.meta.districts.map(d => d.district), '全部 16 区');
-  fillSelect('f_level',     DATA.meta.levels.map(d => d.level), '全部等级');
-  fillSelect('f_cat',       DATA.meta.categories.map(d => d.category), '全部类型');
+    // 填充下拉
+    fillSelect('f_district', DATA.meta.districts.map(d => d.district), '全部 16 区');
+    fillSelect('f_level',     DATA.meta.levels.map(d => d.level), '全部等级');
+    fillSelect('f_cat',       DATA.meta.categories.map(d => d.category), '全部类型');
 
-  bindEvents();
-  applyFilter();
-  renderSpecGrid();
-  initCharts();
+    bindEvents();
+    renderSpecGrid();
+    initCharts();     // 必须先初始化图表实例
+    applyFilter();    // 再筛选并更新图表
+  } catch (e) {
+    console.error('[init] 初始化失败:', e);
+    setMapDiag('err', '初始化失败: ' + (e.message || e) + '<br>请打开浏览器 Console 查看详细错误');
+  }
+}
+
+function setMapDiag(cls, html) {
+  const el = document.getElementById('map_diag');
+  if (!el) return;
+  el.className = cls === 'err' ? 'err' : '';
+  el.innerHTML = html;
 }
 
 // ========== 3. 填充下拉 ==========
@@ -61,7 +101,7 @@ function fillSelect(id, opts, firstLabel) {
 
 // ========== 4. 事件绑定 ==========
 function bindEvents() {
-  ['f_kw','f_district','f_level','f_cat','f_base','f_radius','f_sort'].forEach(id => {
+  ['f_kw','f_district','f_level','f_cat','f_base','f_sort'].forEach(id => {
     document.getElementById(id).addEventListener('input', () => { PAGE = 1; applyFilter(); });
     document.getElementById(id).addEventListener('change', () => { PAGE = 1; applyFilter(); });
   });
@@ -70,14 +110,9 @@ function bindEvents() {
   document.getElementById('pg_next').addEventListener('click', () => { if (PAGE*PAGE_SIZE<FILTERED.length) { PAGE++; renderList(); } });
   document.getElementById('pg_size').addEventListener('change', e => { PAGE_SIZE = +e.target.value; PAGE = 1; renderList(); });
   document.getElementById('f_base').addEventListener('change', e => {
-    if (e.target.value === 'custom') {
-      const lng = +prompt('请输入经度（如 116.40）', '116.40');
-      const lat = +prompt('请输入纬度（如 39.90）', '39.90');
-      if (!isNaN(lng) && !isNaN(lat)) {
-        BASE_POINTS.custom.lng = lng; BASE_POINTS.custom.lat = lat;
-        alert('自定义基准点已设置：' + lng + ', ' + lat);
-      }
-      applyFilter();
+    if (e.target.value === 'geo' && (BASE_POINTS.geo.lng == null || BASE_POINTS.geo.lat == null)) {
+      // 用户直接选了我的位置但还没定位过，自动调一次
+      locateMe();
     }
   });
   // Esc 关闭弹窗
@@ -91,10 +126,78 @@ function resetFilter() {
   document.getElementById('f_level').value = '';
   document.getElementById('f_cat').value = '';
   document.getElementById('f_base').value = 'tiananmen';
-  document.getElementById('f_radius').value = 999;
   document.getElementById('f_sort').value = 'score';
   PAGE = 1;
   applyFilter();
+}
+
+// ========== 4.5 用户定位 ==========
+// MVP 极简版：点击 → 浏览器授权 → 拿经纬度 → 切基准点到"我的位置" → 重算距离
+// 注意：file:// 协议下浏览器拒绝授权，必须用 http://localhost 跑
+function locateMe() {
+  const btn = document.getElementById('btn_locate');
+  if (!navigator.geolocation) {
+    alert('当前浏览器不支持定位 API\n建议使用 Chrome / Safari / Edge 最新版');
+    return;
+  }
+  const oldText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ 定位中…';
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const lng = +pos.coords.longitude.toFixed(6);
+      const lat = +pos.coords.latitude.toFixed(6);
+      const acc = Math.round(pos.coords.accuracy);
+      BASE_POINTS.geo.lng = lng;
+      BASE_POINTS.geo.lat = lat;
+      BASE_POINTS.geo.name = `我的位置(±${acc}m)`;
+      // 启用"我的位置" option，更新 select 值
+      const opt = document.getElementById('opt_geo');
+      opt.disabled = false;
+      opt.textContent = '📍 ' + BASE_POINTS.geo.name;
+      document.getElementById('f_base').value = 'geo';
+      // 提示并重算
+      btn.textContent = '✅ 已定位';
+      setTimeout(() => { btn.textContent = '📍 重新定位'; btn.disabled = false; }, 1200);
+      // 【关键】自动切到"距离↑"排序，让定位结果一眼可见
+      document.getElementById('f_sort').value = 'distance';
+      applyFilter();
+      // 顶部显式反馈
+      showLocateToast(lng, lat, acc);
+      console.log('[定位成功]', {lng, lat, accuracy: acc, baseKey: 'geo'});
+    },
+    err => {
+      btn.textContent = oldText;
+      btn.disabled = false;
+      let msg = '定位失败：';
+      if (err.code === 1) msg += '用户拒绝授权';
+      else if (err.code === 2) msg += '位置不可用（GPS/网络问题）';
+      else if (err.code === 3) msg += '请求超时';
+      else msg += err.message;
+      msg += '\n\n请确认：\n1) 浏览器允许位置权限\n2) 用 http://localhost 打开（不是 file://）\n3) 系统设置里开启了位置服务';
+      alert(msg);
+      console.warn('[定位失败]', err);
+    },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+  );
+}
+
+// 定位成功后顶部显式反馈条
+function showLocateToast(lng, lat, acc) {
+  let toast = document.getElementById('locate_toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'locate_toast';
+    toast.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);' +
+      'background:linear-gradient(90deg,#1f3a68,#14213d);color:#5fd3c0;border:1px solid #5fd3c0;' +
+      'padding:10px 20px;border-radius:6px;z-index:9999;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,0.4);' +
+      'transition:opacity 0.4s';
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = `📍 已定位：<b>${lng}, ${lat}</b>（精度 ±${acc}m） · 已自动按距离升序排序，列表显示距你最近的医院`;
+  toast.style.opacity = '1';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { toast.style.opacity = '0'; }, 5000);
 }
 
 // ========== 5. 筛选核心 ==========
@@ -107,15 +210,21 @@ function haversine(lng1, lat1, lng2, lat2) {
 }
 
 function applyFilter() {
+  console.log('[applyFilter] 触发, baseKey=', JSON.stringify(document.getElementById('f_base').value), 'base=', JSON.stringify(BASE_POINTS[document.getElementById('f_base').value]));
   if (!DATA) return;
   const kw = document.getElementById('f_kw').value.trim().toLowerCase();
   const district = document.getElementById('f_district').value;
   const level = document.getElementById('f_level').value;
   const cat = document.getElementById('f_cat').value;
   const baseKey = document.getElementById('f_base').value;
-  const radius = +document.getElementById('f_radius').value || 99999;
   const sort = document.getElementById('f_sort').value;
   const base = BASE_POINTS[baseKey];
+  // 防御：base 无效（极少见：缓存旧版）时回退到天安门并打印
+  if (!base) {
+    console.warn('[applyFilter] baseKey', JSON.stringify(baseKey), '无效，回退到天安门');
+    document.getElementById('f_base').value = 'tiananmen';
+  }
+  const baseSafe = base || BASE_POINTS.tiananmen;
 
   FILTERED = DATA.institutions.filter(r => {
     if (kw) {
@@ -126,8 +235,7 @@ function applyFilter() {
     if (level && r.level !== level) return false;
     if (cat && r.category !== cat) return false;
     if (r.lng != null && r.lat != null) {
-      r._dist = haversine(base.lng, base.lat, r.lng, r.lat);
-      if (r._dist > radius) return false;
+      r._dist = haversine(baseSafe.lng, baseSafe.lat, r.lng, r.lat);
     } else {
       r._dist = null;
     }
@@ -197,7 +305,12 @@ function renderList() {
     return;
   }
   document.getElementById('list').innerHTML = page.map(r => {
+    const baseNow = BASE_POINTS[document.getElementById('f_base').value] || BASE_POINTS.tiananmen;
+    const baseName = baseNow.name || '天安门';
     const dist = r._dist == null ? '—' : r._dist.toFixed(1) + ' km';
+    const distMeta = (document.getElementById('f_base').value === 'geo' && (baseNow.lng == null || baseNow.lat == null))
+      ? '⚠️ 请点 📍 定位'
+      : `距${baseName}`;
     const score = (r._score || 0).toFixed(3);
     return `<div class="row" data-id="${r.id}">
       <div>
@@ -205,7 +318,7 @@ function renderList() {
         <div class="meta">${levelBadge(r.level)}${catBadge(r.category)} ${r.district} · ${r.dept_count||0} 科室</div>
       </div>
       <div class="num">${r.beds||'—'}<div class="meta" style="color:#8aa1c8">床位</div></div>
-      <div class="dist">${dist}<div class="meta" style="color:#8aa1c8">距${BASE_POINTS[document.getElementById('f_base').value].name}</div></div>
+      <div class="dist">${dist}<div class="meta" style="color:#8aa1c8">${distMeta}</div></div>
       <div class="score">${score}</div>
       <div class="meta" style="color:#8aa1c8;text-align:right">${r.key_specialty_count||0}<br>重点专科</div>
     </div>`;
@@ -217,48 +330,84 @@ function renderList() {
 
 // ========== 8. 图表初始化 ==========
 function initCharts() {
-  const baseOpt = { backgroundColor: PANEL, textStyle: {color: INK} };
+  try {
+    const mapDiv = document.getElementById('map');
+    if (!mapDiv) throw new Error('找不到 #map 容器');
+    setMapDiag('', '⏳ 正在初始化 ECharts 地图…');
 
-  // 地图
-  MAP_CHART = echarts.init(document.getElementById('map'));
-  echarts.registerMap('beijing', DATA.geojson);
-  const mapOpt = {
-    backgroundColor: PANEL, textStyle: {color: INK},
-    tooltip: {trigger:'item', backgroundColor:'#0b1530', borderColor:EDGE, textStyle:{color:INK}},
-    visualMap: {
-      min:0, max:1300, left:'left', bottom:20,
-      text:['高','低'], calculable:true,
-      inRange:{color:['#0b1530','#1f3a68','#3aa0ff','#5fd3c0']},
-      textStyle:{color:SUB},
-    },
-    series: [{
-      name: '机构数', type:'map', map:'beijing', roam:true, zoom:1.15,
-      label:{show:true, color:INK, fontSize:10},
-      itemStyle:{borderColor:EDGE, borderWidth:1, areaColor:'#14213d'},
-      emphasis:{label:{color:'#fff'}, itemStyle:{areaColor:'#3aa0ff'}},
-      data: DATA.overviews.districts.map(d => ({name:d.district, value:d.inst_count})),
-    }],
-  };
-  MAP_CHART.setOption(mapOpt);
-  MAP_CHART.on('click', params => {
-    if (params.name) {
-      document.getElementById('f_district').value = params.name;
-      applyFilter();
-    }
-  });
+    if (typeof echarts === 'undefined') throw new Error('ECharts 库未加载（检查 CDN 或网络）');
+    if (!DATA || !DATA.geojson) throw new Error('数据中缺少 geojson');
 
-  CH1 = echarts.init(document.getElementById('ch1'));
-  CH2 = echarts.init(document.getElementById('ch2'));
-  CH3 = echarts.init(document.getElementById('ch3'));
+    MAP_CHART = echarts.init(mapDiv);
+    echarts.registerMap('beijing', DATA.geojson);
 
-  window.addEventListener('resize', () => {
-    [MAP_CHART, CH1, CH2, CH3].forEach(c => c && c.resize());
-    if (MODAL_CHART) MODAL_CHART.resize();
-  });
+    // 验证地图注册成功
+    const reg = echarts.getMap && echarts.getMap('beijing');
+    if (!reg || !reg.geoJson) throw new Error('registerMap("beijing") 失败');
+
+    const mapOpt = {
+      backgroundColor: PANEL, textStyle: {color: INK},
+      tooltip: {trigger:'item', backgroundColor:'#0b1530', borderColor:EDGE, textStyle:{color:INK}},
+      geo: {
+        map:'beijing', roam:true, zoom:1.15,
+        label:{show:true, color:INK, fontSize:10},
+        itemStyle:{borderColor:EDGE, borderWidth:1, areaColor:'#14213d'},
+        emphasis:{label:{color:'#fff'}, itemStyle:{areaColor:'#3aa0ff'}},
+      },
+      visualMap: {
+        min:0, max:1300, left:'left', bottom:20,
+        text:['高','低'], calculable:true,
+        inRange:{color:['#0b1530','#1f3a68','#3aa0ff','#5fd3c0']},
+        textStyle:{color:SUB},
+      },
+      series: [{
+        name: '机构数', type:'map', geoIndex:0,
+        data: DATA.overviews.districts.map(d => ({name:d.district, value:d.inst_count})),
+      }],
+    };
+    MAP_CHART.setOption(mapOpt);
+    MAP_CHART.resize();
+    MAP_CHART.on('click', params => {
+      if (params.name) {
+        document.getElementById('f_district').value = params.name;
+        applyFilter();
+      }
+    });
+
+    CH1 = echarts.init(document.getElementById('ch1'));
+    CH2 = echarts.init(document.getElementById('ch2'));
+    CH3 = echarts.init(document.getElementById('ch3'));
+
+    window.addEventListener('resize', () => {
+      [MAP_CHART, CH1, CH2, CH3].forEach(c => c && c.resize());
+      if (MODAL_CHART) MODAL_CHART.resize();
+    });
+
+    const featCount = (DATA.geojson.features || []).length;
+    setMapDiag('', '✅ 地图初始化完成：' + featCount + ' 个区 · ' + FILTERED.length + ' 家机构<br>' +
+      '<span style="color:#8aa1c8">提示：地图可缩放拖拽，点击区名可筛选</span>');
+    // 5 秒后淡出诊断横幅
+    setTimeout(() => {
+      const el = document.getElementById('map_diag');
+      if (el) el.style.opacity = '0.3';
+    }, 5000);
+  } catch (e) {
+    console.error('[initCharts] 地图初始化失败:', e);
+    setMapDiag('err', '❌ 地图初始化失败<br><b>' + (e.message || e) + '</b><br><br>' +
+      '🔧 请尝试：<br>' +
+      '1. 按 <b>Cmd+Shift+R</b> 硬刷新<br>' +
+      '2. 地址栏加 <code>?v=' + Date.now() + '</code><br>' +
+      '3. 打开浏览器 Console 截图红字错误');
+    throw e;
+  }
 }
 
 // ========== 9. 动态更新图表 ==========
 function updateCharts() {
+  if (!CH1 || !CH2 || !CH3 || !MAP_CHART) {
+    console.warn('[updateCharts] 图表实例尚未初始化，跳过');
+    return;
+  }
   // 等级环形
   const lvCount = {};
   FILTERED.forEach(r => lvCount[r.level] = (lvCount[r.level]||0) + 1);
@@ -296,19 +445,26 @@ function updateCharts() {
       label:{show:true, position:'top', color:INK, fontSize:10}}],
   });
 
-  // 地图散点叠加（用 EFFECT SCATTER）
-  const points = FILTERED.filter(r => r.lng != null).slice(0, 3000);
-  MAP_CHART.setOption({
-    series: [
-      {type:'map', map:'beijing'},
-      {type:'effectScatter', coordinateSystem:'geo',
-        data: points.map(r => ({name:r.name, value:[r.lng, r.lat, r.level]})),
-        symbolSize: v => v[2]==='三级'?6:v[2]==='二级'?4:2,
-        rippleEffect:{period:4, scale:2.5, brushType:'stroke'},
-        itemStyle:{color:v => v[2]==='三级'?CRIT:v[2]==='二级'?WARN:ACC2},
-        showEffectOn:'render', zlevel:2},
-    ],
-  });
+  // 地图散点叠加（用 effectScatter 叠在 geo 上）
+  try {
+    const points = FILTERED.filter(r => r.lng != null).slice(0, 3000);
+    MAP_CHART.setOption({
+      series: [
+        {type:'map', geoIndex:0},
+        {type:'effectScatter', coordinateSystem:'geo',
+          data: points.map(r => ({name:r.name, value:[r.lng, r.lat, r.level||'其他']})),
+          symbolSize: v => v[2]==='三级'?6:v[2]==='二级'?4:2,
+          rippleEffect:{period:4, scale:2.5, brushType:'stroke'},
+          itemStyle:{
+            color: v => v[2]==='三级'?CRIT:v[2]==='二级'?WARN:ACC2,
+            shadowBlur:8, shadowColor:'#3aa0ff'
+          },
+          showEffectOn:'render', zlevel:2},
+      ],
+    });
+  } catch (e) {
+    console.error('[updateCharts] 散点更新失败:', e);
+  }
 }
 
 // ========== 10. 重点专科卡片 ==========

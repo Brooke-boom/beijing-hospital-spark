@@ -2,6 +2,10 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="dashboard-version" content="v3.1-init-order-20260904">
 <title>北京市医院医疗资源整合与智能筛选可视化系统</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
 <style>
@@ -58,7 +62,9 @@
   .row .dist{text-align:right;color:#3aa0ff;font-size:11px}
   .row .score{text-align:right;color:#f7b955;font-size:11px;font-weight:600}
   .mapwrap{height:600px;display:flex;flex-direction:column}
-  #map{flex:1;min-height:520px}
+  #map{flex:1;min-height:520px;background:#0b1530;border:1px solid #1f3a68;position:relative}
+  #map_diag{position:absolute;top:8px;left:8px;right:8px;background:rgba(11,21,48,0.92);color:#5fd3c0;padding:8px 12px;font-size:12px;border-radius:4px;z-index:99;pointer-events:none;border:1px solid #1f3a68;line-height:1.5}
+  #map_diag.err{color:#ff9b9b;border-color:#ff6b6b;background:rgba(60,20,20,0.92)}
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;padding:0 32px 18px}
   .panel.sm{height:240px}
   #ch1,#ch2,#ch3,#ch4,#ch5{width:100%;height:100%}
@@ -127,8 +133,20 @@
     <div><label>区域</label><select id="f_district"><option value="">全部 16 区</option></select></div>
     <div><label>等级</label><select id="f_level"><option value="">全部等级</option></select></div>
     <div><label>类型</label><select id="f_cat"><option value="">全部类型</option></select></div>
-    <div><label>距离基准</label><select id="f_base"><option value="tiananmen">天安门</option><option value="capital_airport">首都机场</option><option value="daxing_airport">大兴机场</option><option value="custom">自定义</option></select></div>
-    <div><label>半径 (km)</label><input id="f_radius" type="number" value="999" min="0" step="1"></div>
+    <div><label>距离基准</label>
+      <div style="display:flex;gap:4px;align-items:stretch">
+        <select id="f_base" style="flex:1;min-width:0">
+          <option value="tiananmen">天安门</option>
+          <option value="capital_airport">首都机场</option>
+          <option value="daxing_airport">大兴机场</option>
+          <option value="geo" id="opt_geo" disabled>📍 我的位置（未定位）</option>
+        </select>
+        <button id="btn_locate" type="button" onclick="locateMe()"
+          style="padding:4px 10px;background:#1f3a68;color:#e8eefc;border:1px solid #3aa0ff;
+                 border-radius:4px;cursor:pointer;font-size:12px;white-space:nowrap"
+          title="需要浏览器授权位置权限（http://localhost 协议下可用）">📍 定位</button>
+      </div>
+    </div>
     <div><label>排序</label><select id="f_sort">
       <option value="score">综合评分 ↓</option>
       <option value="distance">距离 ↑</option>
@@ -166,7 +184,9 @@
   </div>
   <div class="panel mapwrap">
     <h3>北京地图散点 <span class="tag">MAP · 16 区 · 散点 + 热力</span></h3>
-    <div id="map"></div>
+    <div id="map">
+      <div id="map_diag">⏳ 等待地图初始化…<br><span style="color:#8aa1c8">若 5 秒后仍空白，请按 Cmd+Shift+R 硬刷新</span></div>
+    </div>
   </div>
 </div>
 

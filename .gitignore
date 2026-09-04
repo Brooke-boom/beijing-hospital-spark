@@ -35,3 +35,11 @@ web/snapshot_data.json
 web/dashboard_standalone.html
 web/dashboard_snapshot.html
 web/dashboard_preview.png
+web/dashboard_offline.html
+web/static/dashboard_preview.png
+web/vendor/
+
+# 本地运行/调试产物
+*.bak
+*.log
+web/flask.log

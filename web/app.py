@@ -19,7 +19,7 @@ import math
 import os
 
 import pymysql
-from flask import Flask, g, jsonify, render_template, request
+from flask import Flask, g, jsonify, render_template, request, make_response
 
 # ============== 配置 ==============
 DB_CONFIG = {
@@ -65,7 +65,11 @@ def query(sql, args=None, one=False):
 # ============== 页面 ==============
 @app.route("/")
 def index():
-    return render_template("index.html")
+    resp = make_response(render_template("index.html"))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 # ============== API：多维筛选与排序 ==============
@@ -297,4 +301,4 @@ def api_health():
 
 if __name__ == "__main__":
     # macOS 端口 5000 常被 AirPlay Receiver 占用，默认使用 5001
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=False)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=False, threaded=True)

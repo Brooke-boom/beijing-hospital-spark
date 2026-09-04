@@ -61,8 +61,9 @@ js = open('web/app.js', encoding='utf-8').read()
 js = js.replace(
 "async function loadData() {\n  try {\n    const resp = await fetch('snapshot_data.json');\n    if (!resp.ok) throw new Error('HTTP ' + resp.status);\n    DATA = await resp.json();\n    console.log('数据加载完成:', DATA.total, '家');\n    init();\n  } catch (e) {\n    document.getElementById('loading').innerHTML =\n      '❌ 数据加载失败：' + e.message + '<br>请确保 <code>snapshot_data.json</code> 与 HTML 在同一目录';\n  }\n}",
 "function loadData() {\n  try {\n    if (!window.__SNAPSHOT__) throw new Error('未找到内嵌数据快照');\n    DATA = window.__SNAPSHOT__;\n    console.log('数据加载完成:', DATA.total, '家');\n    init();\n  } catch (e) {\n    document.getElementById('loading').innerHTML =\n      '❌ 数据加载失败：' + e.message;\n  }\n}")
-html = html.replace('<script src="app.js"></script>', f'<script>\n{js}\n</script>')
-html = html.replace('</body>', f'<script>window.__SNAPSHOT__ = {data};</script>\n</body>')
+# 关键：window.__SNAPSHOT__ 必须先定义，再执行 app.js，否则 loadData() 会报"未找到内嵌数据快照"
+html = html.replace('<script src="app.js"></script>',
+                    f'<script>window.__SNAPSHOT__ = {data};</script>\n<script>\n{js}\n</script>')
 out = Path('web/dashboard_standalone.html')
 out.write_text(html, encoding='utf-8')
 print(f'  ✓ {out} | {out.stat().st_size/1024/1024:.2f} MB')
@@ -70,5 +71,29 @@ print(f'  ✓ {out} | {out.stat().st_size/1024/1024:.2f} MB')
 import shutil
 shutil.copy(out, 'web/templates/index.html')
 print('  ✓ web/templates/index.html 已同步')
+
+# === 2.5 生成完全离线版：内嵌 ECharts 库，去掉所有 CDN 依赖 ===
+import urllib.request, os
+vendor_dir = Path('web/vendor'); vendor_dir.mkdir(exist_ok=True)
+echarts_js = vendor_dir / 'echarts.min.js'
+if not echarts_js.exists():
+    print('  · 下载 ECharts 5.5.1 到 vendor/ ...')
+    try:
+        urllib.request.urlretrieve('https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js', echarts_js)
+    except Exception as e:
+        print(f'  ⚠️ 下载失败: {e}，跳过离线版生成')
+        raise SystemExit(0)
+echarts_inline = echarts_js.read_text(encoding='utf-8')
+html2 = out.read_text(encoding='utf-8')
+html2 = html2.replace(
+    '<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>',
+    f'<script>\n/* ECharts 5.5.1 - inlined for offline use */\n{echarts_inline}\n</script>',
+    1
+)
+html2 = html2.replace('<title>北京市医院医疗资源整合与智能筛选可视化系统</title>',
+                    '<title>北京市医院医疗资源整合与智能筛选可视化系统 - 离线版</title>', 1)
+offline = Path('web/dashboard_offline.html')
+offline.write_text(html2, encoding='utf-8')
+print(f'  ✓ {offline} | {offline.stat().st_size/1024/1024:.2f} MB (完全离线，无需 CDN)')
 PYEOF
 echo "=== 完成 ==="
