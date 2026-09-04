@@ -479,6 +479,12 @@ function updateCharts() {
 // ========== 10. 重点专科卡片 ==========
 function renderSpecGrid() {
   const grid = document.getElementById('spec_grid');
+  const meta = document.getElementById('spec_meta');
+  if (meta && DATA.specialty_groups) {
+    const seen = new Set();
+    DATA.specialty_groups.forEach(g => (g.top_hospitals||[]).forEach(h => seen.add(h.id)));
+    meta.textContent = `${DATA.specialty_groups.length} 组 · ${seen.size} 家重点医院 · 点击专科查看代表医院`;
+  }
   grid.innerHTML = DATA.specialty_groups.map(g => `
     <div class="spec" data-dept="${g.dept_name}">
       <div class="dn">${g.dept_name}</div>

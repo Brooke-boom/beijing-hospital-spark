@@ -122,6 +122,14 @@ def norm(s):
     return str(s).strip()
 
 
+# 重点专科名单中的历史/全称医院名 -> master 主表标准名（修 join 丢失）
+HOSP_ALIAS = {
+    "卫生部北京医院": "北京医院",
+    "首都医科大学附属宣武医院": "首都医科大学宣武医院",
+    "首都医科大学附属地坛医院": "首都医科大学附属北京地坛医院",
+}
+
+
 def map_dept(raw):
     """原始科室名 -> 标准科室名；无法映射返回 None"""
     name = norm(raw).rstrip("*＊").strip()
@@ -204,6 +212,7 @@ def main():
         with open(SPECIALTY, newline="", encoding="utf-8-sig") as f:
             for row in csv.DictReader(f):
                 h = norm(row.get("hospital"))
+                h = HOSP_ALIAS.get(h, h)   # 历史全称 -> 主表标准名
                 s = norm(row.get("specialties"))
                 if h and s:
                     spec[h] = [x.strip() for x in re.split(r"[、，,]", s) if x.strip()]
