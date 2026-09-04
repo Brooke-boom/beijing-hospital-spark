@@ -27,3 +27,5 @@ spark/*.jar
 
 # 论文相关（答辩前不上传，防止结构被抄袭）
 docs/论文大纲.md
+docs/毕业论文.md
+docs/images/
