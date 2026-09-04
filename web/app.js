@@ -388,16 +388,18 @@ function initCharts() {
       backgroundColor: PANEL, textStyle: {color: INK},
       tooltip: {trigger:'item', backgroundColor:'#0b1530', borderColor:EDGE, textStyle:{color:INK}},
       geo: {
-        map:'beijing', roam:true, zoom:1.15,
+        map:'beijing', roam:true, zoom:1,
+        // 让整个北京地图贴合容器并居中，避免放大超边界被裁切（密云/怀柔贴边）
+        layoutCenter:['50%','50%'], layoutSize:'96%', aspectScale:0.9,
         label:{show:true, color:INK, fontSize:10},
         itemStyle:{borderColor:EDGE, borderWidth:1, areaColor:'#14213d'},
         emphasis:{label:{color:'#fff'}, itemStyle:{areaColor:'#3aa0ff'}},
       },
       visualMap: {
-        min:0, max:1300, left:'left', bottom:20,
+        min:0, max:1300, left:12, bottom:16, itemWidth:10, itemHeight:130,
         text:['高','低'], calculable:true,
         inRange:{color:['#0b1530','#1f3a68','#3aa0ff','#5fd3c0']},
-        textStyle:{color:SUB},
+        textStyle:{color:SUB, fontSize:10},
       },
       series: [{
         name: '机构数', type:'map', geoIndex:0,
