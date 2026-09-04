@@ -14,17 +14,21 @@ def q(sql):
     with conn.cursor() as cur:
         cur.execute(sql); return cur.fetchall()
 rows = q("""SELECT id, name, district, level_norm AS level, category_norm AS category,
-    dept_count, beds, key_specialty_count, lng, lat, coord_precision, key_depts
+    dept_count, beds, key_specialty_count, lng, lat, coord_precision, key_depts, grade_scope
     FROM ads_inst_search""")
 for r in rows:
     r['id'] = str(r['id']).strip()
-    for k in ('name','district','level','category','coord_precision','key_depts'):
+    for k in ('name','district','level','category','coord_precision','key_depts','grade_scope'):
         v = r.get(k); r[k] = ('' if v is None else v.strip() if isinstance(v, str) else v)
     for k in ('dept_count','beds','key_specialty_count','lng','lat'):
         r[k] = None if r.get(k) in (None, '') else r[k]
 overviews = {
     'districts':  q("SELECT district, inst_count, coord_high_count FROM ads_district_overview ORDER BY inst_count DESC"),
-    'levels':     q("SELECT level_norm AS level, inst_count FROM ads_level_overview ORDER BY inst_count DESC"),
+    # 等级分布仅统计"应参评医院等级评审"的机构；
+    # level_norm='不适用医院分级'（诊所/村卫生室/门诊部/社区卫生服务站/医务室/急救/疾控/体检等）
+    # 不参加医院评审，计入会形成 87% 的假性"未定级"，故在此口径剔除。
+    'levels':     q("SELECT level_norm AS level, inst_count FROM ads_level_overview"
+                    " WHERE level_norm <> '不适用医院分级' ORDER BY inst_count DESC"),
     'categories': q("SELECT category_norm AS category, inst_count, level_3_count FROM dws_inst_by_category ORDER BY inst_count DESC"),
     'depts':      q("SELECT dept_name, hospital_count, key_specialty_count FROM dws_dept_coverage ORDER BY hospital_count DESC LIMIT 20"),
 }

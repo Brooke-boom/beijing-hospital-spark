@@ -86,7 +86,7 @@ def main():
     out_fields = [
         "id", "name", "district", "category", "level", "level_sub", "addr",
         "phone", "postal", "beds", "key_depts", "traffic", "website", "econ", "profit",
-        "category_raw", "src_count", "source_files",
+        "category_raw", "src_count", "source_files", "grade_scope",
         # 坐标字段
         "lng", "lat", "coord_formatted", "coord_level_raw", "coord_precision", "coord_source",
         # 科室聚合

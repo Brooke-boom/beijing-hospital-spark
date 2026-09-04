@@ -194,6 +194,7 @@ def api_institutions():
 def api_detail(inst_id):
     inst = query(
         "SELECT id, name, district, category, category_norm, level, level_sub, level_norm,"
+        " grade_scope,"
         " addr, phone, postal, beds, key_depts,"
         " lng, lat, coord_formatted, coord_precision, coord_source,"
         " src_count_int, source_files, dept_count, key_specialty_count"
@@ -224,10 +225,21 @@ def api_overview_districts():
 
 @app.route("/api/overview/levels")
 def api_overview_levels():
-    return jsonify(query(
+    """等级分布概览。
+
+    统计口径（数据治理要点）：全表 9791 家机构中仅约 1287 家属"参加医院等级评审"
+    的医疗机构，其余 8500+ 家（诊所/村卫生室/门诊部/社区卫生服务站/医务室/急救/疾控
+    /体检中心等）在制度上就没有一/二/三级等级，被归入 level_norm='不适用医院分级'。
+    若把它们计入"未定级"，会形成 87% 的假性未定级，掩盖真实分布。
+    因此默认 scope=graded（仅应参评机构）；scope=all 可看全量口径（含"不适用"桶）。
+    """
+    scope = (request.args.get("scope") or "graded").strip()
+    where = "" if scope == "all" else " WHERE level_norm <> '不适用医院分级'"
+    rows = query(
         "SELECT level_norm, inst_count, district_count, category_count"
-        " FROM ads_level_overview ORDER BY inst_count DESC"
-    ))
+        f" FROM ads_level_overview{where} ORDER BY inst_count DESC"
+    )
+    return jsonify(rows)
 
 
 @app.route("/api/overview/depts")
@@ -274,8 +286,10 @@ def api_filters():
     districts = query(
         "SELECT district, inst_count FROM ads_district_overview ORDER BY inst_count DESC"
     )
+    # 等级筛选项：不暴露"不适用医院分级"（该口径机构请用类型维度筛选）
     levels = query(
-        "SELECT level_norm AS level, inst_count FROM ads_level_overview ORDER BY inst_count DESC"
+        "SELECT level_norm AS level, inst_count FROM ads_level_overview"
+        " WHERE level_norm <> '不适用医院分级' ORDER BY inst_count DESC"
     )
     categories = query(
         "SELECT category_norm AS category, inst_count FROM dws_inst_by_category"

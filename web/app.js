@@ -285,6 +285,10 @@ function renderCards() {
 
 // ========== 7. 列表渲染 ==========
 function levelBadge(lv) {
+  // 不参加医院等级评审的机构（诊所/卫生室/门诊部/服务站等）单独标注，避免误读为"未定级"
+  if (lv === '不适用医院分级') {
+    return `<span class="badge b-l0" title="该机构类型不参加医院等级评审（如诊所、村卫生室、门诊部、社区卫生服务站、医务室等）">不适用分级</span>`;
+  }
   const cls = lv==='三级'?'b-l3':lv==='二级'?'b-l2':lv==='一级'?'b-l1':'b-l0';
   return `<span class="badge ${cls}">${lv}</span>`;
 }
@@ -409,8 +413,13 @@ function updateCharts() {
     return;
   }
   // 等级环形
+  // 口径：仅统计参加医院等级评审的机构；level='不适用医院分级'（诊所/村卫生室/门诊部/
+  // 社区卫生服务站/医务室/急救/疾控/体检等）制度上无等级，计入会形成假性"未定级"
   const lvCount = {};
-  FILTERED.forEach(r => lvCount[r.level] = (lvCount[r.level]||0) + 1);
+  FILTERED.forEach(r => {
+    if (r.level === '不适用医院分级') return;
+    lvCount[r.level] = (lvCount[r.level]||0) + 1;
+  });
   CH1.setOption({
     series:[{type:'pie', radius:['42%','70%'],
       data: Object.entries(lvCount).map(([n,v])=>({name:n, value:v})),
@@ -524,7 +533,7 @@ function showDetail(id) {
   document.getElementById('m_title').textContent = r.name;
   document.getElementById('m_info').innerHTML = `
     <div><div class="l">区 域</div><div class="v">${r.district}</div></div>
-    <div><div class="l">等 级</div><div class="v">${levelBadge(r.level)} ${r.level}</div></div>
+    <div><div class="l">等 级</div><div class="v">${levelBadge(r.level)} ${r.level === '不适用医院分级' ? '（该机构类型不参加医院等级评审）' : r.level}</div></div>
     <div><div class="l">类 型</div><div class="v">${r.category || '—'}</div></div>
     <div><div class="l">床 位</div><div class="v">${r.beds || '—'}</div></div>
     <div><div class="l">科 室 数</div><div class="v">${r.dept_count || 0}</div></div>

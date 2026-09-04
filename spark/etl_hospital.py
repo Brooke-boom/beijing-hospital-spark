@@ -146,7 +146,11 @@ def main():
         # 等级归一化
         .withColumn(
             "level_norm",
-            F.when(F.col("level").isin("三级", "三级甲等", "三级乙等", "三级丙等"), F.lit("三级"))
+            # 口径治理：诊所/村卫生室/门诊部/社区卫生服务站/医务室/急救/疾控/体检等
+            # 机构不参加医院等级评审，单独归为"不适用医院分级"，
+            # 避免与真正"应参评但缺等级"的"未定级"混为一谈（原实现会把 8504 家计入未定级）
+            F.when(F.col("grade_scope") == "not_applicable", F.lit("不适用医院分级"))
+            .when(F.col("level").isin("三级", "三级甲等", "三级乙等", "三级丙等"), F.lit("三级"))
             .when(F.col("level").isin("二级", "二级甲等", "二级乙等", "二级丙等"), F.lit("二级"))
             .when(F.col("level").isin("一级", "一级甲等", "一级乙等", "一级丙等"), F.lit("一级"))
             .when(F.col("level_sub").isin("甲等", "甲"), F.lit("甲"))
@@ -188,7 +192,7 @@ def main():
         .withColumn("src_count_int", F.col("src_count").cast("int"))
         .select(
             "id", "name", "district_clean", "category", "category_norm",
-            "level", "level_sub", "level_norm",
+            "level", "level_sub", "level_norm", "grade_scope",
             "addr", "phone", "postal", "beds", "key_depts",
             "lng_d", "lat_d", "coord_formatted", "coord_level", "coord_source", "coord_precision",
             "econ", "profit", "category_raw", "src_count_int", "source_files",
