@@ -306,11 +306,34 @@ def main():
             F.sum(F.when(F.col("is_key_specialty") == "1", 1).otherwise(0)).alias("key_specialty_count"),
         )
     )
+    # 重点专科数口径治理：
+    # 原实现用 depts_dwd.is_key_specialty=='1' 计数，hospital_depts.csv 几乎无该标记，
+    # 导致协和/北医/积水潭等真正重点三甲 key_specialty_count 全为 0。
+    # 权威口径 = feature 三级分级（govern_master.py 产出）：
+    #   L1(重点专科/重点科室) → 以 feature 分号数作为重点专科数
+    #   L2(登记诊疗科目/优势科室) → 以 key_depts 项数作为优势科室数（非重点专科，标注 L2）
+    #   L3(普通临床科室) / 无 feature → 0
+    inst_feature_cnt = inst_dwd.select(
+        "id", "feature", "feature_level"
+    ).withColumn(
+        "fk_cnt",
+        F.when(F.col("feature_level") == "1", F.size(F.split(F.col("feature"), ";")))
+        .otherwise(0)
+    ).select("id", "fk_cnt")
     ads_inst_search = (
         inst_dwd
         .join(inst_with_dept_count,
               inst_dwd["id"] == inst_with_dept_count["hospital_id"], "left")
         .drop("hospital_id")
+        .join(inst_feature_cnt, "id", "left")
+        # 重点专科数：仅计入权威 feature L1（重点专科/重点科室）科系数，
+        # L2(登记诊疗科目/优势科室) 与 L3(普通临床科室) 不属于"重点专科"，不计入；无则兜底 depts 计数
+        .withColumn(
+            "key_specialty_count",
+            F.when(F.col("fk_cnt").isNotNull() & (F.col("fk_cnt") > 0), F.col("fk_cnt"))
+            .otherwise(F.col("key_specialty_count"))
+        )
+        .drop("fk_cnt")
         .na.fill({"dept_count": 0, "key_specialty_count": 0})
     )
     write_mysql(ads_inst_search, "ads_inst_search")

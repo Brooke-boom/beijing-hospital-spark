@@ -15,7 +15,7 @@ const LEVEL_RANK = {'三级':4, '二级':3, '一级':2, '未定级':1};
 // 评分权重
 const W_LEVEL = 0.4, W_DIST = 0.3, W_DEPT = 0.2, W_BED = 0.1;
 
-const DASHBOARD_VERSION = 'v3.2-20260904-1900-ownership-feature';
+const DASHBOARD_VERSION = 'v3.3-20260904-1930-spec-polish';
 console.log('[dashboard] 加载版本:', DASHBOARD_VERSION);
 console.log('[dashboard] BASE_POINTS 初始值:', JSON.stringify(BASE_POINTS, null, 2));
 let FILTERED = [];        // 筛选后
@@ -308,8 +308,25 @@ function featLine(r) {
   const depts = r.feature.split(';').filter(x => x);
   if (!depts.length) return '';
   const lv = r.feature_level || '3';
-  const show = depts.slice(0, 4).join(' / ') + (depts.length > 4 ? ` 等${depts.length}项` : '');
-  return `<div class="feat"><span class="fk f${lv}">${FEAT_LABEL[lv] || '擅长'}</span> ${show}</div>`;
+  const show = depts.slice(0, 6).join(' / ') + (depts.length > 6 ? ` 等${depts.length}项` : '');
+  return `<div class="feat" title="${depts.join(' / ')}"><span class="fk f${lv}">${FEAT_LABEL[lv] || '擅长'}</span><span class="ft">${show}</span></div>`;
+}
+// 关键词命中高亮（不转义，name 来自可信数据）
+function escHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function kwMark(s) {
+  const kw = (document.getElementById('f_kw').value || '').trim();
+  const safe = escHtml(s);
+  if (!kw) return safe;
+  const re = new RegExp('(' + kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+  return safe.replace(re, '<mark>$1</mark>');
+}
+// 重点专科数字块：有重点专科(>0)时红/主题色突出，无则灰显
+function kscBlock(r) {
+  const n = r.key_specialty_count || 0;
+  const on = n > 0;
+  return `<div class="ksc ${on ? 'on' : 'off'}"><div class="n">${n}</div><div class="t">重点专科</div></div>`;
 }
 function renderList() {
   const start = (PAGE - 1) * PAGE_SIZE;
@@ -332,16 +349,18 @@ function renderList() {
       ? '⚠️ 请点 📍 定位'
       : `距${baseName}`;
     const score = (r._score || 0).toFixed(3);
-    return `<div class="row" data-id="${r.id}">
+    const kwActive = (document.getElementById('f_kw').value || '').trim();
+    const hitCls = kwActive ? ' hit' : '';
+    return `<div class="row${hitCls}" data-id="${r.id}">
       <div>
-        <div class="name">${r.name}</div>
+        <div class="name">${kwMark(r.name)}</div>
         <div class="meta">${levelBadge(r.level)}${catBadge(r.category)}${ownBadge(r.ownership)} ${r.district} · ${r.dept_count||0} 科室</div>
         ${featLine(r)}
       </div>
       <div class="num">${r.beds||'—'}<div class="meta" style="color:#8aa1c8">床位</div></div>
       <div class="dist">${dist}<div class="meta" style="color:#8aa1c8">${distMeta}</div></div>
       <div class="score">${score}</div>
-      <div class="meta" style="color:#8aa1c8;text-align:right">${r.key_specialty_count||0}<br>重点专科</div>
+      ${kscBlock(r)}
     </div>`;
   }).join('');
   document.querySelectorAll('.row').forEach(el => {
@@ -505,9 +524,9 @@ function renderSpecGrid() {
   grid.innerHTML = DATA.specialty_groups.map(g => `
     <div class="spec" data-dept="${g.dept_name}">
       <div class="dn">${g.dept_name}</div>
-      <div class="cnt">${g.hospital_count}<small>家</small></div>
+      <div class="cnt">${g.hospital_count}<small>家医院</small></div>
       <div class="top">
-        ${g.top_hospitals.map(h => `<div><span class="hn">${h.name}</span> · ${h.district}</div>`).join('')}
+        ${g.top_hospitals.map((h, i) => `<div><span class="rn ${i < 2 ? (i === 0 ? 'top1' : 'top2') : ''}">${i+1}</span><span class="hn">${h.name}</span> · ${h.district}</div>`).join('')}
       </div>
     </div>
   `).join('');
@@ -569,12 +588,23 @@ function showDetail(id) {
   const featDepts = r.feature ? r.feature.split(/[;；]/).map(x => x.trim()).filter(x => x) : [];
   const keyDepts = r.key_depts ? r.key_depts.split(/[,,、;\s]+/).filter(x => x) : [];
   const lv = r.feature_level;
-  document.getElementById('m_depts').innerHTML = featDepts.length
-    ? `<span style="color:#8aa1c8;font-size:10px;width:100%">${FEAT_LABEL[lv] || '擅长'}（权威度分级 L${lv}，共 ${featDepts.length} 项）：</span>` +
-      featDepts.map(d => `<span ${lv === '1' ? 'style="border:1px solid #ff6b6b;color:#ff9b9b"' : lv === '2' ? 'style="border:1px solid #f7b955;color:#f7b955"' : ''}>${d}</span>`).join('')
-    : (keyDepts.length
-        ? keyDepts.map(d => `<span>${d}</span>`).join('')
-        : '<span style="color:#8aa1c8">无重点科室标注</span>');
+  if (featDepts.length) {
+    const lvColor = lv === '1' ? '#ff6b6b' : lv === '2' ? '#f7b955' : '#8aa1c8';
+    const lvBg = lv === '1' ? '#ff6b6b22' : lv === '2' ? '#f7b95522' : '#8aa1c826';
+    document.getElementById('m_depts').innerHTML =
+      `<span style="color:#8aa1c8;font-size:10px;width:100%;display:inline-block;margin-bottom:4px">` +
+      `${FEAT_LABEL[lv] || '擅长'}（权威度分级 L${lv}，共 ${featDepts.length} 项）` +
+      `${r.key_specialty_count ? ` · 其中重点专科 ${r.key_specialty_count} 项` : ''}：</span>` +
+      featDepts.map(d =>
+        `<span style="border:1px solid ${lvColor}44;background:${lvBg};color:${lvColor};font-weight:600">${d}</span>`
+      ).join('');
+  } else if (keyDepts.length) {
+    document.getElementById('m_depts').innerHTML =
+      `<span style="color:#8aa1c8;font-size:10px;width:100%">诊疗科目（共 ${keyDepts.length} 项）：</span>` +
+      keyDepts.map(d => `<span>${d}</span>`).join('');
+  } else {
+    document.getElementById('m_depts').innerHTML = '<span style="color:#8aa1c8">无重点科室/科室标注</span>';
+  }
 
   // 弹窗里的 mini chart：当前机构在所属区的科室数对比
   const sameDist = DATA.institutions.filter(x => x.district === r.district && x.dept_count);
