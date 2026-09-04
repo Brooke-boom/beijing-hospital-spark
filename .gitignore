@@ -22,5 +22,8 @@ __pycache__/
 .idea/
 .vscode/
 
+# Spark JDBC 驱动（体积大，build 时按需下载）
+spark/*.jar
+
 # 论文相关（答辩前不上传，防止结构被抄袭）
 docs/论文大纲.md
