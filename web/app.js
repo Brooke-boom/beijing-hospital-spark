@@ -492,7 +492,14 @@ function updateCharts() {
 
   // 地图散点叠加（用 effectScatter 叠在 geo 上）
   try {
-    const points = FILTERED.filter(r => r.lng != null).slice(0, 3000);
+    // 防御：剔除落在北京地图可视范围之外的点（经纬度越界会被画出版图，形成孤点）
+    const inBbox = r => {
+      if (r.lng == null || r.lat == null) return false;
+      const lng = +r.lng, lat = +r.lat;
+      // 北京 admin 边界实测：lng 115.4~117.5, lat 39.4~41.1（含密云/平谷最东）
+      return lng > 115.35 && lng < 117.50 && lat > 39.40 && lat < 41.10;
+    };
+    const points = FILTERED.filter(inBbox).slice(0, 3000);
     MAP_CHART.setOption({
       series: [
         {type:'map', geoIndex:0},
