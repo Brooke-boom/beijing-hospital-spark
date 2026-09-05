@@ -41,7 +41,7 @@ meta = {
 }
 geo = json.load(open('web/static/json/beijing.json', encoding='utf-8'))
 out = {'institutions': rows, 'overviews': overviews,
-       'meta': meta, 'geojson': geo, 'snapshot_time': '2026-09-04', 'total': len(rows)}
+       'meta': meta, 'geojson': geo, 'snapshot_time': '2026-09-05', 'total': len(rows)}
 out_path = Path('web/snapshot_data.json')
 out_path.write_text(json.dumps(out, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
 print(f'  ✓ {out_path} | {out_path.stat().st_size/1024/1024:.2f} MB')
@@ -70,7 +70,11 @@ print('  ✓ web/templates/index.html 已同步')
 
 # === 2.5 生成完全离线版：内嵌 ECharts 库，去掉所有 CDN 依赖 ===
 import urllib.request, os
-vendor_dir = Path('web/vendor'); vendor_dir.mkdir(exist_ok=True)
+vendor_dir = Path('web/vendor')
+try:
+    vendor_dir.mkdir(exist_ok=True)
+except Exception:
+    pass  # 目录已存在（部分沙盒环境对已存在目录也会抛错）
 echarts_js = vendor_dir / 'echarts.min.js'
 if not echarts_js.exists():
     print('  · 下载 ECharts 5.5.1 到 vendor/ ...')
