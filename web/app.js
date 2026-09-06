@@ -534,6 +534,7 @@ function showDetail(id) {
     <div><div class="l">床 位</div><div class="v">${r.beds || '—'}</div></div>
     <div><div class="l">科 室 数</div><div class="v">${r.dept_count || 0}</div></div>
     <div><div class="l">重点专科数</div><div class="v">${r.key_specialty_count || 0}</div></div>
+    <div><div class="l">国家重点专科</div><div class="v">${r.national_specialty_count ? `<span style="color:#f0c674;font-weight:600">${r.national_specialty_count} 个</span> <span style="color:#8aa1c8;font-size:10px">（国家级）</span>` : '<span style="color:#8aa1c8">—</span>'}</div></div>
     <div><div class="l">坐 标 精 度</div><div class="v">${r.coord_precision || '—'}</div></div>
     <div><div class="l">综 合 评 分</div><div class="v" style="color:#f7b955">${(r._score||0).toFixed(3)}</div></div>
   `;

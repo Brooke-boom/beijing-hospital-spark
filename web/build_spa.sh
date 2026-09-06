@@ -15,14 +15,16 @@ def q(sql):
         cur.execute(sql); return cur.fetchall()
 rows = q("""SELECT id, name, district, level_norm AS level, category_norm AS category,
     category_sub, ownership, feature, feature_level,
-    dept_count, beds, key_specialty_count, lng, lat, coord_precision, key_depts, grade_scope
+    dept_count, beds, key_specialty_count, lng, lat, coord_precision, key_depts, grade_scope,
+    national_specialty, national_specialty_count
     FROM ads_inst_search""")
 for r in rows:
     r['id'] = str(r['id']).strip()
     for k in ('name','district','level','category','category_sub','ownership',
-              'feature','feature_level','coord_precision','key_depts','grade_scope'):
+              'feature','feature_level','coord_precision','key_depts','grade_scope',
+              'national_specialty'):
         v = r.get(k); r[k] = ('' if v is None else v.strip() if isinstance(v, str) else v)
-    for k in ('dept_count','beds','key_specialty_count','lng','lat'):
+    for k in ('dept_count','beds','key_specialty_count','lng','lat','national_specialty_count'):
         r[k] = None if r.get(k) in (None, '') else r[k]
 overviews = {
     'districts':  q("SELECT district, inst_count, coord_high_count FROM ads_district_overview ORDER BY inst_count DESC"),
