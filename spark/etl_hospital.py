@@ -198,6 +198,7 @@ def main():
             "addr", "phone", "postal", "beds", "key_depts",
             "feature", "feature_level",
             "national_specialty", "national_specialty_count",
+            "municipal_specialty", "municipal_specialty_count",
             "ownership", "ownership_basis",
             "lng_d", "lat_d", "coord_formatted", "coord_level", "coord_source", "coord_precision",
             "econ", "profit", "category_raw", "src_count_int", "source_files",
@@ -208,6 +209,9 @@ def main():
         # 国家级重点专科数：CSV 读入为 string，转 int 避免按字典序排序（"9" > "28"）
         .withColumn("national_specialty_count",
                     F.coalesce(F.col("national_specialty_count").cast("int"), F.lit(0)))
+        # 市级重点专科数（北京市级临床重点专科 + 北京中医药重点专科；2026-09-06 联网采集）
+        .withColumn("municipal_specialty_count",
+                    F.coalesce(F.col("municipal_specialty_count").cast("int"), F.lit(0)))
     )
     n_dwd = inst_dwd.count()
     print("  dwd_institution_clean: %d 行（清洗后）" % n_dwd)
