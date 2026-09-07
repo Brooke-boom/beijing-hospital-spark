@@ -29,6 +29,7 @@ spark/*.jar
 docs/论文大纲.md
 docs/毕业论文.md
 docs/images/
+答辩PPT/
 
 # 大屏快照数据（体积大不入库；dashboard_offline.html 为唯一入库的离线大屏版本，按 build_spa.sh 重新生成后提交）
 web/snapshot_data.json
