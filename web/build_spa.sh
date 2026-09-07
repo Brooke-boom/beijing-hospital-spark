@@ -93,8 +93,8 @@ html2 = html2.replace(
     f'<script>\n/* ECharts 5.5.1 - inlined for offline use */\n{echarts_inline}\n</script>',
     1
 )
-html2 = html2.replace('<title>北京市医院医疗资源整合与智能筛选可视化系统</title>',
-                    '<title>北京市医院医疗资源整合与智能筛选可视化系统 - 离线版</title>', 1)
+html2 = html2.replace('<title>北京市医院医疗资源整合与多维筛选可视化系统</title>',
+                    '<title>北京市医院医疗资源整合与多维筛选可视化系统 - 离线版</title>', 1)
 offline = Path('web/dashboard_offline.html')
 offline.write_text(html2, encoding='utf-8')
 print(f'  ✓ {offline} | {offline.stat().st_size/1024/1024:.2f} MB (完全离线，无需 CDN)')

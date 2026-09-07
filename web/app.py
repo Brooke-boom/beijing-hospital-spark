@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-北京市医院医疗资源整合与智能筛选可视化系统 —— Flask API
+北京市医院医疗资源整合与多维筛选可视化系统 —— Flask API
 =========================================================
 数据源：MySQL hospital 库 ADS 层（由 spark/etl_hospital.py 生成）
   - ads_inst_search        筛选排序主表（9,791 家机构）

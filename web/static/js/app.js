@@ -1,4 +1,4 @@
-/* 北京市医院医疗资源智能筛选系统 —— 前端逻辑 */
+/* 北京市医院医疗资源多维筛选系统 —— 前端逻辑 */
 "use strict";
 
 const $ = (id) => document.getElementById(id);
