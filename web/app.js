@@ -15,7 +15,7 @@ const LEVEL_RANK = {'三级':4, '二级':3, '一级':2, '未定级':1};
 // 评分权重
 const W_LEVEL = 0.4, W_DIST = 0.3, W_DEPT = 0.2, W_BED = 0.1;
 
-const DASHBOARD_VERSION = 'v3.3-20260904-1930-spec-polish';
+const DASHBOARD_VERSION = 'v3.4-20260908-dept-derive-tag';
 console.log('[dashboard] 加载版本:', DASHBOARD_VERSION);
 console.log('[dashboard] BASE_POINTS 初始值:', JSON.stringify(BASE_POINTS, null, 2));
 let FILTERED = [];        // 筛选后
@@ -308,7 +308,8 @@ function featLine(r) {
   if (!depts.length) return '';
   const lv = r.feature_level || '3';
   const show = depts.slice(0, 6).join(' / ') + (depts.length > 6 ? ` 等${depts.length}项` : '');
-  return `<div class="feat" title="${depts.join(' / ')}"><span class="fk f${lv}">${FEAT_LABEL[lv] || '擅长'}</span><span class="ft">${show}</span></div>`;
+  const lab = (FEAT_LABEL[lv] || '擅长') + (lv === '3' && (r.rule_dept_count||0) >= 3 ? '·推导' : '');
+  return `<div class="feat" title="${depts.join(' / ')}"><span class="fk f${lv}">${lab}</span><span class="ft">${show}</span></div>`;
 }
 // 关键词命中高亮（不转义，name 来自可信数据）
 function escHtml(s) {
@@ -353,7 +354,7 @@ function renderList() {
     return `<div class="row${hitCls}" data-id="${r.id}">
       <div>
         <div class="name">${kwMark(r.name)}</div>
-        <div class="meta">${levelBadge(r.level)}${catBadge(r.category)}${ownBadge(r.ownership)} ${r.district} · ${r.dept_count||0} 科室</div>
+        <div class="meta">${levelBadge(r.level)}${catBadge(r.category)}${ownBadge(r.ownership)} ${r.district} · ${r.dept_count||0} 科室${(r.rule_dept_count||0) >= 3 ? '<span title="该机构科室含「类型×等级」规则推导数据，供筛选演示" style="color:#f7b955">·含推导</span>' : ''}</div>
         ${featLine(r)}
       </div>
       <div class="num">${r.beds||'—'}<div class="meta" style="color:#8aa1c8">床位</div></div>
@@ -532,7 +533,7 @@ function showDetail(id) {
     <div><div class="l">类 型</div><div class="v">${r.category || '—'}${r.category_sub && r.category_sub !== '未细分' ? ' · ' + r.category_sub : ''}</div></div>
     <div><div class="l">办 别</div><div class="v">${ownBadge(r.ownership) || (r.ownership || '未标注')}${r.ownership_basis ? ` <span style="color:#8aa1c8;font-size:10px">依据 ${r.ownership_basis}</span>` : ''}</div></div>
     <div><div class="l">床 位</div><div class="v">${r.beds || '—'}</div></div>
-    <div><div class="l">科 室 数</div><div class="v">${r.dept_count || 0}</div></div>
+    <div><div class="l">科 室 数</div><div class="v">${r.dept_count || 0}${(r.rule_dept_count||0) >= 3 ? ` <span title="其中 ${r.rule_dept_count} 个来自「类型×等级」规则推导（模拟数据，供筛选演示），非医院真实登记科室" style="color:#f7b955;font-size:10px;cursor:help">含规则推导ⓘ</span>` : ''}</div></div>
     <div><div class="l">重点专科数</div><div class="v">${r.key_specialty_count || 0}</div></div>
     <div><div class="l">国家重点专科</div><div class="v">${r.national_specialty_count ? `<span style="color:#f0c674;font-weight:600">${r.national_specialty_count} 个</span> <span style="color:#8aa1c8;font-size:10px">（国家级）</span>` : '<span style="color:#8aa1c8">—</span>'}</div></div>
     <div><div class="l">市级重点专科</div><div class="v">${r.municipal_specialty_count ? `<span style="color:#81c784;font-weight:600">${r.municipal_specialty_count} 项</span> <span style="color:#8aa1c8;font-size:10px">（北京市级）</span>${r.municipal_specialty ? ` <span title="${r.municipal_specialty.replace(/;/g,'、')}" style="color:#8aa1c8;font-size:10px;cursor:help">［清单］</span>` : ''}` : '<span style="color:#8aa1c8">—</span>'}</div></div>

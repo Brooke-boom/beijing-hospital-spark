@@ -13,12 +13,15 @@ conn = pymysql.connect(host='127.0.0.1', port=3307, user='root', password='hospi
 def q(sql):
     with conn.cursor() as cur:
         cur.execute(sql); return cur.fetchall()
-rows = q("""SELECT id, name, district, level_norm AS level, category_norm AS category,
-    category_sub, ownership, feature, feature_level,
-    dept_count, beds, key_specialty_count, lng, lat, coord_precision, key_depts, grade_scope,
-    national_specialty, national_specialty_count,
-    municipal_specialty, municipal_specialty_count
-    FROM ads_inst_search""")
+rows = q("""SELECT a.id, a.name, a.district, a.level_norm AS level, a.category_norm AS category,
+    a.category_sub, a.ownership, a.feature, a.feature_level,
+    a.dept_count, a.beds, a.key_specialty_count, a.lng, a.lat, a.coord_precision, a.key_depts, a.grade_scope,
+    a.national_specialty, a.national_specialty_count,
+    a.municipal_specialty, a.municipal_specialty_count,
+    COALESCE(rc.rule_dept_count, 0) AS rule_dept_count
+    FROM ads_inst_search a
+    LEFT JOIN (SELECT hospital_id, COUNT(*) AS rule_dept_count FROM dwd_dept_relation_clean
+               WHERE source = 'rule' GROUP BY hospital_id) rc ON rc.hospital_id = a.id""")
 for r in rows:
     r['id'] = str(r['id']).strip()
     for k in ('name','district','level','category','category_sub','ownership',
@@ -44,7 +47,7 @@ meta = {
 }
 geo = json.load(open('web/static/json/beijing.json', encoding='utf-8'))
 out = {'institutions': rows, 'overviews': overviews,
-       'meta': meta, 'geojson': geo, 'snapshot_time': '2026-09-05', 'total': len(rows)}
+       'meta': meta, 'geojson': geo, 'snapshot_time': '2026-09-08', 'total': len(rows)}
 out_path = Path('web/snapshot_data.json')
 out_path.write_text(json.dumps(out, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
 print(f'  ✓ {out_path} | {out_path.stat().st_size/1024/1024:.2f} MB')

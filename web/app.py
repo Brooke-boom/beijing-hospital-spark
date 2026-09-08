@@ -166,6 +166,8 @@ def api_institutions():
         f"FROM ads_inst_search t"
         f" JOIN (SELECT id, {dist_expr} AS distance_km FROM ads_inst_search) d"
         f" ON t.id = d.id"
+        f" LEFT JOIN (SELECT hospital_id, COUNT(*) AS rule_dept_count FROM dwd_dept_relation_clean"
+        f" WHERE source = 'rule' GROUP BY hospital_id) rc ON rc.hospital_id = t.id"
         f" WHERE {where_sql}"
     )
 
@@ -177,7 +179,7 @@ def api_institutions():
         " t.level_sub, t.addr, t.phone, t.beds, t.key_depts,"
         " t.category_sub, t.ownership, t.feature, t.feature_level,"
         " t.lng, t.lat, t.coord_precision, t.dept_count, t.key_specialty_count,"
-        " d.distance_km, " + score_expr + " AS score " + base_select +
+        " d.distance_km, COALESCE(rc.rule_dept_count, 0) AS rule_dept_count, " + score_expr + " AS score " + base_select +
         f" ORDER BY {order_sql} LIMIT %s OFFSET %s",
         dist_params + params + [page_size, offset],
     )
@@ -205,7 +207,7 @@ def api_detail(inst_id):
     if not inst:
         return jsonify({"error": "not found"}), 404
     depts = query(
-        "SELECT dept_name, is_key_specialty FROM dwd_dept_relation_clean"
+        "SELECT dept_name, is_key_specialty, source FROM dwd_dept_relation_clean"
         " WHERE hospital_id = %s ORDER BY is_key_specialty DESC, dept_name",
         [inst_id],
     )
