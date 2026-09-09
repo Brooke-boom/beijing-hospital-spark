@@ -43,3 +43,6 @@ web/vendor/
 *.bak
 *.log
 web/flask.log
+
+# 线上发布目录（静态站点，6MB 不入仓库）
+web/dist/
