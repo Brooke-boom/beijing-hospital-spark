@@ -8,6 +8,12 @@
 <meta name="dashboard-version" content="v3.1-init-order-20260904">
 <title>北京市医院医疗资源整合与多维筛选可视化系统</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<script>
+  /* 大模型兜底开关：默认 false（规则引擎解析，完全离线可用）。
+     如需启用：后端设 AI_LLM_ENABLED=1 及 AI_API_BASE/AI_API_KEY/AI_MODEL，再把这里改为 true。
+     规则引擎零命中时才会调用大模型，调用失败自动回退，绝不影响主流程。*/
+  window.__AI_LLM_ON__ = false;
+</script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#0b1530;color:#e8eefc;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Heiti SC','Microsoft YaHei',sans-serif;font-size:13px;min-height:100vh}
@@ -118,6 +124,21 @@
   .loading.hide{opacity:0;pointer-events:none}
   .pulse{display:inline-block;width:8px;height:8px;background:#5fd3c0;border-radius:50%;margin-right:6px;animation:p 1.5s infinite}
   @keyframes p{0%{opacity:0.3;transform:scale(0.8)}50%{opacity:1;transform:scale(1.2)}100%{opacity:0.3;transform:scale(0.8)}}
+  /* 自然语言解析（规则引擎 + 可选大模型增强） */
+  .nlqbar{margin-bottom:12px;padding:10px 12px;background:linear-gradient(90deg,rgba(167,139,250,0.10),rgba(58,160,255,0.05));border:1px solid #6d5bd0;border-radius:6px}
+  .nlq-in{display:flex;gap:8px;align-items:center}
+  .nlq-badge{background:linear-gradient(135deg,#a78bfa,#6d5bd0);color:#fff;font-size:10px;font-weight:700;padding:3px 7px;border-radius:4px;letter-spacing:.5px;white-space:nowrap}
+  .nlqbar input{flex:1;min-width:0;background:#0b1530;border:1px solid #3aa0ff;color:#e8eefc;padding:7px 11px;border-radius:5px;font-size:12px;font-family:inherit;outline:none}
+  .nlqbar input:focus{border-color:#a78bfa;box-shadow:0 0 0 3px #a78bfa22}
+  .nlqbar button{padding:7px 14px;background:linear-gradient(180deg,#a78bfa,#6d5bd0);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap}
+  .nlqbar button.gray{background:linear-gradient(180deg,#1f3a68,#152849);color:#8aa1c8;font-weight:normal}
+  .nlqbar button:hover{filter:brightness(1.15)}
+  .ai-echo{margin-top:8px;font-size:11px;color:#8aa1c8;display:none;line-height:1.7}
+  .ai-echo.show{display:block}
+  .ai-echo b{color:#5fd3c0}
+  .ai-echo .chip{display:inline-block;background:#1f3a68;color:#a78bfa;padding:2px 8px;border-radius:10px;font-size:11px;margin:0 4px 4px 0}
+  .ai-echo .warn{color:#f7b955}
+  .ai-echo .hit{color:#5fd3c0}
 </style>
 </head>
 <body>
@@ -142,9 +163,19 @@
 </div>
 
 <div class="filterbar">
-  <h3>多维筛选 <span class="right">5 维筛选 · 5 种排序 · 加权评分 · Haversine 距离</span></h3>
+  <h3>多维筛选 <span class="right">6 维筛选 · 6 种排序 · 加权评分 · Haversine 距离</span></h3>
+  <div class="nlqbar">
+    <div class="nlq-in">
+      <span class="nlq-badge">AI 说人话</span>
+      <input id="f_ai" placeholder="试试说人话：朝阳区看心脏病的三级医院，离家近">
+      <button id="btn_ai" type="button">解析</button>
+      <button id="btn_ai_clear" type="button" class="gray">清空</button>
+    </div>
+    <div id="ai_echo" class="ai-echo"></div>
+  </div>
   <div class="filters">
     <div><label>关键词（机构名/地址）</label><input id="f_kw" placeholder="如：协和 / 海淀 / 中医"></div>
+    <div><label>科室（擅长/诊疗）</label><select id="f_dept"><option value="">全部科室</option></select></div>
     <div><label>区域</label><select id="f_district"><option value="">全部 16 区</option></select></div>
     <div><label>等级</label><select id="f_level"><option value="">全部等级</option></select></div>
     <div><label>类型</label><select id="f_cat"><option value="">全部类型</option></select></div>
@@ -311,6 +342,8 @@ function init() {
     fillSelect('f_district', DATA.meta.districts.map(d => d.district), '全部 16 区');
     fillSelect('f_level',     DATA.meta.levels.map(d => d.level), '全部等级');
     fillSelect('f_cat',       DATA.meta.categories.map(d => d.category), '全部类型');
+    // 科室维度（第 6 维）：选项取自有覆盖数据的标准科室，匹配 feature（诊疗科室）与 key_depts（登记科目）
+    fillSelect('f_dept',      DATA.meta.depts.map(d => d.dept_name), '全部科室');
 
     bindEvents();
     initCharts();     // 必须先初始化图表实例
@@ -337,11 +370,20 @@ function fillSelect(id, opts, firstLabel) {
 
 // ========== 4. 事件绑定 ==========
 function bindEvents() {
-  ['f_kw','f_district','f_level','f_cat','f_base','f_sort'].forEach(id => {
+  ['f_kw','f_district','f_level','f_cat','f_dept','f_base','f_sort'].forEach(id => {
     document.getElementById(id).addEventListener('input', () => { PAGE = 1; applyFilter(); });
     document.getElementById(id).addEventListener('change', () => { PAGE = 1; applyFilter(); });
   });
   document.getElementById('btn_reset').addEventListener('click', resetFilter);
+  // 自然语言解析：回车或点按钮触发
+  const aiInput = document.getElementById('f_ai');
+  if (aiInput) {
+    aiInput.addEventListener('keydown', e => { if (e.key === 'Enter') applyNLQ(); });
+  }
+  const btnAi = document.getElementById('btn_ai');
+  if (btnAi) btnAi.addEventListener('click', applyNLQ);
+  const btnAiClear = document.getElementById('btn_ai_clear');
+  if (btnAiClear) btnAiClear.addEventListener('click', clearNLQ);
   document.getElementById('pg_prev').addEventListener('click', () => { if (PAGE>1) { PAGE--; renderList(); } });
   document.getElementById('pg_next').addEventListener('click', () => { if (PAGE*PAGE_SIZE<FILTERED.length) { PAGE++; renderList(); } });
   document.getElementById('pg_size').addEventListener('change', e => { PAGE_SIZE = +e.target.value; PAGE = 1; renderList(); });
@@ -361,6 +403,7 @@ function resetFilter() {
   document.getElementById('f_district').value = '';
   document.getElementById('f_level').value = '';
   document.getElementById('f_cat').value = '';
+  const dsel = document.getElementById('f_dept'); if (dsel) dsel.value = '';
   document.getElementById('f_base').value = 'tiananmen';
   document.getElementById('f_sort').value = 'score';
   PAGE = 1;
@@ -445,6 +488,217 @@ function haversine(lng1, lat1, lng2, lat2) {
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+// ========== 4.8 自然语言解析（规则引擎 + 可选大模型增强） ==========
+// 大模型兜底开关，默认关闭：离线版与默认在线版都走规则引擎，零外部依赖。
+if (typeof window.__AI_LLM_ON__ === 'undefined') window.__AI_LLM_ON__ = false;
+// 设计原则：
+//   1) 规则引擎为默认路径，纯前端、完全离线可用，答辩现场零依赖；
+//   2) 大模型为可选增强，默认关闭（window.__AI_LLM_ON__ = false），仅在规则零命中时异步兜底；
+//   3) 解析结果必须「可解释回显」，用户可对照纠错，避免黑箱决策。
+
+// 标准科室 → 口语/症状同义词（匹配时按词长降序，保证"妇幼保健院"优先于"医院"）
+const NLQ_DEPT_SYNONYMS = [
+  ['心血管内科', ['心脏病','心脏','心血管','心悸','胸闷','胸痛','高血压','血压高','冠心病','心梗','心肌梗死','心绞痛','心律不齐','房颤','心衰','心力衰竭']],
+  ['呼吸内科',   ['咳嗽','咳喘','哮喘','肺炎','肺病','呼吸困难','气喘','支气管炎','慢阻肺','肺气肿','喘不上气','呼吸']],
+  ['消化内科',   ['胃病','肠胃','消化','腹泻','拉肚子','腹痛','肚子疼','反酸','胃溃疡','肠胃炎','便秘','恶心','呕吐','消化不良']],
+  ['神经内科',   ['头痛','头疼','偏头痛','头晕','神经内科','脑梗','脑血栓','中风','偏瘫','癫痫','帕金森','面瘫','脑血管','神经痛','眩晕','抽搐','手脚麻木']],
+  ['肾内科',     ['肾病','肾脏','尿毒症','肾炎','肾功能','蛋白尿','肾衰']],
+  ['内分泌科',   ['糖尿病','血糖','内分泌','甲亢','甲状腺','肥胖','减肥','痛风','尿酸','高血脂','血脂']],
+  ['血液内科',   ['贫血','白血病','血友病','血小板','淋巴瘤','血液病']],
+  ['老年病科',   ['老年病','老年人','老人']],
+  ['普内科',     ['内科','感冒','发烧','发热','普通内科']],
+  ['全科医疗科', ['全科','家庭医生']],
+  ['普通外科',   ['外科','普外','阑尾','阑尾炎','疝气','胆囊','胆结石','外伤','缝合']],
+  ['骨科',       ['骨折','骨头','腰椎','颈椎','关节','腰痛','腰疼','腿疼','脖子疼','骨刺','骨质疏松','扭伤','脱位','脊柱','半月板','腰椎间盘','关节炎']],
+  ['神经外科',   ['脑外科','脑肿瘤','脑外伤','脑出血','颅脑','脑瘤']],
+  ['心胸外科',   ['心脏手术','搭桥','胸腔','开胸','心脏搭桥','肺手术']],
+  ['泌尿外科',   ['泌尿','结石','肾结石','前列腺','尿频','尿急','尿路','膀胱','尿失禁']],
+  ['肛肠外科',   ['痔疮','肛肠','肛门','便血','肛裂','肛瘘']],
+  ['妇产科',     ['妇科','产科','怀孕','孕检','生孩子','月经','白带','妇科炎症','子宫','卵巢','产检','分娩','孕妇','备孕','流产','不孕']],
+  ['儿科',       ['儿科','小孩','儿童','宝宝','小儿','孩子','幼儿','新生儿','婴儿']],
+  ['肿瘤科',     ['肿瘤','癌症','癌','化疗','放疗','恶性']],
+  ['精神心理科', ['精神','心理','抑郁','焦虑','失眠','神经衰弱','心理咨询']],
+  ['眼科',       ['眼科','眼睛','近视','视力','白内障','青光眼','眼底','红眼']],
+  ['耳鼻咽喉科', ['耳鼻喉','耳朵','听力','鼻炎','咽炎','扁桃体','咽喉','鼻子','耳鸣','中耳炎','打鼾','嗓子']],
+  ['口腔科',     ['牙科','牙齿','口腔','洗牙','补牙','拔牙','牙疼','牙痛','正畸','种植牙','牙医','牙']],
+  ['皮肤科',     ['皮肤病','皮肤','湿疹','过敏','皮疹','青春痘','痤疮','牛皮癣','荨麻疹','瘙痒','皮炎']],
+  ['中医内科',   ['中医内科','中医','调理','中药','把脉','气血']],
+  ['中医骨伤科', ['中医骨科','骨伤','正骨','跌打']],
+  ['针灸推拿科', ['针灸','推拿','按摩','拔罐','艾灸','针灸推拿']],
+  ['感染科',     ['感染','传染病','传染','结核','发热门诊']],
+  ['肝病科',     ['肝病','肝炎','乙肝','丙肝','肝硬化','脂肪肝','肝功能']],
+  ['急诊科',     ['急诊','急救','急症']],
+  ['重症医学科', ['重症','危重','重症监护']],
+  ['康复医学科', ['康复','康复训练','理疗','康复科']],
+];
+
+// 等级 / 类型 / 排序 / 性质 的口语映射
+const NLQ_LEVEL = [['三级',['三级甲等','三甲','三级','三等甲级']],
+                   ['二级',['二级','二甲']],
+                   ['一级',['一级','一甲','社区医院']]];
+const NLQ_CAT   = [['妇幼保健',['妇幼保健院','妇产医院','妇幼']],
+                   ['急救中心',['急救中心','急救站']],
+                   ['体检中心',['体检中心','体检']],
+                   ['门诊部',['门诊部']],
+                   ['诊所',['诊所']],
+                   ['医院',['医院']]];
+const NLQ_SORT  = [['distance',['离家近','离我近','最近','附近','周边','旁边','距离近','近一点']],
+                   ['level',   ['最好','等级高','评级高','最强','档次高']],
+                   ['beds',    ['床位多','规模大','大医院']],
+                   ['depts',   ['科室全','科室多']]];
+const NLQ_OWN   = [['公立',['公立','公办','国立']], ['民营',['民营','私立','民办']]];
+// 命中后从原文剔除的停用词，避免污染关键词
+const NLQ_STOP  = ['的','了','看','找','想','要','有','吗','啊','呀','呢','我','家','去','在','和','与','或','请','帮','推荐','一下','哪里','哪个','哪些','什么','怎么','附近','周边','最近','离家近','离我近'];
+
+// 把 [[目标,[词...]]...] 拍平成按词长降序的匹配表（长词优先，避免子串误吞）
+// includeSelf=true 时把科室标准名本身也纳入匹配，解决"骨科""神经外科"等自称未收录的问题
+function nlqBuildTable(pairs, includeSelf) {
+  const t = [];
+  pairs.forEach(([target, words]) => {
+    if (includeSelf && target) t.push({ w: target, target });
+    words.forEach(w => t.push({ w, target }));
+  });
+  t.sort((a, b) => b.w.length - a.w.length);
+  return t;
+}
+let _NLQ_TABLES = null;
+function nlqTables() {
+  if (_NLQ_TABLES) return _NLQ_TABLES;
+  _NLQ_TABLES = {
+    dept:  nlqBuildTable(NLQ_DEPT_SYNONYMS, true),
+    level: nlqBuildTable(NLQ_LEVEL),
+    cat:   nlqBuildTable(NLQ_CAT),
+    sort:  nlqBuildTable(NLQ_SORT),
+  };
+  return _NLQ_TABLES;
+}
+
+// 在一次解析中按词长优先匹配，返回 {target, word, index} 或 null
+function nlqMatch(table, text, used) {
+  for (const item of table) {
+    const i = text.indexOf(item.w);
+    if (i >= 0) {
+      // 检查该区间是否已被先前命中的词占用
+      const span = used.find(u => !(i + item.w.length <= u.s || i >= u.e));
+      if (span) continue;
+      return { target: item.target, word: item.w, index: i, s: i, e: i + item.w.length };
+    }
+  }
+  return null;
+}
+
+// 规则解析主函数：自然语言 → 结构化筛选条件（完全离线）
+function parseNLQ(raw) {
+  const text = (raw || '').trim();
+  const out = { district: '', level: '', cat: '', dept: '', sort: '', kw: '', hits: [], engine: 'rule' };
+  if (!text) return out;
+
+  const T = nlqTables();
+  const used = [];   // 已占用区间，防止同一段文字被重复解释
+  const take = (m) => { if (m) { used.push({ s: m.s, e: m.e }); out.hits.push(m); } return m; };
+
+  // 1. 行政区（支持"朝阳区"与"朝阳"两种写法，取数据中的真实区名）
+  if (DATA && DATA.meta && DATA.meta.districts) {
+    let best = null;
+    DATA.meta.districts.forEach(d => {
+      const full = d.district;                 // 朝阳区
+      const short = full.replace(/[市区县]$/, ''); // 朝阳
+      [full, short].forEach(form => {
+        const i = text.indexOf(form);
+        if (i >= 0 && (!best || form.length > best.form.length)) best = { form, name: full, i };
+      });
+    });
+    if (best) {
+      out.district = best.name;
+      used.push({ s: best.i, e: best.i + best.form.length });
+      out.hits.push({ target: best.name, word: best.form, kind: 'district' });
+    }
+  }
+
+  // 2. 等级 / 3. 类型 / 4. 科室 / 5. 排序（顺序即优先级，先占位者胜）
+  const lv = nlqMatch(T.level, text, used);  if (lv)  { take(lv);  out.level = lv.target;  lv.kind = 'level'; }
+  const ct = nlqMatch(T.cat,   text, used);  if (ct)  { take(ct);  out.cat   = ct.target;  ct.kind = 'cat'; }
+  const dp = nlqMatch(T.dept,  text, used);  if (dp)  { take(dp);  out.dept  = dp.target;  dp.kind = 'dept'; }
+  const st = nlqMatch(T.sort,  text, used);  if (st)  { take(st);  out.sort  = st.target;  st.kind = 'sort'; }
+
+  // 6. 剩余文字作为关键词（剔除命中词与停用词）
+  let rest = text;
+  [...used].sort((a, b) => b.s - a.s).forEach(u => { rest = rest.slice(0, u.s) + ' '.repeat(u.e - u.s) + rest.slice(u.e); });
+  // 同一维度已确定，残留的同义表达（如已定"感冒"又出现"发烧"）不必再进关键词
+  [T.dept, T.level, T.cat, T.sort].forEach(tb => {
+    tb.forEach(it => { if (rest.indexOf(it.w) >= 0) rest = rest.split(it.w).join(' '); });
+  });
+  NLQ_STOP.forEach(w => { rest = rest.split(w).join(' '); });
+  // 直接删除分隔符与空白（而非替换为空格），避免残留纯空格被误判成关键词
+  rest = rest.replace(/[\s，。、,.!！？?；;：:（）()"'']+/g, '');
+  if (rest.length >= 2) out.kw = rest;
+
+  return out;
+}
+
+// 把解析结果写入筛选控件并刷新；同时回显"我理解为…"供用户纠错
+function applyNLQ() {
+  const input = document.getElementById('f_ai');
+  const echo = document.getElementById('ai_echo');
+  const raw = (input.value || '').trim();
+  if (!raw) { echo.className = 'ai-echo'; return; }
+
+  const r = parseNLQ(raw);
+
+  // 规则零命中且开启大模型增强时，尝试在线兜底（默认关闭，离线版永不触发）
+  if (window.__AI_LLM_ON__ && r.hits.length === 0) {
+    fetch('/api/ai/parse?q=' + encodeURIComponent(raw))
+      .then(resp => resp.ok ? resp.json() : null)
+      .then(j => {
+        if (j && j.ok && j.conditions) {
+          Object.assign(r, j.conditions, { engine: 'llm' });
+          commitNLQ(r, raw);
+        } else { commitNLQ(r, raw); }
+      })
+      .catch(() => commitNLQ(r, raw));
+    return;
+  }
+  commitNLQ(r, raw);
+}
+
+function commitNLQ(r, raw) {
+  const echo = document.getElementById('ai_echo');
+  const setSel = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+  setSel('f_district', r.district);
+  setSel('f_level', r.level);
+  setSel('f_cat', r.cat);
+  setSel('f_dept', r.dept);
+  setSel('f_sort', r.sort || 'score');
+  if (r.kw) document.getElementById('f_kw').value = r.kw;
+
+  // 可解释回显
+  const chips = [];
+  if (r.district) chips.push('区域：' + r.district);
+  if (r.level)    chips.push('等级：' + r.level);
+  if (r.cat)      chips.push('类型：' + r.cat);
+  if (r.dept)     chips.push('科室：' + r.dept);
+  if (r.kw)       chips.push('关键词：' + r.kw);
+  if (r.sort)     chips.push('排序：' + ({score:'综合评分',distance:'距离最近',level:'等级优先',beds:'床位最多',depts:'科室最多'}[r.sort] || r.sort));
+
+  const engineTip = r.engine === 'llm' ? '（大模型解析）' : '（规则引擎解析 · 离线可用）';
+  if (chips.length === 0) {
+    echo.innerHTML = '<span class="warn">⚠ 未能识别出筛选条件。</span>可试试：朝阳区看心脏病的三级医院 / 海淀区儿科诊所 / 离家最近的二甲医院';
+  } else {
+    echo.innerHTML = '<b>我理解为</b> ' + engineTip + '<br>' +
+      chips.map(c => '<span class="chip">' + c + '</span>').join('') +
+      '<br><span style="color:#6b7a99">解析结果已填入下方筛选项，可直接修改纠错。</span>';
+  }
+  echo.className = 'ai-echo show';
+  PAGE = 1;
+  applyFilter();
+}
+
+function clearNLQ() {
+  document.getElementById('f_ai').value = '';
+  document.getElementById('ai_echo').className = 'ai-echo';
+  resetFilter();
+}
+
 function applyFilter() {
   console.log('[applyFilter] 触发, baseKey=', JSON.stringify(document.getElementById('f_base').value), 'base=', JSON.stringify(BASE_POINTS[document.getElementById('f_base').value]));
   if (!DATA) return;
@@ -452,6 +706,8 @@ function applyFilter() {
   const district = document.getElementById('f_district').value;
   const level = document.getElementById('f_level').value;
   const cat = document.getElementById('f_cat').value;
+  const deptEl = document.getElementById('f_dept');
+  const dept = deptEl ? deptEl.value : '';
   const baseKey = document.getElementById('f_base').value;
   const sort = document.getElementById('f_sort').value;
   const base = BASE_POINTS[baseKey];
@@ -470,6 +726,11 @@ function applyFilter() {
     if (district && r.district !== district) return false;
     if (level && r.level !== level) return false;
     if (cat && r.category !== cat) return false;
+    // 科室维度：匹配 feature（擅长/诊疗科室）与 key_depts（登记科目）
+    if (dept) {
+      const pool = (r.feature || '') + ';' + (r.key_depts || '');
+      if (pool.indexOf(dept) < 0) return false;
+    }
     if (r.lng != null && r.lat != null) {
       r._dist = haversine(baseSafe.lng, baseSafe.lat, r.lng, r.lat);
     } else {

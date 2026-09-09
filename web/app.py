@@ -316,6 +316,64 @@ def api_health():
     return jsonify({"status": "ok", "institutions": row["n"]})
 
 
+# ============== 自然语言解析（可选大模型增强，默认关闭） ==============
+# 设计要点：前端 JS 规则引擎是默认路径，纯离线、零依赖，答辩现场绝不受网络/额度影响；
+# 本接口仅在显式开启时提供大模型兜底，用于规则引擎零命中的长尾句式。
+# 开启方式：export AI_LLM_ENABLED=1 AI_API_BASE=https://xxx/v1 AI_API_KEY=sk-xxx AI_MODEL=xxx
+AI_LLM_ENABLED = os.environ.get("AI_LLM_ENABLED", "0") == "1"
+AI_API_BASE = os.environ.get("AI_API_BASE", "").rstrip("/")
+AI_API_KEY = os.environ.get("AI_API_KEY", "")
+AI_MODEL = os.environ.get("AI_MODEL", "")
+
+STD_DEPTS = ("心血管内科 呼吸内科 消化内科 神经内科 肾内科 内分泌科 血液内科 老年病科 普内科 "
+             "全科医疗科 普通外科 骨科 神经外科 心胸外科 泌尿外科 肛肠外科 妇产科 儿科 肿瘤科 "
+             "精神心理科 眼科 耳鼻咽喉科 口腔科 皮肤科 中医内科 中医骨伤科 针灸推拿科 感染科 "
+             "肝病科 急诊科 重症医学科 康复医学科").split()
+AI_PARSE_PROMPT = (
+    "你是北京市医疗机构检索系统的查询解析器，把用户口语转成 JSON 筛选条件。\n"
+    "可选字段（用不到的省略）：district(行政区，须带\"区\"字，如朝阳区)、"
+    "level(三级/二级/一级/未定级)、"
+    "category(医院/诊所/门诊部/妇幼保健/体检中心/急救中心/其他机构)、"
+    "dept(标准科室名，必须取自下列之一：" + "、".join(STD_DEPTS) + ")、"
+    "sort(score/distance/level/beds/depts/name)、kw(机构名关键词)。\n"
+    "只输出 JSON 本体，不要解释、不要代码块。用户查询："
+)
+
+
+@app.route("/api/ai/parse")
+def api_ai_parse():
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        return jsonify({"ok": False, "reason": "empty"})
+    if not (AI_LLM_ENABLED and AI_API_BASE and AI_API_KEY):
+        return jsonify({
+            "ok": False, "reason": "llm_disabled",
+            "hint": "未启用大模型兜底（这是默认状态）。前端规则引擎可独立完成解析，"
+                    "如需启用请设置 AI_LLM_ENABLED=1 及 AI_API_BASE/AI_API_KEY/AI_MODEL。",
+        })
+    import json as _json
+    import urllib.request
+
+    payload = _json.dumps({
+        "model": AI_MODEL,
+        "messages": [{"role": "user", "content": AI_PARSE_PROMPT + q}],
+        "temperature": 0,
+    }, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        AI_API_BASE + "/chat/completions", data=payload,
+        headers={"Content-Type": "application/json",
+                 "Authorization": "Bearer " + AI_API_KEY},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = _json.loads(resp.read().decode("utf-8"))
+        content = data["choices"][0]["message"]["content"]
+        cond = _json.loads(content[content.find("{"):content.rfind("}") + 1])
+        return jsonify({"ok": True, "engine": "llm", "conditions": cond})
+    except Exception as e:  # 兜底绝不影响主流程
+        return jsonify({"ok": False, "reason": "llm_error", "detail": str(e)})
+
+
 if __name__ == "__main__":
     # macOS 端口 5000 常被 AirPlay Receiver 占用，默认使用 5001
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=False, threaded=True)

@@ -8,6 +8,12 @@
 <meta name="dashboard-version" content="v3.1-init-order-20260904">
 <title>北京市医院医疗资源整合与多维筛选可视化系统</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<script>
+  /* 大模型兜底开关：默认 false（规则引擎解析，完全离线可用）。
+     如需启用：后端设 AI_LLM_ENABLED=1 及 AI_API_BASE/AI_API_KEY/AI_MODEL，再把这里改为 true。
+     规则引擎零命中时才会调用大模型，调用失败自动回退，绝不影响主流程。*/
+  window.__AI_LLM_ON__ = false;
+</script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#0b1530;color:#e8eefc;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Heiti SC','Microsoft YaHei',sans-serif;font-size:13px;min-height:100vh}
@@ -118,6 +124,21 @@
   .loading.hide{opacity:0;pointer-events:none}
   .pulse{display:inline-block;width:8px;height:8px;background:#5fd3c0;border-radius:50%;margin-right:6px;animation:p 1.5s infinite}
   @keyframes p{0%{opacity:0.3;transform:scale(0.8)}50%{opacity:1;transform:scale(1.2)}100%{opacity:0.3;transform:scale(0.8)}}
+  /* 自然语言解析（规则引擎 + 可选大模型增强） */
+  .nlqbar{margin-bottom:12px;padding:10px 12px;background:linear-gradient(90deg,rgba(167,139,250,0.10),rgba(58,160,255,0.05));border:1px solid #6d5bd0;border-radius:6px}
+  .nlq-in{display:flex;gap:8px;align-items:center}
+  .nlq-badge{background:linear-gradient(135deg,#a78bfa,#6d5bd0);color:#fff;font-size:10px;font-weight:700;padding:3px 7px;border-radius:4px;letter-spacing:.5px;white-space:nowrap}
+  .nlqbar input{flex:1;min-width:0;background:#0b1530;border:1px solid #3aa0ff;color:#e8eefc;padding:7px 11px;border-radius:5px;font-size:12px;font-family:inherit;outline:none}
+  .nlqbar input:focus{border-color:#a78bfa;box-shadow:0 0 0 3px #a78bfa22}
+  .nlqbar button{padding:7px 14px;background:linear-gradient(180deg,#a78bfa,#6d5bd0);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap}
+  .nlqbar button.gray{background:linear-gradient(180deg,#1f3a68,#152849);color:#8aa1c8;font-weight:normal}
+  .nlqbar button:hover{filter:brightness(1.15)}
+  .ai-echo{margin-top:8px;font-size:11px;color:#8aa1c8;display:none;line-height:1.7}
+  .ai-echo.show{display:block}
+  .ai-echo b{color:#5fd3c0}
+  .ai-echo .chip{display:inline-block;background:#1f3a68;color:#a78bfa;padding:2px 8px;border-radius:10px;font-size:11px;margin:0 4px 4px 0}
+  .ai-echo .warn{color:#f7b955}
+  .ai-echo .hit{color:#5fd3c0}
 </style>
 </head>
 <body>
@@ -142,9 +163,19 @@
 </div>
 
 <div class="filterbar">
-  <h3>多维筛选 <span class="right">5 维筛选 · 5 种排序 · 加权评分 · Haversine 距离</span></h3>
+  <h3>多维筛选 <span class="right">6 维筛选 · 6 种排序 · 加权评分 · Haversine 距离</span></h3>
+  <div class="nlqbar">
+    <div class="nlq-in">
+      <span class="nlq-badge">AI 说人话</span>
+      <input id="f_ai" placeholder="试试说人话：朝阳区看心脏病的三级医院，离家近">
+      <button id="btn_ai" type="button">解析</button>
+      <button id="btn_ai_clear" type="button" class="gray">清空</button>
+    </div>
+    <div id="ai_echo" class="ai-echo"></div>
+  </div>
   <div class="filters">
     <div><label>关键词（机构名/地址）</label><input id="f_kw" placeholder="如：协和 / 海淀 / 中医"></div>
+    <div><label>科室（擅长/诊疗）</label><select id="f_dept"><option value="">全部科室</option></select></div>
     <div><label>区域</label><select id="f_district"><option value="">全部 16 区</option></select></div>
     <div><label>等级</label><select id="f_level"><option value="">全部等级</option></select></div>
     <div><label>类型</label><select id="f_cat"><option value="">全部类型</option></select></div>
