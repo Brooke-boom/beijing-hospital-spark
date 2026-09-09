@@ -83,6 +83,7 @@ def api_institutions():
       level     等级（三级/二级/一级/未定级）
       category  类型（医院/诊所/门诊部/...）
       dept      科室名（如 口腔科）
+      net       协作网络（ped_core/ped_member/stroke/neonatal/maternal）
       lng/lat   参考点坐标（默认天安门），用于距离计算与排序
       sort      排序策略：distance | level | depts | score（默认 score）
       page      页码（默认 1）
@@ -95,6 +96,7 @@ def api_institutions():
     level = (args.get("level") or "").strip()
     category = (args.get("category") or "").strip()
     dept = (args.get("dept") or "").strip()
+    net = (args.get("net") or "").strip()
     sort = args.get("sort", "score")
     try:
         page = max(1, int(args.get("page", 1)))
@@ -125,6 +127,14 @@ def api_institutions():
             "t.id IN (SELECT hospital_id FROM dwd_dept_relation_clean WHERE dept_name = %s)"
         )
         params.append(dept)
+    if net:
+        _net_map = {"ped_core": ("net_pediatric", "核心"), "ped_member": ("net_pediatric", "成员"),
+                    "stroke": ("net_stroke", "1"), "neonatal": ("net_neonatal", "市级"),
+                    "maternal": ("net_maternal", "市级")}
+        if net in _net_map:
+            _c, _v = _net_map[net]
+            where.append(f"{_c} = %s")
+            params.append(_v)
     where_sql = " AND ".join(where)
 
     # Haversine 距离（km）—— 有坐标的机构才算距离
@@ -152,7 +162,8 @@ def api_institutions():
         order_sql = (
             "CASE level_norm WHEN '三级' THEN 3 WHEN '二级' THEN 2"
             " WHEN '一级' THEN 1 ELSE 0 END DESC, distance_km ASC"
-        )    elif sort == "depts":
+        )
+    elif sort == "depts":
         order_sql = "dept_count DESC"
     else:
         sort = "score"
@@ -174,6 +185,7 @@ def api_institutions():
         "SELECT t.id, t.name, t.district, t.category_norm AS category, t.level_norm AS level,"
         " t.level_sub, t.addr, t.phone, t.key_depts,"
         " t.category_sub, t.ownership, t.feature, t.feature_level,"
+        " t.net_pediatric, t.net_stroke, t.net_neonatal, t.net_maternal,"
         " t.lng, t.lat, t.coord_precision, t.dept_count, t.key_specialty_count,"
         " d.distance_km, COALESCE(rc.rule_dept_count, 0) AS rule_dept_count, " + score_expr + " AS score " + base_select +
         f" ORDER BY {order_sql} LIMIT %s OFFSET %s",
@@ -195,6 +207,7 @@ def api_detail(inst_id):
         "SELECT id, name, district, category, category_norm, category_sub, level, level_sub, level_norm,"
         " grade_scope, ownership, ownership_basis, feature, feature_level,"
         " addr, phone, postal, key_depts,"
+        " net_pediatric, net_stroke, net_neonatal, net_maternal,"
         " lng, lat, coord_formatted, coord_precision, coord_source,"
         " src_count_int, source_files, dept_count, key_specialty_count"
         " FROM ads_inst_search WHERE id = %s",

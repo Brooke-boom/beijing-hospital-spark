@@ -15,7 +15,7 @@ const LEVEL_RANK = {'三级':4, '二级':3, '一级':2, '未定级':1};
 // 评分权重
 const W_LEVEL = 0.5, W_DIST = 0.3, W_DEPT = 0.2;
 
-const DASHBOARD_VERSION = 'v3.4-20260908-dept-derive-tag';
+const DASHBOARD_VERSION = 'v3.5-20260909-net-integration';
 console.log('[dashboard] 加载版本:', DASHBOARD_VERSION);
 console.log('[dashboard] BASE_POINTS 初始值:', JSON.stringify(BASE_POINTS, null, 2));
 let FILTERED = [];        // 筛选后
@@ -102,7 +102,7 @@ function fillSelect(id, opts, firstLabel) {
 
 // ========== 4. 事件绑定 ==========
 function bindEvents() {
-  ['f_kw','f_district','f_level','f_cat','f_dept','f_base','f_sort'].forEach(id => {
+  ['f_kw','f_district','f_level','f_cat','f_dept','f_net','f_base','f_sort'].forEach(id => {
     document.getElementById(id).addEventListener('input', () => { PAGE = 1; applyFilter(); });
     document.getElementById(id).addEventListener('change', () => { PAGE = 1; applyFilter(); });
   });
@@ -136,6 +136,7 @@ function resetFilter() {
   document.getElementById('f_level').value = '';
   document.getElementById('f_cat').value = '';
   const dsel = document.getElementById('f_dept'); if (dsel) dsel.value = '';
+  const nsel = document.getElementById('f_net'); if (nsel) nsel.value = '';
   document.getElementById('f_base').value = 'tiananmen';
   document.getElementById('f_sort').value = 'score';
   PAGE = 1;
@@ -439,6 +440,8 @@ function applyFilter() {
   const cat = document.getElementById('f_cat').value;
   const deptEl = document.getElementById('f_dept');
   const dept = deptEl ? deptEl.value : '';
+  const netEl = document.getElementById('f_net');
+  const net = netEl ? netEl.value : '';
   const baseKey = document.getElementById('f_base').value;
   const sort = document.getElementById('f_sort').value;
   const base = BASE_POINTS[baseKey];
@@ -457,6 +460,14 @@ function applyFilter() {
     if (district && r.district !== district) return false;
     if (level && r.level !== level) return false;
     if (cat && r.category !== cat) return false;
+    // 协作网络维度：儿科医联体(核心/成员) / 卒中中心 / 危重新生儿救治 / 危重孕产妇救治
+    if (net) {
+      if (net === 'ped_core'   && r.net_pediatric !== '核心') return false;
+      if (net === 'ped_member' && r.net_pediatric !== '成员') return false;
+      if (net === 'stroke'     && r.net_stroke !== '1') return false;
+      if (net === 'neonatal'   && r.net_neonatal !== '市级') return false;
+      if (net === 'maternal'   && r.net_maternal !== '市级') return false;
+    }
     // 科室维度：匹配 feature（擅长/诊疗科室）与 key_depts（登记科目）
     if (dept) {
       const pool = (r.feature || '') + ';' + (r.key_depts || '');
@@ -539,6 +550,29 @@ function featLine(r) {
   const lab = FEAT_LABEL[lv] || '擅长';
   return `<div class="feat" title="${depts.join(' / ')}"><span class="fk f${lv}">${lab}</span><span class="ft">${show}</span></div>`;
 }
+// 医疗协作网络徽章（资源整合维度）：儿科医联体 / 卒中中心 / 危重新生儿救治 / 危重孕产妇救治
+function netLine(r) {
+  const t = [];
+  if (r.net_pediatric === '核心') t.push(['儿科医联体·核心', '#ff6b6b']);
+  else if (r.net_pediatric === '成员') t.push(['儿科医联体·成员', '#f7b955']);
+  if (r.net_stroke === '1') t.push(['卒中中心', '#5fd3c0']);
+  if (r.net_neonatal === '市级') t.push(['新生儿救治·市级', '#a78bfa']);
+  if (r.net_maternal === '市级') t.push(['孕产妇救治·市级', '#f0a3c8']);
+  if (!t.length) return '';
+  return '<div class="netline">' + t.map(([n, c]) =>
+    `<span style="display:inline-block;margin:3px 5px 0 0;padding:1px 7px;border:1px solid ${c}66;border-radius:10px;color:${c};font-size:10px;background:${c}18">${n}</span>`
+  ).join('') + '</div>';
+}
+function netDetail(r) {
+  const n = [];
+  if (r.net_pediatric === '核心') n.push('儿科医联体·核心医院');
+  else if (r.net_pediatric === '成员') n.push('儿科医联体·成员机构');
+  if (r.net_stroke === '1') n.push('卒中中心');
+  if (r.net_neonatal === '市级') n.push('危重新生儿救治中心（市级）');
+  if (r.net_maternal === '市级') n.push('危重孕产妇救治中心（市级）');
+  return n.length ? n.join('、') : '<span style="color:#8aa1c8">未纳入</span>';
+}
+
 // 关键词命中高亮（不转义，name 来自可信数据）
 function escHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -584,6 +618,7 @@ function renderList() {
         <div class="name">${kwMark(r.name)}</div>
         <div class="meta">${levelBadge(r.level)}${catBadge(r.category)}${ownBadge(r.ownership)} ${r.district} · ${r.dept_count||0} 科室</div>
         ${featLine(r)}
+        ${netLine(r)}
       </div>
       <div class="dist">${dist}<div class="meta" style="color:#8aa1c8">${distMeta}</div></div>
       <div class="score">${score}</div>
@@ -758,6 +793,7 @@ function showDetail(id) {
     <div><div class="l">区 域</div><div class="v">${r.district}</div></div>
     <div><div class="l">等 级</div><div class="v">${levelBadge(r.level)} ${r.level === '不适用医院分级' ? '（该机构类型不参加医院等级评审）' : r.level}</div></div>
     <div><div class="l">类 型</div><div class="v">${r.category || '—'}${r.category_sub && r.category_sub !== '未细分' ? ' · ' + r.category_sub : ''}</div></div>
+    <div><div class="l">协作网络</div><div class="v">${netDetail(r)}</div></div>
     <div><div class="l">办 别</div><div class="v">${ownBadge(r.ownership) || (r.ownership || '未标注')}${r.ownership_basis ? ` <span style="color:#8aa1c8;font-size:10px">依据 ${r.ownership_basis}</span>` : ''}</div></div>
     <div><div class="l">科 室 数</div><div class="v">${r.dept_count || 0}</div></div>
     <div><div class="l">重点专科数</div><div class="v">${r.key_specialty_count || 0}</div></div>

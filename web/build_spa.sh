@@ -18,6 +18,7 @@ rows = q("""SELECT a.id, a.name, a.district, a.level_norm AS level, a.category_n
     a.dept_count, a.key_specialty_count, a.lng, a.lat, a.coord_precision, a.key_depts, a.grade_scope,
     a.national_specialty, a.national_specialty_count,
     a.municipal_specialty, a.municipal_specialty_count,
+    a.net_pediatric, a.net_stroke, a.net_neonatal, a.net_maternal,
     COALESCE(rc.rule_dept_count, 0) AS rule_dept_count
     FROM ads_inst_search a
     LEFT JOIN (SELECT hospital_id, COUNT(*) AS rule_dept_count FROM dwd_dept_relation_clean
@@ -26,7 +27,8 @@ for r in rows:
     r['id'] = str(r['id']).strip()
     for k in ('name','district','level','category','category_sub','ownership',
               'feature','feature_level','coord_precision','key_depts','grade_scope',
-              'national_specialty','municipal_specialty'):
+              'national_specialty','municipal_specialty',
+              'net_pediatric','net_stroke','net_neonatal','net_maternal'):
         v = r.get(k); r[k] = ('' if v is None else v.strip() if isinstance(v, str) else v)
     for k in ('dept_count','key_specialty_count','lng','lat','national_specialty_count','municipal_specialty_count'):
         r[k] = None if r.get(k) in (None, '') else r[k]
