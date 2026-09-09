@@ -853,8 +853,10 @@ function featLine(r) {
   const depts = r.feature.split(';').filter(x => x);
   if (!depts.length) return '';
   const lv = r.feature_level || '3';
+  // 只保留有重点科室数据的显示：L1 重点专科 / L2 优势科室；L3 诊疗科室多为规则推导，不在列表卡片展示
+  if (lv === '3') return '';
   const show = depts.slice(0, 6).join(' / ') + (depts.length > 6 ? ` 等${depts.length}项` : '');
-  const lab = (FEAT_LABEL[lv] || '擅长') + (lv === '3' && (r.rule_dept_count||0) >= 3 ? '·推导' : '');
+  const lab = FEAT_LABEL[lv] || '擅长';
   return `<div class="feat" title="${depts.join(' / ')}"><span class="fk f${lv}">${lab}</span><span class="ft">${show}</span></div>`;
 }
 // 关键词命中高亮（不转义，name 来自可信数据）
@@ -900,7 +902,7 @@ function renderList() {
     return `<div class="row${hitCls}" data-id="${r.id}">
       <div>
         <div class="name">${kwMark(r.name)}</div>
-        <div class="meta">${levelBadge(r.level)}${catBadge(r.category)}${ownBadge(r.ownership)} ${r.district} · ${r.dept_count||0} 科室${(r.rule_dept_count||0) >= 3 ? '<span title="该机构科室含「类型×等级」规则推导数据，供筛选演示" style="color:#f7b955">·含推导</span>' : ''}</div>
+        <div class="meta">${levelBadge(r.level)}${catBadge(r.category)}${ownBadge(r.ownership)} ${r.district} · ${r.dept_count||0} 科室</div>
         ${featLine(r)}
       </div>
       <div class="num">${r.beds||'—'}<div class="meta" style="color:#8aa1c8">床位</div></div>
@@ -1079,20 +1081,20 @@ function showDetail(id) {
     <div><div class="l">类 型</div><div class="v">${r.category || '—'}${r.category_sub && r.category_sub !== '未细分' ? ' · ' + r.category_sub : ''}</div></div>
     <div><div class="l">办 别</div><div class="v">${ownBadge(r.ownership) || (r.ownership || '未标注')}${r.ownership_basis ? ` <span style="color:#8aa1c8;font-size:10px">依据 ${r.ownership_basis}</span>` : ''}</div></div>
     <div><div class="l">床 位</div><div class="v">${r.beds || '—'}</div></div>
-    <div><div class="l">科 室 数</div><div class="v">${r.dept_count || 0}${(r.rule_dept_count||0) >= 3 ? ` <span title="其中 ${r.rule_dept_count} 个来自「类型×等级」规则推导（模拟数据，供筛选演示），非医院真实登记科室" style="color:#f7b955;font-size:10px;cursor:help">含规则推导ⓘ</span>` : ''}</div></div>
+    <div><div class="l">科 室 数</div><div class="v">${r.dept_count || 0}</div></div>
     <div><div class="l">重点专科数</div><div class="v">${r.key_specialty_count || 0}</div></div>
     <div><div class="l">国家重点专科</div><div class="v">${r.national_specialty_count ? `<span style="color:#f0c674;font-weight:600">${r.national_specialty_count} 个</span> <span style="color:#8aa1c8;font-size:10px">（国家级）</span>` : '<span style="color:#8aa1c8">—</span>'}</div></div>
     <div><div class="l">市级重点专科</div><div class="v">${r.municipal_specialty_count ? `<span style="color:#81c784;font-weight:600">${r.municipal_specialty_count} 项</span> <span style="color:#8aa1c8;font-size:10px">（北京市级）</span>${r.municipal_specialty ? ` <span title="${r.municipal_specialty.replace(/;/g,'、')}" style="color:#8aa1c8;font-size:10px;cursor:help">［清单］</span>` : ''}` : '<span style="color:#8aa1c8">—</span>'}</div></div>
     <div><div class="l">坐 标 精 度</div><div class="v">${r.coord_precision || '—'}</div></div>
     <div><div class="l">综 合 评 分</div><div class="v" style="color:#f7b955">${(r._score||0).toFixed(3)}</div></div>
   `;
-  // 擅长科室：权威优先三级分级（L1 重点专科 > L2 优势科室 > L3 诊疗科室），无 feature 时回退 key_depts
+  // 擅长科室：只保留有重点科室数据的显示（L1 重点专科 / L2 优势科室）；L3 诊疗科室多为规则推导，不在详情展示
   const featDepts = r.feature ? r.feature.split(/[;；]/).map(x => x.trim()).filter(x => x) : [];
   const keyDepts = r.key_depts ? r.key_depts.split(/[,,、;\s]+/).filter(x => x) : [];
   const lv = r.feature_level;
-  if (featDepts.length) {
-    const lvColor = lv === '1' ? '#ff6b6b' : lv === '2' ? '#f7b955' : '#8aa1c8';
-    const lvBg = lv === '1' ? '#ff6b6b22' : lv === '2' ? '#f7b95522' : '#8aa1c826';
+  if (featDepts.length && lv !== '3') {
+    const lvColor = lv === '1' ? '#ff6b6b' : '#f7b955';
+    const lvBg = lv === '1' ? '#ff6b6b22' : '#f7b95522';
     document.getElementById('m_depts').innerHTML =
       `<span style="color:#8aa1c8;font-size:10px;width:100%;display:inline-block;margin-bottom:4px">` +
       `${FEAT_LABEL[lv] || '擅长'}（权威度分级 L${lv}，共 ${featDepts.length} 项）` +
