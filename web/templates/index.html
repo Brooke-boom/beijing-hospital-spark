@@ -58,11 +58,12 @@
   .pager span{color:#3aa0ff;font-weight:600}
   .list{flex:1;overflow-y:auto;max-height:520px}
   .list::-webkit-scrollbar{width:6px}.list::-webkit-scrollbar-track{background:#0b1530}.list::-webkit-scrollbar-thumb{background:#1f3a68;border-radius:3px}
-  .row{padding:9px 12px;border-bottom:1px solid #1f3a6833;cursor:pointer;display:grid;grid-template-columns:1fr 76px 84px 54px 64px;gap:6px;align-items:center;transition:background .15s,box-shadow .15s;border-radius:0;position:relative}
+  .row{padding:11px 14px;border-bottom:1px solid #1f3a6833;cursor:pointer;display:grid;grid-template-columns:1fr 72px 80px 56px 72px;gap:10px;align-items:center;transition:background .15s,box-shadow .15s;border-radius:0;position:relative;min-height:60px}
   .row:hover{background:linear-gradient(90deg,#182948 0%,#14213d 100%);box-shadow:inset 3px 0 0 #3aa0ff}
+  .row>div:first-child{min-width:0;padding-right:8px;border-right:1px solid #1f3a6833}
   .row .name{color:#e8eefc;font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .row .name:hover{color:#5fd3c0}
-  .row .meta{color:#8aa1c8;font-size:10px;margin-top:1px}
+  .row .meta{color:#8aa1c8;font-size:10px;margin-top:2px}
   .row .badge{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;margin-right:2px;font-weight:600}
   .b-l3{background:#ff6b6b22;color:#ff6b6b;border:1px solid #ff6b6b44}
   .b-l2{background:#f7b95522;color:#f7b955;border:1px solid #f7b95544}
@@ -71,7 +72,7 @@
   .b-pub{background:#5fd3c022;color:#5fd3c0;border:1px solid #5fd3c044}
   .b-pri{background:#f7b95522;color:#f7b955;border:1px solid #f7b95544}
   /* 擅长科室行：分级高亮（L1重点专科红 / L2优势科室黄 / L3诊疗科室蓝灰） */
-  .row .feat{color:#a9c4ef;font-size:10px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:5px}
+  .row .feat{color:#a9c4ef;font-size:10px;margin-top:5px;padding-top:5px;border-top:1px solid #1f3a6833;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:5px}
   .row .feat .fk{flex:none;padding:1px 7px;border-radius:5px;font-weight:700;font-size:10px;letter-spacing:.3px;border:1px solid transparent}
   .row .feat .f1{background:linear-gradient(90deg,#ff6b6b2e,#ff6b6b0d);color:#ff9b9b;border-color:#ff6b6b55}
   .row .feat .f2{background:linear-gradient(90deg,#f7b95526,#f7b9550a);color:#f7b955;border-color:#f7b95550}
@@ -80,10 +81,11 @@
   /* 重点专科数量徽章 */
   .row .ksc{text-align:right}
   .row .ksc .n{font-size:13px;font-weight:800;line-height:1.1}
-  .row .ksc .t{font-size:9px;color:#8aa1c8;letter-spacing:.4px;margin-top:1px}
+  .row .ksc .t{font-size:9px;color:#8aa1c8;letter-spacing:.4px;margin-top:1px;white-space:nowrap}
   .row .ksc.on .n{color:#ff6b6b}
   .row .ksc.on .t{color:#ff9b9b}
   .row .ksc.off .n{color:#4a5b7c}
+  .row .num,.row .dist,.row .score,.row .ksc{display:flex;flex-direction:column;justify-content:center;align-items:flex-end;height:100%}
   .row .num{text-align:right;color:#5fd3c0;font-size:12px;font-weight:600}
   .row .dist{text-align:right;color:#3aa0ff;font-size:11px}
   .row .score{text-align:right;color:#f7b955;font-size:11px;font-weight:600}
