@@ -129,7 +129,6 @@ async function showDetail(id) {
     ["等级", `${d.level_norm || "未定级"}${d.level_sub ? "·" + d.level_sub : ""}`],
     ["地址", d.addr || "—"],
     ["电话", d.phone || "—"],
-    ["床位", d.beds ? d.beds + " 张" : "—"],
     ["坐标", d.lng ? `${d.lng}, ${d.lat}（${d.coord_precision}）` : "缺失"],
     ["数据来源", `${d.src_count_int ?? 1} 个源文件`],
   ];

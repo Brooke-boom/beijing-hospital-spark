@@ -13,7 +13,7 @@ const BASE_POINTS = {
 const LEVEL_RANK = {'三级':4, '二级':3, '一级':2, '未定级':1};
 
 // 评分权重
-const W_LEVEL = 0.4, W_DIST = 0.3, W_DEPT = 0.2, W_BED = 0.1;
+const W_LEVEL = 0.5, W_DIST = 0.3, W_DEPT = 0.2;
 
 const DASHBOARD_VERSION = 'v3.4-20260908-dept-derive-tag';
 console.log('[dashboard] 加载版本:', DASHBOARD_VERSION);
@@ -276,7 +276,6 @@ const NLQ_CAT   = [['妇幼保健',['妇幼保健院','妇产医院','妇幼']],
                    ['医院',['医院']]];
 const NLQ_SORT  = [['distance',['离家近','离我近','最近','附近','周边','旁边','距离近','近一点']],
                    ['level',   ['最好','等级高','评级高','最强','档次高']],
-                   ['beds',    ['床位多','规模大','大医院']],
                    ['depts',   ['科室全','科室多']]];
 const NLQ_OWN   = [['公立',['公立','公办','国立']], ['民营',['民营','私立','民办']]];
 // 命中后从原文剔除的停用词，避免污染关键词
@@ -410,7 +409,7 @@ function commitNLQ(r, raw) {
   if (r.cat)      chips.push('类型：' + r.cat);
   if (r.dept)     chips.push('科室：' + r.dept);
   if (r.kw)       chips.push('关键词：' + r.kw);
-  if (r.sort)     chips.push('排序：' + ({score:'综合评分',distance:'距离最近',level:'等级优先',beds:'床位最多',depts:'科室最多'}[r.sort] || r.sort));
+  if (r.sort)     chips.push('排序：' + ({score:'综合评分',distance:'距离最近',level:'等级优先',depts:'科室最多'}[r.sort] || r.sort));
 
   const engineTip = r.engine === 'llm' ? '（大模型解析）' : '（规则引擎解析 · 离线可用）';
   if (chips.length === 0) {
@@ -472,9 +471,8 @@ function applyFilter() {
   });
 
   // 计算评分：归一化
-  let maxBed = 0, maxDept = 0, maxDist = 0;
+  let maxDept = 0, maxDist = 0;
   FILTERED.forEach(r => {
-    if (r.beds) maxBed = Math.max(maxBed, r.beds);
     if (r.dept_count) maxDept = Math.max(maxDept, r.dept_count);
     if (r._dist != null) maxDist = Math.max(maxDist, r._dist);
   });
@@ -482,8 +480,7 @@ function applyFilter() {
     const lv = (LEVEL_RANK[r.level] || 1) / 4;
     const ds = r._dist == null ? 0.5 : Math.max(0, 1 - r._dist / (maxDist || 1));
     const dp = (r.dept_count || 0) / (maxDept || 1);
-    const bd = (r.beds || 0) / (maxBed || 1);
-    r._score = W_LEVEL*lv + W_DIST*ds + W_DEPT*dp + W_BED*bd;
+    r._score = W_LEVEL*lv + W_DIST*ds + W_DEPT*dp;
   });
 
   // 排序
@@ -491,7 +488,6 @@ function applyFilter() {
     score:    (a,b) => b._score - a._score,
     distance: (a,b) => (a._dist==null?9e9:a._dist) - (b._dist==null?9e9:b._dist),
     level:    (a,b) => (LEVEL_RANK[b.level]||0) - (LEVEL_RANK[a.level]||0),
-    beds:     (a,b) => (b.beds||0) - (a.beds||0),
     depts:    (a,b) => (b.dept_count||0) - (a.dept_count||0),
     name:     (a,b) => a.name.localeCompare(b.name, 'zh-CN'),
   }[sort] || ((a,b) => b._score - a._score);
@@ -589,7 +585,6 @@ function renderList() {
         <div class="meta">${levelBadge(r.level)}${catBadge(r.category)}${ownBadge(r.ownership)} ${r.district} · ${r.dept_count||0} 科室</div>
         ${featLine(r)}
       </div>
-      <div class="num">${r.beds||'—'}<div class="meta" style="color:#8aa1c8">床位</div></div>
       <div class="dist">${dist}<div class="meta" style="color:#8aa1c8">${distMeta}</div></div>
       <div class="score">${score}</div>
       ${kscBlock(r)}
@@ -764,7 +759,6 @@ function showDetail(id) {
     <div><div class="l">等 级</div><div class="v">${levelBadge(r.level)} ${r.level === '不适用医院分级' ? '（该机构类型不参加医院等级评审）' : r.level}</div></div>
     <div><div class="l">类 型</div><div class="v">${r.category || '—'}${r.category_sub && r.category_sub !== '未细分' ? ' · ' + r.category_sub : ''}</div></div>
     <div><div class="l">办 别</div><div class="v">${ownBadge(r.ownership) || (r.ownership || '未标注')}${r.ownership_basis ? ` <span style="color:#8aa1c8;font-size:10px">依据 ${r.ownership_basis}</span>` : ''}</div></div>
-    <div><div class="l">床 位</div><div class="v">${r.beds || '—'}</div></div>
     <div><div class="l">科 室 数</div><div class="v">${r.dept_count || 0}</div></div>
     <div><div class="l">重点专科数</div><div class="v">${r.key_specialty_count || 0}</div></div>
     <div><div class="l">国家重点专科</div><div class="v">${r.national_specialty_count ? `<span style="color:#f0c674;font-weight:600">${r.national_specialty_count} 个</span> <span style="color:#8aa1c8;font-size:10px">（国家级）</span>` : '<span style="color:#8aa1c8">—</span>'}</div></div>

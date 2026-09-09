@@ -84,7 +84,7 @@ def api_institutions():
       category  类型（医院/诊所/门诊部/...）
       dept      科室名（如 口腔科）
       lng/lat   参考点坐标（默认天安门），用于距离计算与排序
-      sort      排序策略：distance | level | beds | depts | score（默认 score）
+      sort      排序策略：distance | level | depts | score（默认 score）
       page      页码（默认 1）
       page_size 每页条数（默认 20，最大 100）
     返回：{total, page, page_size, items[], meta{}}
@@ -139,13 +139,12 @@ def api_institutions():
     dist_params = [lat, lat, lng]
 
     # 排序策略
-    # 加权评分 = 0.4*等级 + 0.3*距离归一 + 0.2*床位归一 + 0.1*科室归一
+    # 加权评分 = 0.5*等级 + 0.3*距离归一 + 0.2*科室归一（床位数据覆盖率仅1.5%且真实性存疑，已移除并权重重配）
     score_expr = (
-        "ROUND(0.4 * (CASE level_norm WHEN '三级' THEN 3 WHEN '二级' THEN 2"
+        "ROUND(0.5 * (CASE level_norm WHEN '三级' THEN 3 WHEN '二级' THEN 2"
         " WHEN '一级' THEN 1 ELSE 0.5 END) / 3"
         " + 0.3 * (1 - LEAST(IFNULL(distance_km, 60) / 60, 1))"
-        " + 0.2 * LEAST(IFNULL(beds, 0) / 1500, 1)"
-        " + 0.1 * LEAST(IFNULL(dept_count, 0) / 30, 1), 4)"
+        " + 0.2 * LEAST(IFNULL(dept_count, 0) / 30, 1), 4)"
     )
     if sort == "distance":
         order_sql = "distance_km IS NULL, distance_km ASC"
@@ -153,10 +152,7 @@ def api_institutions():
         order_sql = (
             "CASE level_norm WHEN '三级' THEN 3 WHEN '二级' THEN 2"
             " WHEN '一级' THEN 1 ELSE 0 END DESC, distance_km ASC"
-        )
-    elif sort == "beds":
-        order_sql = "CAST(beds AS UNSIGNED) DESC"
-    elif sort == "depts":
+        )    elif sort == "depts":
         order_sql = "dept_count DESC"
     else:
         sort = "score"
@@ -176,7 +172,7 @@ def api_institutions():
     offset = (page - 1) * page_size
     items = query(
         "SELECT t.id, t.name, t.district, t.category_norm AS category, t.level_norm AS level,"
-        " t.level_sub, t.addr, t.phone, t.beds, t.key_depts,"
+        " t.level_sub, t.addr, t.phone, t.key_depts,"
         " t.category_sub, t.ownership, t.feature, t.feature_level,"
         " t.lng, t.lat, t.coord_precision, t.dept_count, t.key_specialty_count,"
         " d.distance_km, COALESCE(rc.rule_dept_count, 0) AS rule_dept_count, " + score_expr + " AS score " + base_select +
@@ -198,7 +194,7 @@ def api_detail(inst_id):
     inst = query(
         "SELECT id, name, district, category, category_norm, category_sub, level, level_sub, level_norm,"
         " grade_scope, ownership, ownership_basis, feature, feature_level,"
-        " addr, phone, postal, beds, key_depts,"
+        " addr, phone, postal, key_depts,"
         " lng, lat, coord_formatted, coord_precision, coord_source,"
         " src_count_int, source_files, dept_count, key_specialty_count"
         " FROM ads_inst_search WHERE id = %s",
@@ -335,7 +331,7 @@ AI_PARSE_PROMPT = (
     "level(三级/二级/一级/未定级)、"
     "category(医院/诊所/门诊部/妇幼保健/体检中心/急救中心/其他机构)、"
     "dept(标准科室名，必须取自下列之一：" + "、".join(STD_DEPTS) + ")、"
-    "sort(score/distance/level/beds/depts/name)、kw(机构名关键词)。\n"
+    "sort(score/distance/level/depts/name)、kw(机构名关键词)。\n"
     "只输出 JSON 本体，不要解释、不要代码块。用户查询："
 )
 

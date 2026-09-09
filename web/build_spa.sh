@@ -15,7 +15,7 @@ def q(sql):
         cur.execute(sql); return cur.fetchall()
 rows = q("""SELECT a.id, a.name, a.district, a.level_norm AS level, a.category_norm AS category,
     a.category_sub, a.ownership, a.feature, a.feature_level,
-    a.dept_count, a.beds, a.key_specialty_count, a.lng, a.lat, a.coord_precision, a.key_depts, a.grade_scope,
+    a.dept_count, a.key_specialty_count, a.lng, a.lat, a.coord_precision, a.key_depts, a.grade_scope,
     a.national_specialty, a.national_specialty_count,
     a.municipal_specialty, a.municipal_specialty_count,
     COALESCE(rc.rule_dept_count, 0) AS rule_dept_count
@@ -28,7 +28,7 @@ for r in rows:
               'feature','feature_level','coord_precision','key_depts','grade_scope',
               'national_specialty','municipal_specialty'):
         v = r.get(k); r[k] = ('' if v is None else v.strip() if isinstance(v, str) else v)
-    for k in ('dept_count','beds','key_specialty_count','lng','lat','national_specialty_count','municipal_specialty_count'):
+    for k in ('dept_count','key_specialty_count','lng','lat','national_specialty_count','municipal_specialty_count'):
         r[k] = None if r.get(k) in (None, '') else r[k]
 overviews = {
     'districts':  q("SELECT district, inst_count, coord_high_count FROM ads_district_overview ORDER BY inst_count DESC"),
