@@ -1,0 +1,9 @@
+# Web 服务与数据脚本依赖（Python 3.9+）
+flask>=3.0
+pymysql>=1.1
+
+# 数据治理 / 整合脚本（etl/*.py）额外依赖
+requests>=2.31
+
+# Spark ETL 在 Docker 容器内执行（apache/spark:3.5.3 已自带 PySpark），
+# 宿主机如需本地调试再装：pyspark==3.5.3

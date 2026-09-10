@@ -28,27 +28,51 @@
 
 ## 快速开始
 
+### 方式一：零依赖离线大屏（30 秒，推荐先看效果）
+
 ```bash
-# 1. 启动 Spark 集群 + MySQL
+open web/dashboard_offline.html      # macOS；其他系统直接双击该文件
+```
+
+数据快照已内联进单个 HTML（约 6.5MB），**无需 Python、Docker、数据库、联网**，
+即可使用七维筛选、四种排序、图表联动与详情查看。
+
+### 方式二：完整工程链路（Spark + MySQL + Flask）
+
+```bash
+# 1. 安装 Web 依赖
+pip install -r requirements.txt
+
+# 2. 启动 Spark 集群 + MySQL
 docker compose up -d
 
-# 2. 提交数仓 ETL（CSV → ODS → DWD → DWS → ADS → MySQL）
+# 3. 提交数仓 ETL（CSV → ODS → DWD → DWS → ADS → MySQL）
 docker exec spark-master /opt/spark/bin/spark-submit \
   --master spark://spark-master:7077 \
   --jars /opt/workspace/jobs/mysql-connector-j-8.4.0.jar \
   --driver-class-path /opt/workspace/jobs/mysql-connector-j-8.4.0.jar \
   /opt/workspace/jobs/etl_hospital.py
 
-# 3. 启动 Web 服务
-pip install -r web/requirements.txt
-python web/app.py
+# 4. 重建查询索引（ETL 以 overwrite 模式写表会 DROP+CREATE，索引会丢失，此步必做）
+python etl/create_indexes.py
+
+# 5. 重新生成快照与离线大屏
+bash web/build_spa.sh
+
+# 6. 启动 Web 服务
+bash web/start.sh
 # 浏览器访问 http://localhost:5001
 ```
+
+验证服务是否就绪：`curl -s http://127.0.0.1:5001/api/health`
+正常返回 `{"institutions":9789,"status":"ok"}`。
 
 - 系统界面: http://localhost:5001
 - Spark Master UI: http://localhost:8080
 - Spark Worker UI: http://localhost:8081
 - MySQL: localhost:3307（root/hospital123，应用账号 app/app123）
+
+> 更多运行方式（数据更新链路、常见坑、环境说明）见 [`docs/系统运行流程.md`](docs/系统运行流程.md)。
 
 ## API 一览
 
