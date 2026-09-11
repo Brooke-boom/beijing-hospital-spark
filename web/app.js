@@ -1,391 +1,317 @@
-// ========== 北京市医院资源系统 - 可交互 SPA ==========
-// 数据来源：snapshot_data.json（2.6MB，含 9791 家机构 + 4 张概览 + 15 专科组 + 北京 geoJSON）
+// ============================================================================
+//  北京市医院医疗资源整合与多维筛选可视化系统 — 交互式 SPA
+//  数据来源：window.__SNAPSHOT__（内嵌）或 snapshot_data.json（HTTP）
+//  设计原则：离线优先。file:// 打开时全功能降级但绝不报错、绝不发网络请求。
+// ============================================================================
+'use strict';
 
-const BG='#0b1530', PANEL='#14213d', EDGE='#1f3a68', INK='#e8eefc', SUB='#8aa1c8';
-const ACC='#3aa0ff', ACC2='#5fd3c0', WARN='#f7b955', CRIT='#ff6b6b', VIO='#a78bfa';
+// ---------- 设计令牌（与 dashboard.html 的 CSS 变量保持一致） ----------
+const BG = '#070c18', PANEL = '#0f1a30', PANEL2 = '#14213a', EDGE = 'rgba(122,158,224,.18)';
+const INK = '#eaf0fc', SUB = '#a7b7d6', DIM = '#6d7fa4', FAINT = '#4b5a78';
+const ACC = '#4c9aff', ACC2 = '#38e0c0', WARN = '#ffb547', CRIT = '#ff6b81', VIO = '#a78bfa', PINK = '#f472b6';
 
 const BASE_POINTS = {
-  tiananmen:       {name:'天安门',       lng:116.397, lat:39.909},
-  capital_airport: {name:'首都机场',     lng:116.609, lat:40.080},
-  daxing_airport:  {name:'大兴机场',     lng:116.411, lat:39.510},
-  geo:             {name:'我的位置',     lng:null,    lat:null},
+  tiananmen:       { name: '天安门',   lng: 116.397, lat: 39.909 },
+  capital_airport: { name: '首都机场', lng: 116.609, lat: 40.080 },
+  daxing_airport:  { name: '大兴机场', lng: 116.411, lat: 39.510 },
+  geo:             { name: '我的位置', lng: null,    lat: null },
 };
-const LEVEL_RANK = {'三级':4, '二级':3, '一级':2, '未定级':1};
-
-// 评分权重
+const LEVEL_RANK = { '三级': 4, '二级': 3, '一级': 2, '未定级': 1 };
+// 等级配色：全局唯一口径，禁止靠数组下标隐式配色（排序一变颜色就错位，把「一级」染成红色）
+const LV_COLOR = { '三级': '#ff6b81', '二级': '#ffb547', '一级': '#4c9aff', '未定级': '#a78bfa', '不适用': '#6d7fa4' };
 const W_LEVEL = 0.5, W_DIST = 0.3, W_DEPT = 0.2;
+const DASHBOARD_VERSION = 'v4.0-ui-refresh-20260911';
+const GUAhAO_114 = 'https://www.114yygh.com/';
 
-const DASHBOARD_VERSION = 'v3.5-20260909-net-integration';
-console.log('[dashboard] 加载版本:', DASHBOARD_VERSION);
-console.log('[dashboard] BASE_POINTS 初始值:', JSON.stringify(BASE_POINTS, null, 2));
-let FILTERED = [];        // 筛选后
-let PAGE = 1;
-let PAGE_SIZE = 20;
-let MAP_CHART, CH1, CH2, CH3, MODAL_CHART;
+// ---------- 全局状态 ----------
+let DATA = null;
+let FILTERED = [];
+let PAGE = 1, PAGE_SIZE = 20;
+const PICKED = new Set();                 // 对比已选机构 id（最多 3）
+const PICK_MAX = 3;
+const ENV = {
+  http: location.protocol === 'http:' || location.protocol === 'https:',
+  api: false,          // /api/health 探活结果
+  amap: false,
+};
+const SID = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
-// ========== 1. 加载数据 ==========
-// 内嵌模式：从 window.__SNAPSHOT__ 读取（已注入到本 HTML 之前）
-// HTTP-only 模式：从 fetch snapshot_data.json 读取
+// 图表实例
+let MAP_CHART, CH1, CH2, CH3;
+let CH_OWN, CH_FEAT, CH_NET, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD;
+let A_KW, A_DIST, A_TRIAGE, A_DAILY, A_DENSITY, A_LEVEL, A_SPEC, A_NET, A_OWN, A_CAT;
+
+// ============================================================================
+//  0. 基础工具
+// ============================================================================
+const $ = id => document.getElementById(id);
+function esc(s) {
+  return String(s === null || s === undefined ? '' : s)
+    .replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function num(n) { return (n === null || n === undefined || n === '') ? '—' : Number(n).toLocaleString(); }
+function pct(a, b) { return b ? (a / b * 100).toFixed(1) + '%' : '0%'; }
+function trunc(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) + '…' : s; }
+function setText(id, v) { const e = $(id); if (e) e.textContent = v; }
+let _toastT;
+function toast(msg, ms) {
+  const t = $('toast'); if (!t) return;
+  t.innerHTML = msg; t.classList.add('show');
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => t.classList.remove('show'), ms || 3400);
+}
+// 埋点：只在有后端时上报，失败静默（埋点绝不能影响主流程）
+function track(ev, k1, k2, n) {
+  if (!ENV.http) return;
+  try {
+    const p = new URLSearchParams({ ev: ev, sid: SID });
+    if (k1) p.set('k1', k1);
+    if (k2) p.set('k2', k2);
+    if (n !== undefined && n !== null) p.set('num', n);
+    fetch('/api/track?' + p.toString(), { keepalive: true }).catch(() => {});
+  } catch (e) { /* ignore */ }
+}
+
+// ECharts 统一主题片段
+const AXIS = {
+  axisLine: { lineStyle: { color: 'rgba(122,158,224,.26)' } },
+  axisTick: { show: false },
+  axisLabel: { color: '#8fa2c4', fontSize: 10 },
+  splitLine: { lineStyle: { color: 'rgba(122,158,224,.09)' } },
+};
+const TIP = {
+  backgroundColor: 'rgba(9,15,30,.96)', borderColor: 'rgba(122,158,224,.32)', borderWidth: 1,
+  textStyle: { color: INK, fontSize: 11.5 }, extraCssText: 'border-radius:9px;box-shadow:0 10px 30px -10px rgba(0,0,0,.8)',
+};
+const LEGEND = { textStyle: { color: SUB, fontSize: 10.5 }, itemWidth: 10, itemHeight: 10, itemGap: 12 };
+
+// ============================================================================
+//  1. 数据加载
+// ============================================================================
 function loadData() {
   try {
     if (window.__SNAPSHOT__) {
       DATA = window.__SNAPSHOT__;
-      console.log('✅ 数据加载完成（内嵌）:', DATA.total, '家');
       init();
       return;
     }
-    // 兜底走 fetch
     fetch('snapshot_data.json').then(r => {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
-    }).then(d => {
-      DATA = d;
-      console.log('✅ 数据加载完成（fetch）:', DATA.total, '家');
-      init();
-    }).catch(e => showLoadError(e));
-  } catch (e) {
-    showLoadError(e);
-  }
+    }).then(d => { DATA = d; init(); }).catch(showLoadError);
+  } catch (e) { showLoadError(e); }
 }
+
 function showLoadError(e) {
-  console.error('loadData 失败:', e);
-  const html = document.documentElement.outerHTML.length;
-  document.getElementById('loading').innerHTML =
-    '<div style="text-align:left;font-size:13px;line-height:1.6;color:#ff9b9b">' +
-    '❌ <b>' + (e.message || e) + '</b><br><br>' +
-    '<b>诊断：</b><br>' +
-    '• HTML 总长: ' + (html/1024).toFixed(0) + ' KB<br>' +
-    '• 当前 URL: ' + location.href + '<br>' +
-    '• document.lastModified: ' + (document.lastModified || '未知') + '<br><br>' +
-    '<b>🔧 解决：</b><br>' +
-    '1. <b>硬刷新</b> Mac <code>Cmd+Shift+R</code> / Win <code>Ctrl+F5</code><br>' +
-    '2. 地址栏加 <code>?v=' + Date.now() + '</code><br>' +
-    '3. 用离线版 <code>file://...web/dashboard_offline.html</code></div>';
+  const el = $('loading'); if (!el) return;
+  el.classList.remove('hide');
+  el.style.background = 'linear-gradient(90deg,#ff6b81,#ffb547)';
+  el.innerHTML = '❌ 数据加载失败：' + esc(e && e.message ? e.message : e) +
+    ' &nbsp;·&nbsp; 请硬刷新（Mac <b>Cmd+Shift+R</b> / Win <b>Ctrl+F5</b>）' +
+    '；或改用离线单文件 <code>web/dashboard_offline.html</code>';
 }
 
-// ========== 2. 初始化 ==========
-// ============== 智能导诊（疾病/症状 → 科室 → 医院）==============
-function initTriage() {
-  if (DATA.meta && DATA.meta.districts) fillSelect('t_district', DATA.meta.districts.map(d => d.district), '全部区域');
-  if (DATA.meta && DATA.meta.levels) fillSelect('t_level', DATA.meta.levels.map(d => d.level), '全部等级');
-  const input = document.getElementById('f_triage');
-  if (input) input.addEventListener('keydown', e => { if (e.key === 'Enter') runTriage(); });
-  const btn = document.getElementById('btn_triage');
-  if (btn) btn.addEventListener('click', runTriage);
-  const clr = document.getElementById('btn_triage_clear');
-  if (clr) clr.addEventListener('click', clearTriage);
-  // file:// 协议无法调用后端接口，给出提示
-  if (location.protocol === 'file:') {
-    const h = document.getElementById('triage_hint');
-    if (h) h.textContent = '⚠️ 智能导诊需本地服务：请运行 bash web/start.sh 后访问 http://localhost:5001';
-  }
-}
-
-function runTriage() {
-  const q = (document.getElementById('f_triage').value || '').trim();
-  const echo = document.getElementById('triage_echo');
-  const res = document.getElementById('triage_result');
-  const hint = document.getElementById('triage_hint');
-  if (location.protocol === 'file:') {
-    if (hint) hint.textContent = '⚠️ 智能导诊需本地服务：请运行 bash web/start.sh 后访问 http://localhost:5001';
-    if (res) res.innerHTML = '<div class="triage-empty">当前为离线打开模式，智能导诊需本地 Flask 服务支持</div>';
-    return;
-  }
-  if (!q) { if (echo) { echo.className = 'ai-echo'; echo.innerHTML = '<span class="warn">请输入病情或疾病名称</span>'; } return; }
-  const district = (document.getElementById('t_district').value || '');
-  const level = (document.getElementById('t_level').value || '');
-  const topn = (document.getElementById('t_topn').value || '10');
-  let url = '/api/triage?q=' + encodeURIComponent(q) + '&top_n=' + topn;
-  if (district) url += '&district=' + encodeURIComponent(district);
-  if (level) url += '&level=' + encodeURIComponent(level);
-  const useGeo = document.getElementById('t_use_geo') && document.getElementById('t_use_geo').checked;
-  if (useGeo && BASE_POINTS.geo && BASE_POINTS.geo.lng != null) {
-    url += '&lng=' + BASE_POINTS.geo.lng + '&lat=' + BASE_POINTS.geo.lat;
-  }
-  if (res) res.innerHTML = '<div class="triage-empty">导诊中…</div>';
-  const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-  fetch(url).then(r => r.ok ? r.json() : null).then(j => {
-    if (!j) {
-      if (res) res.innerHTML = isLocal
-        ? '<div class="triage-empty">服务异常，请确认 Flask 已启动（bash web/start.sh）</div>'
-        : '<div class="triage-empty">当前为在线静态版，不含后端服务。请在本地运行 <code>bash web/start.sh</code> 后访问 http://localhost:5001 体验智能导诊。</div>';
-      return;
-    }
-    if (!j.ok) {
-      const ex = (j.examples || []).map(x => '<span class="chip">' + x + '</span>').join('');
-      // 若已尝试 AI 兜底仍无果，如实告知，避免用户以为系统没反应
-      const aiTry = j.llm_attempted
-        ? '<br><span style="color:#6b7a99">已尝试 AI 兜底' + (j.llm_note ? '：' + escHtml(j.llm_note) : '') + '</span>'
-        : '';
-      if (echo) { echo.className = 'ai-echo'; echo.innerHTML = '<span class="warn">' + (j.hint || '未匹配') + '</span>' + aiTry + '<br>' + ex; }
-      if (res) res.innerHTML = '<div class="triage-empty">未匹配到对应科室，换更具体的症状试试</div>';
-      return;
-    }
-    const chips = j.matched_depts.map(d =>
-      '<span class="chip' + (d.emergency ? ' emg' : '') + '">' + d.dept + (d.emergency ? ' · 急诊' : '') + '</span>').join('');
-    // 标注解析来源：AI 兜底 vs 本地知识库（答辩时可一眼说明走的是哪条链路）
-    const engineTag = (j.engine === 'llm')
-      ? '<span class="chip ai">🧠 AI 理解</span>'
-        + (j.ai_note ? '<span class="chip engine">' + escHtml(j.ai_note) + '</span>' : '')
-      : '<span class="chip engine">本地知识库</span>';
-    if (echo) { echo.className = 'ai-echo'; echo.innerHTML = engineTag + '病情「' + escHtml(j.query) + '」对应科室：' + chips; }
-    if (!j.hospitals.length) { if (res) res.innerHTML = '<div class="triage-empty">暂无具备该科室的匹配机构</div>'; return; }
-    if (res) res.innerHTML = j.hospitals.map(h => {
-      const dchs = (h.matched_depts || []).map(d =>
-        '<span class="tchip' + (j.matched_depts.find(x => x.dept === d && x.emergency) ? ' emg' : '') + '">' + d + '</span>').join('');
-      const sc = Math.round((h.score || 0) * 100);
-      const dist = h.distance_km == null ? '—' : h.distance_km.toFixed(1) + ' km';
-      return '<div class="trow" data-id="' + h.id + '">'
-        + '<div class="tn">' + escHtml(h.name) + (h.is_key_specialty ? ' <span class="tchip">重点专科</span>' : '') + '</div>'
-        + '<div class="tm">' + levelBadge(h.level) + ' ' + escHtml(h.district) + ' · 距您 ' + dist + '</div>'
-        + '<div class="tm">' + dchs + '</div>'
-        + '<div class="tr">' + escHtml(h.reason) + '</div>'
-        + '<div class="tscore"><i style="width:' + sc + '%"></i></div>'
-        + '</div>';
-    }).join('');
-    Array.prototype.forEach.call(res.querySelectorAll('.trow'), el =>
-      el.addEventListener('click', () => showDetail(el.getAttribute('data-id'))));
-  }).catch(() => {
-    if (res) res.innerHTML = isLocal
-      ? '<div class="triage-empty">网络异常，请确认 Flask 已启动</div>'
-      : '<div class="triage-empty">当前为在线静态版，不含后端服务。本地运行 <code>bash web/start.sh</code> 后访问 http://localhost:5001 即可体验。</div>';
-  });
-}
-
-function clearTriage() {
-  const input = document.getElementById('f_triage'); if (input) input.value = '';
-  const echo = document.getElementById('triage_echo'); if (echo) { echo.className = 'ai-echo'; echo.innerHTML = ''; }
-  const res = document.getElementById('triage_result'); if (res) res.innerHTML = '';
-}
-
+// ============================================================================
+//  2. 初始化
+// ============================================================================
 function init() {
   try {
-    document.getElementById('loading').classList.add('hide');
-    document.getElementById('m_total').textContent = DATA.total.toLocaleString();
-    document.getElementById('m_time').textContent = DATA.snapshot_time;
+    $('loading').classList.add('hide');
+    setText('m_total', DATA.total.toLocaleString());
+    setText('m_time', DATA.snapshot_time);
+    setText('m_time2', DATA.snapshot_time);
 
-    // 填充下拉
     fillSelect('f_district', DATA.meta.districts.map(d => d.district), '全部 16 区');
-    fillSelect('f_level',     DATA.meta.levels.map(d => d.level), '全部等级');
-    fillSelect('f_cat',       DATA.meta.categories.map(d => d.category), '全部类型');
-    // 科室维度（第 6 维）：选项取自有覆盖数据的标准科室，匹配 feature（诊疗科室）与 key_depts（登记科目）
-    fillSelect('f_dept',      DATA.meta.depts.map(d => d.dept_name), '全部科室');
+    fillSelect('f_level', DATA.meta.levels.map(d => d.level), '全部等级');
+    fillSelect('f_cat', DATA.meta.categories.map(d => d.category), '全部类型');
+    fillSelect('f_dept', DATA.meta.depts.map(d => d.dept_name), '全部科室');
+    fillSelect('t_district', DATA.meta.districts.map(d => d.district), '全部区域');
+    fillSelect('t_level', DATA.meta.levels.map(d => d.level), '全部等级');
 
     bindEvents();
-    initTriage();
-    initCharts();        // 必须先初始化图表实例
-    initAnalyticsCharts(); // 初始化多维分析图表（含隐藏视图）
-    initNav();           // 导航栏视图切换
-    applyFilter();       // 再筛选并更新图表
+    initCharts();
+    initAnalyticsCharts();
+    initAdminCharts();
+    initNav();
+    initTriageChat();
+    initDrawer();
+    initCompare();
+    initAIState();
+    applyFilter();
+    loadAbout();
   } catch (e) {
-    console.error('[init] 初始化失败:', e);
-    setMapDiag('err', '初始化失败: ' + (e.message || e) + '<br>请打开浏览器 Console 查看详细错误');
+    console.error('[init] 失败:', e);
+    setMapDiag('err', '❌ 初始化失败：' + esc(e.message || e) + '<br>请打开浏览器 Console 查看详情');
   }
+}
+
+// 后端探活（离线版永不执行）
+function initAIState() {
+  const el = $('ai_state');
+  if (!ENV.http) { if (el) el.innerHTML = 'AI 兜底 <b>离线模式</b>'; return; }
+  fetch('/api/health', { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : null)
+    .then(j => {
+      ENV.api = !!(j && j.status === 'ok');
+      if (el) el.innerHTML = ENV.api
+        ? ('后端连接 <b>正常</b> · ' + num(j.institutions) + ' 家')
+        : '后端 <b>未连接</b>';
+      if (ENV.api) renderAdmin();     // 后端可用才拉行为统计
+    })
+    .catch(() => { if (el) el.innerHTML = '后端 <b>未连接</b>'; });
 }
 
 function setMapDiag(cls, html) {
-  const el = document.getElementById('map_diag');
-  if (!el) return;
+  const el = $('map_diag'); if (!el) return;
   el.className = cls === 'err' ? 'err' : '';
   el.innerHTML = html;
 }
 
-// ========== 3. 填充下拉 ==========
 function fillSelect(id, opts, firstLabel) {
-  const el = document.getElementById(id);
-  el.innerHTML = `<option value="">${firstLabel}</option>` +
-    opts.map(o => `<option value="${o}">${o}</option>`).join('');
+  const el = $(id); if (!el) return;
+  el.innerHTML = '<option value="">' + firstLabel + '</option>' +
+    opts.map(o => '<option value="' + esc(o) + '">' + esc(o) + '</option>').join('');
 }
 
-// ========== 4. 事件绑定 ==========
+// ============================================================================
+//  3. 事件绑定
+// ============================================================================
+let _kwT;
 function bindEvents() {
-  ['f_kw','f_district','f_level','f_cat','f_dept','f_net','f_base','f_sort'].forEach(id => {
-    document.getElementById(id).addEventListener('input', () => { PAGE = 1; applyFilter(); });
-    document.getElementById(id).addEventListener('change', () => { PAGE = 1; applyFilter(); });
+  ['f_district', 'f_level', 'f_cat', 'f_dept', 'f_net', 'f_base', 'f_sort'].forEach(id => {
+    const el = $(id); if (!el) return;
+    el.addEventListener('input', () => { PAGE = 1; applyFilter(); });
+    el.addEventListener('change', () => {
+      PAGE = 1;
+      if (id === 'f_district') { const v = el.value; if (v) track('filter_district', v); }
+      if (id === 'f_dept') { const v = el.value; if (v) track('filter_dept', v); }
+      if (id === 'f_level') { const v = el.value; if (v) track('filter_level', v); }
+      if (id === 'f_net') { const v = el.value; if (v) track('filter_net', v); }
+      applyFilter();
+    });
   });
-  document.getElementById('btn_reset').addEventListener('click', resetFilter);
-  // 自然语言解析：回车或点按钮触发
-  const aiInput = document.getElementById('f_ai');
-  if (aiInput) {
-    aiInput.addEventListener('keydown', e => { if (e.key === 'Enter') applyNLQ(); });
-  }
-  const btnAi = document.getElementById('btn_ai');
-  if (btnAi) btnAi.addEventListener('click', applyNLQ);
-  const btnAiClear = document.getElementById('btn_ai_clear');
-  if (btnAiClear) btnAiClear.addEventListener('click', clearNLQ);
-  document.getElementById('pg_prev').addEventListener('click', () => { if (PAGE>1) { PAGE--; renderList(); } });
-  document.getElementById('pg_next').addEventListener('click', () => { if (PAGE*PAGE_SIZE<FILTERED.length) { PAGE++; renderList(); } });
-  document.getElementById('pg_size').addEventListener('change', e => { PAGE_SIZE = +e.target.value; PAGE = 1; renderList(); });
-  document.getElementById('f_base').addEventListener('change', e => {
-    if (e.target.value === 'geo' && (BASE_POINTS.geo.lng == null || BASE_POINTS.geo.lat == null)) {
-      // 用户直接选了我的位置但还没定位过，自动调一次
-      locateMe();
-    }
+  // 关键词输入做防抖埋点（不干扰实时筛选）
+  const kwEl = $('f_kw');
+  kwEl.addEventListener('input', () => {
+    PAGE = 1; applyFilter();
+    clearTimeout(_kwT);
+    _kwT = setTimeout(() => { const v = kwEl.value.trim(); if (v.length >= 2) track('search', v); }, 1100);
   });
-  // Esc 关闭弹窗
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
-  document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+
+  $('btn_reset').addEventListener('click', resetFilter);
+  $('btn_clear_pick').addEventListener('click', clearPicks);
+
+  const aiInput = $('f_ai');
+  if (aiInput) aiInput.addEventListener('keydown', e => { if (e.key === 'Enter') applyNLQ(); });
+  const bAi = $('btn_ai'); if (bAi) bAi.addEventListener('click', applyNLQ);
+  const bAc = $('btn_ai_clear'); if (bAc) bAc.addEventListener('click', clearNLQ);
+
+  $('pg_prev').addEventListener('click', () => { if (PAGE > 1) { PAGE--; renderList(); } });
+  $('pg_next').addEventListener('click', () => { if (PAGE * PAGE_SIZE < FILTERED.length) { PAGE++; renderList(); } });
+  $('pg_size').addEventListener('change', e => { PAGE_SIZE = +e.target.value; PAGE = 1; renderList(); });
+
+  $('f_base').addEventListener('change', e => {
+    if (e.target.value === 'geo' && (BASE_POINTS.geo.lng == null || BASE_POINTS.geo.lat == null)) locateMe();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if ($('cmpwrap').classList.contains('show')) closeCompare();
+    else if ($('drawer').classList.contains('show')) closeDrawer();
+  });
 }
 
 function resetFilter() {
-  document.getElementById('f_kw').value = '';
-  document.getElementById('f_district').value = '';
-  document.getElementById('f_level').value = '';
-  document.getElementById('f_cat').value = '';
-  const dsel = document.getElementById('f_dept'); if (dsel) dsel.value = '';
-  const nsel = document.getElementById('f_net'); if (nsel) nsel.value = '';
-  document.getElementById('f_base').value = 'tiananmen';
-  document.getElementById('f_sort').value = 'score';
-  PAGE = 1;
-  applyFilter();
+  $('f_kw').value = ''; $('f_district').value = ''; $('f_level').value = '';
+  $('f_cat').value = ''; $('f_dept').value = ''; $('f_net').value = '';
+  $('f_base').value = 'tiananmen'; $('f_sort').value = 'score';
+  PAGE = 1; applyFilter();
 }
 
-// ========== 4.5 用户定位 ==========
-// MVP 极简版：点击 → 浏览器授权 → 拿经纬度 → 切基准点到"我的位置" → 重算距离
-// 注意：file:// 协议下浏览器拒绝授权，必须用 http://localhost 跑
+// ============================================================================
+//  4. 地理定位
+// ============================================================================
 function locateMe() {
-  const btn = document.getElementById('btn_locate');
-  if (!navigator.geolocation) {
-    alert('当前浏览器不支持定位 API\n建议使用 Chrome / Safari / Edge 最新版');
-    return;
-  }
-  const oldText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = '⏳ 定位中…';
+  const btn = $('btn_locate');
+  if (!navigator.geolocation) { toast('⚠️ 当前浏览器不支持定位 API'); return; }
+  if (!ENV.http) { toast('⚠️ 需通过 http://localhost:5001 打开才能授权定位（file:// 被浏览器禁止）', 5200); return; }
+  const old = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ 定位中…';
   navigator.geolocation.getCurrentPosition(
     pos => {
-      const lng = +pos.coords.longitude.toFixed(6);
-      const lat = +pos.coords.latitude.toFixed(6);
+      const lng = +pos.coords.longitude.toFixed(6), lat = +pos.coords.latitude.toFixed(6);
       const acc = Math.round(pos.coords.accuracy);
-      BASE_POINTS.geo.lng = lng;
-      BASE_POINTS.geo.lat = lat;
-      BASE_POINTS.geo.name = `我的位置(±${acc}m)`;
-      // 启用"我的位置" option，更新 select 值
-      const opt = document.getElementById('opt_geo');
-      opt.disabled = false;
-      opt.textContent = '📍 ' + BASE_POINTS.geo.name;
-      document.getElementById('f_base').value = 'geo';
-      // 提示并重算
+      BASE_POINTS.geo.lng = lng; BASE_POINTS.geo.lat = lat;
+      BASE_POINTS.geo.name = '我的位置(±' + acc + 'm)';
+      const opt = $('opt_geo'); opt.disabled = false; opt.textContent = '📍 ' + BASE_POINTS.geo.name;
+      $('f_base').value = 'geo';
       btn.textContent = '✅ 已定位';
-      setTimeout(() => { btn.textContent = '📍 重新定位'; btn.disabled = false; }, 1200);
-      // 【关键】自动切到"距离↑"排序，让定位结果一眼可见
-      document.getElementById('f_sort').value = 'distance';
+      setTimeout(() => { btn.textContent = '📍 重新定位'; btn.disabled = false; }, 1300);
+      $('f_sort').value = 'distance';
       applyFilter();
-      // 顶部显式反馈
-      showLocateToast(lng, lat, acc);
-      console.log('[定位成功]', {lng, lat, accuracy: acc, baseKey: 'geo'});
+      toast('📍 已定位 ' + lng + ', ' + lat + '（±' + acc + 'm） · 已按距离升序排序', 5200);
+      track('locate', null, null, acc);
     },
     err => {
-      btn.textContent = oldText;
-      btn.disabled = false;
-      let msg = '定位失败：';
-      if (err.code === 1) msg += '用户拒绝授权';
-      else if (err.code === 2) msg += '位置不可用（GPS/网络问题）';
-      else if (err.code === 3) msg += '请求超时';
-      else msg += err.message;
-      msg += '\n\n请确认：\n1) 浏览器允许位置权限\n2) 用 http://localhost 打开（不是 file://）\n3) 系统设置里开启了位置服务';
-      alert(msg);
-      console.warn('[定位失败]', err);
+      btn.textContent = old; btn.disabled = false;
+      const m = { 1: '用户拒绝授权', 2: '位置不可用', 3: '请求超时' }[err.code] || err.message;
+      toast('⚠️ 定位失败：' + m + ' —— 请确认浏览器允许位置权限', 5200);
     },
     { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
   );
 }
 
-// 定位成功后顶部显式反馈条
-function showLocateToast(lng, lat, acc) {
-  let toast = document.getElementById('locate_toast');
-  if (!toast) {
-    toast = document.createElement('div');
-    toast.id = 'locate_toast';
-    toast.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);' +
-      'background:linear-gradient(90deg,#1f3a68,#14213d);color:#5fd3c0;border:1px solid #5fd3c0;' +
-      'padding:10px 20px;border-radius:6px;z-index:9999;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,0.4);' +
-      'transition:opacity 0.4s';
-    document.body.appendChild(toast);
-  }
-  toast.innerHTML = `📍 已定位：<b>${lng}, ${lat}</b>（精度 ±${acc}m） · 已自动按距离升序排序，列表显示距你最近的医院`;
-  toast.style.opacity = '1';
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => { toast.style.opacity = '0'; }, 5000);
-}
-
-// ========== 5. 筛选核心 ==========
-function haversine(lng1, lat1, lng2, lat2) {
-  const R = 6371;
-  const toRad = d => d * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
-
-// ========== 4.8 自然语言解析（规则引擎 + 可选大模型增强） ==========
-// 大模型兜底开关，默认关闭：离线版与默认在线版都走规则引擎，零外部依赖。
+// ============================================================================
+//  5. 自然语言解析（规则引擎 + 可选大模型兜底）
+// ============================================================================
 if (typeof window.__AI_LLM_ON__ === 'undefined') window.__AI_LLM_ON__ = false;
-// 设计原则：
-//   1) 规则引擎为默认路径，纯前端、完全离线可用，答辩现场零依赖；
-//   2) 大模型为可选增强，默认关闭（window.__AI_LLM_ON__ = false），仅在规则零命中时异步兜底；
-//   3) 解析结果必须「可解释回显」，用户可对照纠错，避免黑箱决策。
 
-// 标准科室 → 口语/症状同义词（匹配时按词长降序，保证"妇幼保健院"优先于"医院"）
 const NLQ_DEPT_SYNONYMS = [
-  ['心血管内科', ['心脏病','心脏','心血管','心悸','胸闷','胸痛','高血压','血压高','冠心病','心梗','心肌梗死','心绞痛','心律不齐','房颤','心衰','心力衰竭']],
-  ['呼吸内科',   ['咳嗽','咳喘','哮喘','肺炎','肺病','呼吸困难','气喘','支气管炎','慢阻肺','肺气肿','喘不上气','呼吸']],
-  ['消化内科',   ['胃病','肠胃','消化','腹泻','拉肚子','腹痛','肚子疼','反酸','胃溃疡','肠胃炎','便秘','恶心','呕吐','消化不良']],
-  ['神经内科',   ['头痛','头疼','偏头痛','头晕','神经内科','脑梗','脑血栓','中风','偏瘫','癫痫','帕金森','面瘫','脑血管','神经痛','眩晕','抽搐','手脚麻木']],
-  ['肾内科',     ['肾病','肾脏','尿毒症','肾炎','肾功能','蛋白尿','肾衰']],
-  ['内分泌科',   ['糖尿病','血糖','内分泌','甲亢','甲状腺','肥胖','减肥','痛风','尿酸','高血脂','血脂']],
-  ['血液内科',   ['贫血','白血病','血友病','血小板','淋巴瘤','血液病']],
-  ['老年病科',   ['老年病','老年人','老人']],
-  ['普内科',     ['内科','感冒','发烧','发热','普通内科']],
-  ['全科医疗科', ['全科','家庭医生']],
-  ['普通外科',   ['外科','普外','阑尾','阑尾炎','疝气','胆囊','胆结石','外伤','缝合']],
-  ['骨科',       ['骨折','骨头','腰椎','颈椎','关节','腰痛','腰疼','腿疼','脖子疼','骨刺','骨质疏松','扭伤','脱位','脊柱','半月板','腰椎间盘','关节炎']],
-  ['神经外科',   ['脑外科','脑肿瘤','脑外伤','脑出血','颅脑','脑瘤']],
-  ['心胸外科',   ['心脏手术','搭桥','胸腔','开胸','心脏搭桥','肺手术']],
-  ['泌尿外科',   ['泌尿','结石','肾结石','前列腺','尿频','尿急','尿路','膀胱','尿失禁']],
-  ['肛肠外科',   ['痔疮','肛肠','肛门','便血','肛裂','肛瘘']],
-  ['妇产科',     ['妇科','产科','怀孕','孕检','生孩子','月经','白带','妇科炎症','子宫','卵巢','产检','分娩','孕妇','备孕','流产','不孕']],
-  ['儿科',       ['儿科','小孩','儿童','宝宝','小儿','孩子','幼儿','新生儿','婴儿']],
-  ['肿瘤科',     ['肿瘤','癌症','癌','化疗','放疗','恶性']],
-  ['精神心理科', ['精神','心理','抑郁','焦虑','失眠','神经衰弱','心理咨询']],
-  ['眼科',       ['眼科','眼睛','近视','视力','白内障','青光眼','眼底','红眼']],
-  ['耳鼻咽喉科', ['耳鼻喉','耳朵','听力','鼻炎','咽炎','扁桃体','咽喉','鼻子','耳鸣','中耳炎','打鼾','嗓子']],
-  ['口腔科',     ['牙科','牙齿','口腔','洗牙','补牙','拔牙','牙疼','牙痛','正畸','种植牙','牙医','牙']],
-  ['皮肤科',     ['皮肤病','皮肤','湿疹','过敏','皮疹','青春痘','痤疮','牛皮癣','荨麻疹','瘙痒','皮炎']],
-  ['中医内科',   ['中医内科','中医','调理','中药','把脉','气血']],
-  ['中医骨伤科', ['中医骨科','骨伤','正骨','跌打']],
-  ['针灸推拿科', ['针灸','推拿','按摩','拔罐','艾灸','针灸推拿']],
-  ['感染科',     ['感染','传染病','传染','结核','发热门诊']],
-  ['肝病科',     ['肝病','肝炎','乙肝','丙肝','肝硬化','脂肪肝','肝功能']],
-  ['急诊科',     ['急诊','急救','急症']],
-  ['重症医学科', ['重症','危重','重症监护']],
-  ['康复医学科', ['康复','康复训练','理疗','康复科']],
+  ['心血管内科', ['心脏病', '心脏', '心血管', '心悸', '胸闷', '胸痛', '高血压', '血压高', '冠心病', '心梗', '心肌梗死', '心绞痛', '心律不齐', '房颤', '心衰', '心力衰竭']],
+  ['呼吸内科', ['咳嗽', '咳喘', '哮喘', '肺炎', '肺病', '呼吸困难', '气喘', '支气管炎', '慢阻肺', '肺气肿', '喘不上气', '呼吸']],
+  ['消化内科', ['胃病', '肠胃', '消化', '腹泻', '拉肚子', '腹痛', '肚子疼', '反酸', '胃溃疡', '肠胃炎', '便秘', '恶心', '呕吐', '消化不良']],
+  ['神经内科', ['头痛', '头疼', '偏头痛', '头晕', '神经内科', '脑梗', '脑血栓', '中风', '偏瘫', '癫痫', '帕金森', '面瘫', '脑血管', '神经痛', '眩晕', '抽搐', '手脚麻木']],
+  ['肾内科', ['肾病', '肾脏', '尿毒症', '肾炎', '肾功能', '蛋白尿', '肾衰']],
+  ['内分泌科', ['糖尿病', '血糖', '内分泌', '甲亢', '甲状腺', '肥胖', '减肥', '痛风', '尿酸', '高血脂', '血脂']],
+  ['血液内科', ['贫血', '白血病', '血友病', '血小板', '淋巴瘤', '血液病']],
+  ['老年病科', ['老年病', '老年人', '老人']],
+  ['普内科', ['内科', '感冒', '发烧', '发热', '普通内科']],
+  ['全科医疗科', ['全科', '家庭医生']],
+  ['普通外科', ['外科', '普外', '阑尾', '阑尾炎', '疝气', '胆囊', '胆结石', '外伤', '缝合']],
+  ['骨科', ['骨折', '骨头', '腰椎', '颈椎', '关节', '腰痛', '腰疼', '腿疼', '脖子疼', '骨刺', '骨质疏松', '扭伤', '脱位', '脊柱', '半月板', '腰椎间盘', '关节炎']],
+  ['神经外科', ['脑外科', '脑肿瘤', '脑外伤', '脑出血', '颅脑', '脑瘤']],
+  ['心胸外科', ['心脏手术', '搭桥', '胸腔', '开胸', '心脏搭桥', '肺手术']],
+  ['泌尿外科', ['泌尿', '结石', '肾结石', '前列腺', '尿频', '尿急', '尿路', '膀胱', '尿失禁']],
+  ['肛肠外科', ['痔疮', '肛肠', '肛门', '便血', '肛裂', '肛瘘']],
+  ['妇产科', ['妇科', '产科', '怀孕', '孕检', '生孩子', '月经', '白带', '妇科炎症', '子宫', '卵巢', '产检', '分娩', '孕妇', '备孕', '流产', '不孕']],
+  ['儿科', ['儿科', '小孩', '儿童', '宝宝', '小儿', '孩子', '幼儿', '新生儿', '婴儿']],
+  ['肿瘤科', ['肿瘤', '癌症', '癌', '化疗', '放疗', '恶性']],
+  ['精神心理科', ['精神', '心理', '抑郁', '焦虑', '失眠', '神经衰弱', '心理咨询']],
+  ['眼科', ['眼科', '眼睛', '近视', '视力', '白内障', '青光眼', '眼底', '红眼']],
+  ['耳鼻咽喉科', ['耳鼻喉', '耳朵', '听力', '鼻炎', '咽炎', '扁桃体', '咽喉', '鼻子', '耳鸣', '中耳炎', '打鼾', '嗓子']],
+  ['口腔科', ['牙科', '牙齿', '口腔', '洗牙', '补牙', '拔牙', '牙疼', '牙痛', '正畸', '种植牙', '牙医', '牙']],
+  ['皮肤科', ['皮肤病', '皮肤', '湿疹', '过敏', '皮疹', '青春痘', '痤疮', '牛皮癣', '荨麻疹', '瘙痒', '皮炎']],
+  ['中医内科', ['中医内科', '中医', '调理', '中药', '把脉', '气血']],
+  ['中医骨伤科', ['中医骨科', '骨伤', '正骨', '跌打']],
+  ['针灸推拿科', ['针灸', '推拿', '按摩', '拔罐', '艾灸', '针灸推拿']],
+  ['感染科', ['感染', '传染病', '传染', '结核', '发热门诊']],
+  ['肝病科', ['肝病', '肝炎', '乙肝', '丙肝', '肝硬化', '脂肪肝', '肝功能']],
+  ['急诊科', ['急诊', '急救', '急症']],
+  ['重症医学科', ['重症', '危重', '重症监护']],
+  ['康复医学科', ['康复', '康复训练', '理疗', '康复科']],
 ];
+const NLQ_LEVEL = [['三级', ['三级甲等', '三甲', '三级', '三等甲级']], ['二级', ['二级', '二甲']], ['一级', ['一级', '一甲', '社区医院']]];
+const NLQ_CAT = [['妇幼保健', ['妇幼保健院', '妇产医院', '妇幼']], ['急救中心', ['急救中心', '急救站']],
+                 ['体检中心', ['体检中心', '体检']], ['门诊部', ['门诊部']], ['诊所', ['诊所']], ['医院', ['医院']]];
+const NLQ_SORT = [['distance', ['离家近', '离我近', '最近', '附近', '周边', '旁边', '距离近', '近一点']],
+                  ['level', ['最好', '等级高', '评级高', '最强', '档次高']], ['depts', ['科室全', '科室多']]];
+const NLQ_STOP = ['的', '了', '看', '找', '想', '要', '有', '吗', '啊', '呀', '呢', '我', '家', '去', '在', '和', '与', '或', '请', '帮', '推荐', '一下', '哪里', '哪个', '哪些', '什么', '怎么', '附近', '周边', '最近', '离家近', '离我近'];
 
-// 等级 / 类型 / 排序 / 性质 的口语映射
-const NLQ_LEVEL = [['三级',['三级甲等','三甲','三级','三等甲级']],
-                   ['二级',['二级','二甲']],
-                   ['一级',['一级','一甲','社区医院']]];
-const NLQ_CAT   = [['妇幼保健',['妇幼保健院','妇产医院','妇幼']],
-                   ['急救中心',['急救中心','急救站']],
-                   ['体检中心',['体检中心','体检']],
-                   ['门诊部',['门诊部']],
-                   ['诊所',['诊所']],
-                   ['医院',['医院']]];
-const NLQ_SORT  = [['distance',['离家近','离我近','最近','附近','周边','旁边','距离近','近一点']],
-                   ['level',   ['最好','等级高','评级高','最强','档次高']],
-                   ['depts',   ['科室全','科室多']]];
-const NLQ_OWN   = [['公立',['公立','公办','国立']], ['民营',['民营','私立','民办']]];
-// 命中后从原文剔除的停用词，避免污染关键词
-const NLQ_STOP  = ['的','了','看','找','想','要','有','吗','啊','呀','呢','我','家','去','在','和','与','或','请','帮','推荐','一下','哪里','哪个','哪些','什么','怎么','附近','周边','最近','离家近','离我近'];
-
-// 把 [[目标,[词...]]...] 拍平成按词长降序的匹配表（长词优先，避免子串误吞）
-// includeSelf=true 时把科室标准名本身也纳入匹配，解决"骨科""神经外科"等自称未收录的问题
 function nlqBuildTable(pairs, includeSelf) {
   const t = [];
   pairs.forEach(([target, words]) => {
-    if (includeSelf && target) t.push({ w: target, target });
-    words.forEach(w => t.push({ w, target }));
+    if (includeSelf && target) t.push({ w: target, target: target });
+    words.forEach(w => t.push({ w: w, target: target }));
   });
   t.sort((a, b) => b.w.length - a.w.length);
   return t;
@@ -394,47 +320,37 @@ let _NLQ_TABLES = null;
 function nlqTables() {
   if (_NLQ_TABLES) return _NLQ_TABLES;
   _NLQ_TABLES = {
-    dept:  nlqBuildTable(NLQ_DEPT_SYNONYMS, true),
-    level: nlqBuildTable(NLQ_LEVEL),
-    cat:   nlqBuildTable(NLQ_CAT),
-    sort:  nlqBuildTable(NLQ_SORT),
+    dept: nlqBuildTable(NLQ_DEPT_SYNONYMS, true),
+    level: nlqBuildTable(NLQ_LEVEL), cat: nlqBuildTable(NLQ_CAT), sort: nlqBuildTable(NLQ_SORT),
   };
   return _NLQ_TABLES;
 }
-
-// 在一次解析中按词长优先匹配，返回 {target, word, index} 或 null
 function nlqMatch(table, text, used) {
-  for (const item of table) {
-    const i = text.indexOf(item.w);
-    if (i >= 0) {
-      // 检查该区间是否已被先前命中的词占用
-      const span = used.find(u => !(i + item.w.length <= u.s || i >= u.e));
-      if (span) continue;
-      return { target: item.target, word: item.w, index: i, s: i, e: i + item.w.length };
-    }
+  for (let i = 0; i < table.length; i++) {
+    const item = table[i];
+    const idx = text.indexOf(item.w);
+    if (idx < 0) continue;
+    const clash = used.some(u => !(idx + item.w.length <= u.s || idx >= u.e));
+    if (clash) continue;
+    return { target: item.target, word: item.w, index: idx, s: idx, e: idx + item.w.length };
   }
   return null;
 }
-
-// 规则解析主函数：自然语言 → 结构化筛选条件（完全离线）
 function parseNLQ(raw) {
   const text = (raw || '').trim();
   const out = { district: '', level: '', cat: '', dept: '', sort: '', kw: '', hits: [], engine: 'rule' };
   if (!text) return out;
-
   const T = nlqTables();
-  const used = [];   // 已占用区间，防止同一段文字被重复解释
-  const take = (m) => { if (m) { used.push({ s: m.s, e: m.e }); out.hits.push(m); } return m; };
+  const used = [];
+  const take = m => { if (m) { used.push({ s: m.s, e: m.e }); out.hits.push(m); } return m; };
 
-  // 1. 行政区（支持"朝阳区"与"朝阳"两种写法，取数据中的真实区名）
   if (DATA && DATA.meta && DATA.meta.districts) {
     let best = null;
     DATA.meta.districts.forEach(d => {
-      const full = d.district;                 // 朝阳区
-      const short = full.replace(/[市区县]$/, ''); // 朝阳
+      const full = d.district, short = full.replace(/[市区县]$/, '');
       [full, short].forEach(form => {
         const i = text.indexOf(form);
-        if (i >= 0 && (!best || form.length > best.form.length)) best = { form, name: full, i };
+        if (i >= 0 && (!best || form.length > best.form.length)) best = { form: form, name: full, i: i };
       });
     });
     if (best) {
@@ -443,142 +359,112 @@ function parseNLQ(raw) {
       out.hits.push({ target: best.name, word: best.form, kind: 'district' });
     }
   }
+  const lv = nlqMatch(T.level, text, used); if (lv) { take(lv); out.level = lv.target; lv.kind = 'level'; }
+  const ct = nlqMatch(T.cat, text, used);   if (ct) { take(ct); out.cat = ct.target;  ct.kind = 'cat'; }
+  const dp = nlqMatch(T.dept, text, used);  if (dp) { take(dp); out.dept = dp.target; dp.kind = 'dept'; }
+  const st = nlqMatch(T.sort, text, used);  if (st) { take(st); out.sort = st.target; st.kind = 'sort'; }
 
-  // 2. 等级 / 3. 类型 / 4. 科室 / 5. 排序（顺序即优先级，先占位者胜）
-  const lv = nlqMatch(T.level, text, used);  if (lv)  { take(lv);  out.level = lv.target;  lv.kind = 'level'; }
-  const ct = nlqMatch(T.cat,   text, used);  if (ct)  { take(ct);  out.cat   = ct.target;  ct.kind = 'cat'; }
-  const dp = nlqMatch(T.dept,  text, used);  if (dp)  { take(dp);  out.dept  = dp.target;  dp.kind = 'dept'; }
-  const st = nlqMatch(T.sort,  text, used);  if (st)  { take(st);  out.sort  = st.target;  st.kind = 'sort'; }
-
-  // 6. 剩余文字作为关键词（剔除命中词与停用词）
   let rest = text;
-  [...used].sort((a, b) => b.s - a.s).forEach(u => { rest = rest.slice(0, u.s) + ' '.repeat(u.e - u.s) + rest.slice(u.e); });
-  // 同一维度已确定，残留的同义表达（如已定"感冒"又出现"发烧"）不必再进关键词
-  [T.dept, T.level, T.cat, T.sort].forEach(tb => {
-    tb.forEach(it => { if (rest.indexOf(it.w) >= 0) rest = rest.split(it.w).join(' '); });
-  });
+  used.slice().sort((a, b) => b.s - a.s).forEach(u => { rest = rest.slice(0, u.s) + ' '.repeat(u.e - u.s) + rest.slice(u.e); });
+  [T.dept, T.level, T.cat, T.sort].forEach(tb => tb.forEach(it => { if (rest.indexOf(it.w) >= 0) rest = rest.split(it.w).join(' '); }));
   NLQ_STOP.forEach(w => { rest = rest.split(w).join(' '); });
-  // 直接删除分隔符与空白（而非替换为空格），避免残留纯空格被误判成关键词
   rest = rest.replace(/[\s，。、,.!！？?；;：:（）()"'']+/g, '');
   if (rest.length >= 2) out.kw = rest;
-
   return out;
 }
 
-// 把解析结果写入筛选控件并刷新；同时回显"我理解为…"供用户纠错
 function applyNLQ() {
-  const input = document.getElementById('f_ai');
-  const echo = document.getElementById('ai_echo');
-  const raw = (input.value || '').trim();
-  if (!raw) { echo.className = 'ai-echo'; return; }
-
+  const raw = ($('f_ai').value || '').trim();
+  const echo = $('ai_echo');
+  if (!raw) { if (echo) echo.style.display = 'none'; return; }
   const r = parseNLQ(raw);
-
-  // 规则零命中且开启大模型增强时，尝试在线兜底（默认关闭，离线版永不触发）
   if (window.__AI_LLM_ON__ && r.hits.length === 0) {
     fetch('/api/ai/parse?q=' + encodeURIComponent(raw))
-      .then(resp => resp.ok ? resp.json() : null)
+      .then(x => x.ok ? x.json() : null)
       .then(j => {
-        if (j && j.ok && j.conditions) {
-          Object.assign(r, j.conditions, { engine: 'llm' });
-          commitNLQ(r, raw);
-        } else { commitNLQ(r, raw); }
-      })
-      .catch(() => commitNLQ(r, raw));
+        if (j && j.ok && j.conditions) { Object.assign(r, j.conditions, { engine: 'llm' }); }
+        commitNLQ(r, raw);
+      }).catch(() => commitNLQ(r, raw));
     return;
   }
+  if (r.hits.length || r.kw) track('nlq', raw, null, r.hits.length);
   commitNLQ(r, raw);
 }
 
 function commitNLQ(r, raw) {
-  const echo = document.getElementById('ai_echo');
-  const setSel = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
-  setSel('f_district', r.district);
-  setSel('f_level', r.level);
-  setSel('f_cat', r.cat);
-  setSel('f_dept', r.dept);
-  setSel('f_sort', r.sort || 'score');
-  if (r.kw) document.getElementById('f_kw').value = r.kw;
+  const echo = $('ai_echo');
+  const setSel = (id, v) => { const el = $(id); if (el && v) el.value = v; };
+  setSel('f_district', r.district); setSel('f_level', r.level); setSel('f_cat', r.cat);
+  setSel('f_dept', r.dept); setSel('f_sort', r.sort || 'score');
+  if (r.kw) $('f_kw').value = r.kw;
 
-  // 可解释回显
   const chips = [];
   if (r.district) chips.push('区域：' + r.district);
-  if (r.level)    chips.push('等级：' + r.level);
-  if (r.cat)      chips.push('类型：' + r.cat);
-  if (r.dept)     chips.push('科室：' + r.dept);
-  if (r.kw)       chips.push('关键词：' + r.kw);
-  if (r.sort)     chips.push('排序：' + ({score:'综合评分',distance:'距离最近',level:'等级优先',depts:'科室最多'}[r.sort] || r.sort));
+  if (r.level) chips.push('等级：' + r.level);
+  if (r.cat) chips.push('类型：' + r.cat);
+  if (r.dept) chips.push('科室：' + r.dept);
+  if (r.kw) chips.push('关键词：' + r.kw);
+  if (r.sort) chips.push('排序：' + ({ score: '综合评分', distance: '距离最近', level: '等级优先', depts: '科室最多', name: '名称' }[r.sort] || r.sort));
 
-  const engineTip = r.engine === 'llm' ? '（大模型解析）' : '（规则引擎解析 · 离线可用）';
-  if (chips.length === 0) {
-    echo.innerHTML = '<span class="warn">⚠ 未能识别出筛选条件。</span>可试试：朝阳区看心脏病的三级医院 / 海淀区儿科诊所 / 离家最近的二甲医院';
-  } else {
-    echo.innerHTML = '<b>我理解为</b> ' + engineTip + '<br>' +
-      chips.map(c => '<span class="chip">' + c + '</span>').join('') +
-      '<br><span style="color:#6b7a99">解析结果已填入下方筛选项，可直接修改纠错。</span>';
+  const tip = r.engine === 'llm' ? '（大模型解析）' : '（规则引擎解析 · 离线可用）';
+  if (echo) {
+    echo.style.display = 'block';
+    echo.innerHTML = chips.length === 0
+      ? '<span style="color:' + WARN + '">⚠ 没识别出筛选条件。</span>可以试试：<b>朝阳区看心脏病的三级医院</b> / <b>海淀区儿科诊所</b> / <b>离家最近的二甲医院</b>'
+      : '<b style="color:' + INK + '">我理解为</b> <span style="color:' + DIM + '">' + tip + '</span><br>' +
+        chips.map(c => '<span class="chip">' + esc(c) + '</span>').join('') +
+        '<br><span style="color:' + FAINT + '">解析结果已填入下方筛选项，可直接手工修改纠错。</span>';
   }
-  echo.className = 'ai-echo show';
-  PAGE = 1;
-  applyFilter();
+  PAGE = 1; applyFilter();
 }
-
 function clearNLQ() {
-  document.getElementById('f_ai').value = '';
-  document.getElementById('ai_echo').className = 'ai-echo';
+  $('f_ai').value = '';
+  const e = $('ai_echo'); if (e) e.style.display = 'none';
   resetFilter();
 }
 
+// ============================================================================
+//  6. 筛选核心
+// ============================================================================
+function haversine(lng1, lat1, lng2, lat2) {
+  const R = 6371, rad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * rad, dLng = (lng2 - lng1) * rad;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
 function applyFilter() {
-  console.log('[applyFilter] 触发, baseKey=', JSON.stringify(document.getElementById('f_base').value), 'base=', JSON.stringify(BASE_POINTS[document.getElementById('f_base').value]));
   if (!DATA) return;
-  const kw = document.getElementById('f_kw').value.trim().toLowerCase();
-  const district = document.getElementById('f_district').value;
-  const level = document.getElementById('f_level').value;
-  const cat = document.getElementById('f_cat').value;
-  const deptEl = document.getElementById('f_dept');
-  const dept = deptEl ? deptEl.value : '';
-  const netEl = document.getElementById('f_net');
-  const net = netEl ? netEl.value : '';
-  const baseKey = document.getElementById('f_base').value;
-  const sort = document.getElementById('f_sort').value;
-  const base = BASE_POINTS[baseKey];
-  // 防御：base 无效（极少见：缓存旧版）时回退到天安门并打印
-  if (!base) {
-    console.warn('[applyFilter] baseKey', JSON.stringify(baseKey), '无效，回退到天安门');
-    document.getElementById('f_base').value = 'tiananmen';
-  }
-  const baseSafe = base || BASE_POINTS.tiananmen;
+  const kw = ($('f_kw').value || '').trim().toLowerCase();
+  const district = $('f_district').value, level = $('f_level').value, cat = $('f_cat').value;
+  const dept = $('f_dept').value, net = $('f_net').value, sort = $('f_sort').value;
+  const baseKey = $('f_base').value;
+  if (!BASE_POINTS[baseKey]) $('f_base').value = 'tiananmen';
+  let base = BASE_POINTS[$('f_base').value] || BASE_POINTS.tiananmen;
+  // 防御：选了「我的位置」但尚未定位成功（lng 为空）时回退到天安门，
+  // 否则 haversine 会算出 NaN，导致距离列与排序全部失效。
+  if (base.lng == null || base.lat == null) base = BASE_POINTS.tiananmen;
 
   FILTERED = DATA.institutions.filter(r => {
-    if (kw) {
-      const txt = (r.name + ' ' + r.district).toLowerCase();
-      if (!txt.includes(kw)) return false;
-    }
+    if (kw && (r.name + ' ' + r.district + ' ' + (r.addr || '')).toLowerCase().indexOf(kw) < 0) return false;
     if (district && r.district !== district) return false;
     if (level && r.level !== level) return false;
     if (cat && r.category !== cat) return false;
-    // 协作网络维度：儿科医联体(核心/成员) / 卒中中心 / 危重新生儿救治 / 危重孕产妇救治
     if (net) {
-      if (net === 'ped_core'   && r.net_pediatric !== '核心') return false;
+      if (net === 'ped_core' && r.net_pediatric !== '核心') return false;
       if (net === 'ped_member' && r.net_pediatric !== '成员') return false;
-      if (net === 'stroke'     && r.net_stroke !== '1') return false;
-      if (net === 'neonatal'   && r.net_neonatal !== '市级') return false;
-      if (net === 'maternal'   && r.net_maternal !== '市级') return false;
+      if (net === 'stroke' && r.net_stroke !== '1') return false;
+      if (net === 'neonatal' && r.net_neonatal !== '市级') return false;
+      if (net === 'maternal' && r.net_maternal !== '市级') return false;
     }
-    // 科室维度：匹配 feature（擅长/诊疗科室）与 key_depts（登记科目）
     if (dept) {
       const pool = (r.feature || '') + ';' + (r.key_depts || '');
       if (pool.indexOf(dept) < 0) return false;
     }
-    if (r.lng != null && r.lat != null) {
-      r._dist = haversine(baseSafe.lng, baseSafe.lat, r.lng, r.lat);
-    } else {
-      r._dist = null;
-    }
+    r._dist = (r.lng != null && r.lat != null) ? haversine(base.lng, base.lat, r.lng, r.lat) : null;
     return true;
   });
 
-  // 计算评分：归一化
   let maxDept = 0, maxDist = 0;
   FILTERED.forEach(r => {
     if (r.dept_count) maxDept = Math.max(maxDept, r.dept_count);
@@ -588,77 +474,74 @@ function applyFilter() {
     const lv = (LEVEL_RANK[r.level] || 1) / 4;
     const ds = r._dist == null ? 0.5 : Math.max(0, 1 - r._dist / (maxDist || 1));
     const dp = (r.dept_count || 0) / (maxDept || 1);
-    r._score = W_LEVEL*lv + W_DIST*ds + W_DEPT*dp;
+    r._score = W_LEVEL * lv + W_DIST * ds + W_DEPT * dp;
   });
 
-  // 排序
   const cmp = {
-    score:    (a,b) => b._score - a._score,
-    distance: (a,b) => (a._dist==null?9e9:a._dist) - (b._dist==null?9e9:b._dist),
-    level:    (a,b) => (LEVEL_RANK[b.level]||0) - (LEVEL_RANK[a.level]||0),
-    depts:    (a,b) => (b.dept_count||0) - (a.dept_count||0),
-    name:     (a,b) => a.name.localeCompare(b.name, 'zh-CN'),
-  }[sort] || ((a,b) => b._score - a._score);
+    score:    (a, b) => b._score - a._score,
+    distance: (a, b) => (a._dist == null ? 9e9 : a._dist) - (b._dist == null ? 9e9 : b._dist),
+    level:    (a, b) => (LEVEL_RANK[b.level] || 0) - (LEVEL_RANK[a.level] || 0),
+    depts:    (a, b) => (b.dept_count || 0) - (a.dept_count || 0),
+    name:     (a, b) => String(a.name).localeCompare(String(b.name), 'zh-CN'),
+  }[sort] || ((a, b) => b._score - a._score);
   FILTERED.sort(cmp);
 
-  renderCards();
+  renderKPI();
   renderList();
   updateCharts();
-  updateAnalyticsCharts();   // 多维分析视图随筛选联动
+  updateAnalyticsCharts();
 }
 
-// ========== 6. 统计卡 ==========
-function renderCards() {
-  document.getElementById('v_match').textContent = FILTERED.length.toLocaleString();
-  document.getElementById('v_l3').textContent = FILTERED.filter(r => r.level === '三级').length.toLocaleString();
-  document.getElementById('v_coord').textContent = FILTERED.filter(r => r.lng != null).length.toLocaleString();
-  const avg = FILTERED.length ? (FILTERED.reduce((s,r) => s + (r.dept_count||0), 0) / FILTERED.length).toFixed(1) : '0';
-  document.getElementById('v_dept').textContent = avg;
-  document.getElementById('listTag').textContent = `LIST · 共 ${FILTERED.length.toLocaleString()} 家`;
+function renderKPI() {
+  setText('v_match', FILTERED.length.toLocaleString());
+  setText('v_l3', FILTERED.filter(r => r.level === '三级').length.toLocaleString());
+  setText('v_coord', FILTERED.filter(r => r.lng != null).length.toLocaleString());
+  const avg = FILTERED.length ? (FILTERED.reduce((s, r) => s + (r.dept_count || 0), 0) / FILTERED.length).toFixed(1) : '0';
+  setText('v_dept', avg);
+  setText('v_feat', FILTERED.filter(r => (r.key_specialty_count || 0) > 0).length.toLocaleString());
+  const netN = FILTERED.filter(r => r.net_pediatric || r.net_stroke === '1' || r.net_neonatal === '市级' || r.net_maternal === '市级').length;
+  setText('v_net', netN.toLocaleString());
+  setText('listTag', 'LIST · 共 ' + FILTERED.length.toLocaleString() + ' 家');
 }
 
-// ========== 7. 列表渲染 ==========
+// ============================================================================
+//  7. 列表渲染
+// ============================================================================
 function levelBadge(lv) {
-  // 不参加医院等级评审的机构（诊所/卫生室/门诊部/服务站等）单独标注，避免误读为"未定级"
   if (lv === '不适用医院分级') {
-    return `<span class="badge b-l0" title="该机构类型不参加医院等级评审（如诊所、村卫生室、门诊部、社区卫生服务站、医务室等）">不适用分级</span>`;
+    return '<span class="badge b-l0" title="该机构类型不参加医院等级评审（诊所 / 村卫生室 / 门诊部 / 社区卫生服务站 / 医务室等）">不适用分级</span>';
   }
-  const cls = lv==='三级'?'b-l3':lv==='二级'?'b-l2':lv==='一级'?'b-l1':'b-l0';
-  return `<span class="badge ${cls}">${lv}</span>`;
+  const cls = lv === '三级' ? 'b-l3' : lv === '二级' ? 'b-l2' : lv === '一级' ? 'b-l1' : 'b-l0';
+  return '<span class="badge ' + cls + '">' + esc(lv || '未知') + '</span>';
 }
-function catBadge(c) {
-  return c ? `<span class="badge b-l0" style="margin-left:4px">${c}</span>` : '';
-}
-// 公立/民营徽章（govern_master.py 规则引擎产出；「未标注」不显示，避免噪音）
+function catBadge(c) { return c ? '<span class="badge b-l0">' + esc(c) + '</span>' : ''; }
 function ownBadge(o) {
-  if (o === '公立') return `<span class="badge b-pub" title="依据：登记注册类型/政府办属性">公立</span>`;
-  if (o === '民营') return `<span class="badge b-pri" title="依据：营利性/私有/非政府办属性">民营</span>`;
+  if (o === '公立') return '<span class="badge b-pub" title="判定依据：登记注册类型 / 政府办属性">公立</span>';
+  if (o === '民营') return '<span class="badge b-pri" title="判定依据：营利性 / 私有 / 非政府办属性">民营</span>';
   return '';
 }
-// 擅长科室三级分级（权威优先）：L1 重点专科 > L2 登记诊疗科目 > L3 普通临床科室
-const FEAT_LABEL = {1: '重点专科', 2: '优势科室', 3: '诊疗科室'};
+const FEAT_LABEL = { 1: '重点专科', 2: '优势科室', 3: '诊疗科室' };
 function featLine(r) {
   if (!r.feature) return '';
+  const lv = r.feature_level || '3';
+  if (lv === '3') return '';
   const depts = r.feature.split(';').filter(x => x);
   if (!depts.length) return '';
-  const lv = r.feature_level || '3';
-  // 只保留有重点科室数据的显示：L1 重点专科 / L2 优势科室；L3 诊疗科室多为规则推导，不在列表卡片展示
-  if (lv === '3') return '';
-  const show = depts.slice(0, 6).join(' / ') + (depts.length > 6 ? ` 等${depts.length}项` : '');
-  const lab = FEAT_LABEL[lv] || '擅长';
-  return `<div class="feat" title="${depts.join(' / ')}"><span class="fk f${lv}">${lab}</span><span class="ft">${show}</span></div>`;
+  const show = depts.slice(0, 5).join(' / ') + (depts.length > 5 ? ' 等' + depts.length + '项' : '');
+  return '<div class="feat" title="' + esc(depts.join(' / ')) + '">' +
+    '<span class="fk f' + lv + '">' + (FEAT_LABEL[lv] || '擅长') + '</span>' +
+    '<span class="ft">' + esc(show) + '</span></div>';
 }
-// 医疗协作网络徽章（资源整合维度）：儿科医联体 / 卒中中心 / 危重新生儿救治 / 危重孕产妇救治
 function netLine(r) {
   const t = [];
-  if (r.net_pediatric === '核心') t.push(['儿科医联体·核心', '#ff6b6b']);
-  else if (r.net_pediatric === '成员') t.push(['儿科医联体·成员', '#f7b955']);
-  if (r.net_stroke === '1') t.push(['卒中中心', '#5fd3c0']);
-  if (r.net_neonatal === '市级') t.push(['新生儿救治·市级', '#a78bfa']);
-  if (r.net_maternal === '市级') t.push(['孕产妇救治·市级', '#f0a3c8']);
+  if (r.net_pediatric === '核心') t.push(['儿科医联体·核心', CRIT]);
+  else if (r.net_pediatric === '成员') t.push(['儿科医联体·成员', WARN]);
+  if (r.net_stroke === '1') t.push(['卒中中心', ACC2]);
+  if (r.net_neonatal === '市级') t.push(['新生儿救治·市级', VIO]);
+  if (r.net_maternal === '市级') t.push(['孕产妇救治·市级', PINK]);
   if (!t.length) return '';
-  return '<div class="netline">' + t.map(([n, c]) =>
-    `<span style="display:inline-block;margin:3px 5px 0 0;padding:1px 7px;border:1px solid ${c}66;border-radius:10px;color:${c};font-size:10px;background:${c}18">${n}</span>`
+  return '<div class="netline">' + t.map(x =>
+    '<span class="nt" style="border-color:' + x[1] + '55;color:' + x[1] + ';background:' + x[1] + '14">' + x[0] + '</span>'
   ).join('') + '</div>';
 }
 function netDetail(r) {
@@ -668,432 +551,1222 @@ function netDetail(r) {
   if (r.net_stroke === '1') n.push('卒中中心');
   if (r.net_neonatal === '市级') n.push('危重新生儿救治中心（市级）');
   if (r.net_maternal === '市级') n.push('危重孕产妇救治中心（市级）');
-  return n.length ? n.join('、') : '<span style="color:#8aa1c8">未纳入</span>';
-}
-
-// 关键词命中高亮（不转义，name 来自可信数据）
-function escHtml(s) {
-  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  return n.length ? n.join('、') : '';
 }
 function kwMark(s) {
-  const kw = (document.getElementById('f_kw').value || '').trim();
-  const safe = escHtml(s);
+  const kw = ($('f_kw').value || '').trim();
+  const safe = esc(s);
   if (!kw) return safe;
   const re = new RegExp('(' + kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
   return safe.replace(re, '<mark>$1</mark>');
 }
-// 重点专科数字块：有重点专科(>0)时红/主题色突出，无则灰显
-function kscBlock(r) {
-  const n = r.key_specialty_count || 0;
-  const on = n > 0;
-  return `<div class="ksc ${on ? 'on' : 'off'}"><div class="n">${n}</div><div class="t">重点专科</div></div>`;
-}
+
 function renderList() {
   const start = (PAGE - 1) * PAGE_SIZE;
-  const end = Math.min(start + PAGE_SIZE, FILTERED.length);
-  const page = FILTERED.slice(start, end);
+  const page = FILTERED.slice(start, start + PAGE_SIZE);
   const totalPg = Math.max(1, Math.ceil(FILTERED.length / PAGE_SIZE));
-  document.getElementById('pg_info').textContent = `${PAGE} / ${totalPg}`;
-  document.getElementById('pg_prev').disabled = PAGE <= 1;
-  document.getElementById('pg_next').disabled = PAGE >= totalPg;
+  setText('pg_info', PAGE + ' / ' + totalPg);
+  $('pg_prev').disabled = PAGE <= 1;
+  $('pg_next').disabled = PAGE >= totalPg;
+  const box = $('list');
   if (!page.length) {
-    document.getElementById('list').innerHTML =
-      '<div style="padding:40px;text-align:center;color:#8aa1c8;font-size:13px">没有符合条件的机构，试试放宽筛选条件</div>';
+    box.innerHTML = '<div class="empty">没有符合条件的机构，试试放宽筛选条件</div>';
     return;
   }
-  document.getElementById('list').innerHTML = page.map(r => {
-    const baseNow = BASE_POINTS[document.getElementById('f_base').value] || BASE_POINTS.tiananmen;
-    const baseName = baseNow.name || '天安门';
+  const baseKey = $('f_base').value;
+  const baseNow = BASE_POINTS[baseKey] || BASE_POINTS.tiananmen;
+  const distLabel = (baseKey === 'geo' && (baseNow.lng == null || baseNow.lat == null)) ? '⚠️ 请先点定位' : ('距' + baseNow.name);
+
+  box.innerHTML = page.map(r => {
     const dist = r._dist == null ? '—' : r._dist.toFixed(1) + ' km';
-    const distMeta = (document.getElementById('f_base').value === 'geo' && (baseNow.lng == null || baseNow.lat == null))
-      ? '⚠️ 请点 📍 定位'
-      : `距${baseName}`;
-    const score = (r._score || 0).toFixed(3);
-    const kwActive = (document.getElementById('f_kw').value || '').trim();
-    const hitCls = kwActive ? ' hit' : '';
-    return `<div class="row${hitCls}" data-id="${r.id}">
-      <div>
-        <div class="name">${kwMark(r.name)}</div>
-        <div class="meta">${levelBadge(r.level)}${catBadge(r.category)}${ownBadge(r.ownership)} ${r.district} · ${r.dept_count||0} 科室</div>
-        ${featLine(r)}
-        ${netLine(r)}
-      </div>
-      <div class="dist">${dist}<div class="meta" style="color:#8aa1c8">${distMeta}</div></div>
-      <div class="score">${score}</div>
-      ${kscBlock(r)}
-    </div>`;
+    const on = PICKED.has(String(r.id));
+    const ksc = r.key_specialty_count || 0;
+    return '<div class="row' + (on ? ' sel' : '') + '" data-id="' + esc(r.id) + '">' +
+      '<div class="pick" data-pick="' + esc(r.id) + '" title="加入对比（最多 ' + PICK_MAX + ' 家）">✓</div>' +
+      '<div class="body">' +
+        '<div class="name">' + kwMark(r.name) + '</div>' +
+        '<div class="meta">' + levelBadge(r.level) + catBadge(r.category) + ownBadge(r.ownership) +
+          '<span>' + esc(r.district) + '</span><span style="color:' + FAINT + '">·</span><span>' + (r.dept_count || 0) + ' 个科室</span></div>' +
+        featLine(r) + netLine(r) +
+      '</div>' +
+      '<div class="side">' +
+        '<div class="dist">' + dist + '<div style="color:' + DIM + ';font-size:10px;font-weight:400">' + distLabel + '</div></div>' +
+        '<div class="score">' + (r._score || 0).toFixed(3) + '</div>' +
+        '<div class="ksc ' + (ksc > 0 ? 'on' : 'off') + '"><b>' + ksc + '</b>重点专科</div>' +
+      '</div>' +
+    '</div>';
   }).join('');
-  document.querySelectorAll('.row').forEach(el => {
-    el.addEventListener('click', () => showDetail(el.dataset.id));
+
+  Array.prototype.forEach.call(box.querySelectorAll('.row'), el => {
+    el.addEventListener('click', ev => {
+      if (ev.target.closest('[data-pick]')) return;
+      openDrawer(el.getAttribute('data-id'));
+    });
+  });
+  Array.prototype.forEach.call(box.querySelectorAll('[data-pick]'), el => {
+    el.addEventListener('click', ev => { ev.stopPropagation(); togglePick(el.getAttribute('data-pick')); });
   });
 }
 
-// ========== 8. 图表初始化 ==========
+// ============================================================================
+//  8. 概览图表
+// ============================================================================
 function initCharts() {
   try {
-    const mapDiv = document.getElementById('map');
-    if (!mapDiv) throw new Error('找不到 #map 容器');
+    const mapDiv = $('map');
+    if (typeof echarts === 'undefined') throw new Error('ECharts 库未加载');
+    if (!DATA || !DATA.geojson) throw new Error('数据中缺少 geojson');
     setMapDiag('', '⏳ 正在初始化 ECharts 地图…');
 
-    if (typeof echarts === 'undefined') throw new Error('ECharts 库未加载（检查 CDN 或网络）');
-    if (!DATA || !DATA.geojson) throw new Error('数据中缺少 geojson');
-
-    MAP_CHART = echarts.init(mapDiv);
+    MAP_CHART = echarts.init(mapDiv, null, { renderer: 'canvas' });
     echarts.registerMap('beijing', DATA.geojson);
-
-    // 验证地图注册成功
     const reg = echarts.getMap && echarts.getMap('beijing');
     if (!reg || !reg.geoJson) throw new Error('registerMap("beijing") 失败');
 
-    const mapOpt = {
-      backgroundColor: PANEL, textStyle: {color: INK},
-      tooltip: {trigger:'item', backgroundColor:'#0b1530', borderColor:EDGE, textStyle:{color:INK}},
+    MAP_CHART.setOption({
+      backgroundColor: 'transparent', textStyle: { color: INK },
+      tooltip: Object.assign({ trigger: 'item' }, TIP),
       geo: {
-        map:'beijing', roam:true, zoom:1,
-        // 让整个北京地图贴合容器并居中，避免放大超边界被裁切（密云/怀柔贴边）
-        layoutCenter:['50%','50%'], layoutSize:'96%', aspectScale:0.9,
-        label:{show:true, color:INK, fontSize:10},
-        itemStyle:{borderColor:EDGE, borderWidth:1, areaColor:'#14213d'},
-        emphasis:{label:{color:'#fff'}, itemStyle:{areaColor:'#3aa0ff'}},
+        map: 'beijing', roam: true, zoom: 1, layoutCenter: ['50%', '50%'], layoutSize: '96%', aspectScale: 0.9,
+        label: { show: true, color: '#9fb2d4', fontSize: 10 },
+        itemStyle: { borderColor: 'rgba(122,158,224,.34)', borderWidth: 1, areaColor: '#101d36' },
+        emphasis: { label: { color: '#fff' }, itemStyle: { areaColor: '#2a4a80' } },
+        select: { itemStyle: { areaColor: '#2a4a80' }, label: { color: '#fff' } },
       },
-      visualMap: {
-        min:0, max:1300, type:'continuous',
-        // 色阶条隐藏：仅用 inRange 给地图区县配色；显示用底部 HTML 图例(.maplg)
-        show:false,
-        orient:'vertical', left:'left', top:'bottom',
-        inRange:{color:['#0b1530','#1f3a68','#3aa0ff','#5fd3c0']},
-      },
+      visualMap: { min: 0, max: 1300, show: false,
+        inRange: { color: ['#0b1730', '#1c3358', '#2a63a8', '#4c9aff', '#38e0c0'] } },
       series: [{
-        name: '机构数', type:'map', geoIndex:0,
-        data: DATA.overviews.districts.map(d => ({name:d.district, value:d.inst_count})),
+        name: '机构数', type: 'map', geoIndex: 0,
+        data: DATA.overviews.districts.map(d => ({ name: d.district, value: d.inst_count })),
       }],
-    };
-    MAP_CHART.setOption(mapOpt);
+    });
     MAP_CHART.resize();
-    MAP_CHART.on('click', params => {
-      if (params.name) {
-        document.getElementById('f_district').value = params.name;
-        applyFilter();
-      }
+    MAP_CHART.on('click', p => {
+      if (p.name) { $('f_district').value = p.name; PAGE = 1; track('filter_district', p.name, 'map'); applyFilter(); }
     });
 
-    CH1 = echarts.init(document.getElementById('ch1'));
-    CH2 = echarts.init(document.getElementById('ch2'));
-    CH3 = echarts.init(document.getElementById('ch3'));
+    CH1 = echarts.init($('ch1')); CH2 = echarts.init($('ch2')); CH3 = echarts.init($('ch3'));
+    window.addEventListener('resize', () => resizeAll());
 
-    window.addEventListener('resize', () => {
-      [MAP_CHART, CH1, CH2, CH3].forEach(c => c && c.resize());
-      if (MODAL_CHART) MODAL_CHART.resize();
-    });
-
-    const featCount = (DATA.geojson.features || []).length;
-    setMapDiag('', '✅ 地图初始化完成：' + featCount + ' 个区 · ' + FILTERED.length + ' 家机构<br>' +
-      '<span style="color:#8aa1c8">提示：地图可缩放拖拽，点击区名可筛选</span>');
-    // 5 秒后淡出诊断横幅
-    setTimeout(() => {
-      const el = document.getElementById('map_diag');
-      if (el) el.style.opacity = '0.3';
-    }, 5000);
+    setMapDiag('', '✅ 地图就绪 · ' + (DATA.geojson.features || []).length + ' 个行政区 · 点击区名可直接筛选');
+    setTimeout(() => { const el = $('map_diag'); if (el) el.style.opacity = '.25'; }, 5200);
   } catch (e) {
-    console.error('[initCharts] 地图初始化失败:', e);
-    setMapDiag('err', '❌ 地图初始化失败<br><b>' + (e.message || e) + '</b><br><br>' +
-      '🔧 请尝试：<br>' +
-      '1. 按 <b>Cmd+Shift+R</b> 硬刷新<br>' +
-      '2. 地址栏加 <code>?v=' + Date.now() + '</code><br>' +
-      '3. 打开浏览器 Console 截图红字错误');
-    throw e;
+    console.error('[initCharts]', e);
+    setMapDiag('err', '❌ 地图初始化失败<br><b>' + esc(e.message || e) + '</b><br>请按 Cmd+Shift+R 硬刷新');
   }
 }
 
-// ========== 9. 动态更新图表 ==========
+function resizeAll() {
+  [MAP_CHART, CH1, CH2, CH3, CH_OWN, CH_FEAT, CH_NET, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD,
+   A_KW, A_DIST, A_TRIAGE, A_DAILY, A_DENSITY, A_LEVEL, A_SPEC, A_NET, A_OWN, A_CAT, DW_CHART
+  ].forEach(c => { if (c) { try { c.resize(); } catch (e) { } } });
+}
+
 function updateCharts() {
-  if (!CH1 || !CH2 || !CH3 || !MAP_CHART) {
-    console.warn('[updateCharts] 图表实例尚未初始化，跳过');
-    return;
-  }
-  // 等级环形
-  // 口径：仅统计参加医院等级评审的机构；level='不适用医院分级'（诊所/村卫生室/门诊部/
-  // 社区卫生服务站/医务室/急救/疾控/体检等）制度上无等级，计入会形成假性"未定级"
+  if (!CH1 || !CH2 || !CH3) return;
   const lvCount = {};
-  FILTERED.forEach(r => {
-    if (r.level === '不适用医院分级') return;
-    lvCount[r.level] = (lvCount[r.level]||0) + 1;
-  });
+  FILTERED.forEach(r => { if (r.level === '不适用医院分级') return; lvCount[r.level] = (lvCount[r.level] || 0) + 1; });
   CH1.setOption({
-    series:[{type:'pie', radius:['42%','70%'],
-      data: Object.entries(lvCount).map(([n,v])=>({name:n, value:v})),
-      label:{color:INK, fontSize:11}, labelLine:{lineStyle:{color:SUB}},
-      itemStyle:{borderColor:PANEL, borderWidth:2},
-      color:[CRIT, WARN, ACC, ACC2]}],
-    legend:{bottom:0, textStyle:{color:INK, fontSize:11}},
+    tooltip: Object.assign({ trigger: 'item', formatter: '{b}：{c} 家（{d}%）' }, TIP),
+    legend: Object.assign({ bottom: 0 }, LEGEND),
+    series: [{
+      type: 'pie', radius: ['46%', '70%'], center: ['50%', '43%'],
+      data: Object.entries(lvCount).map(x => ({ name: x[0], value: x[1], itemStyle: { color: LV_COLOR[x[0]] || DIM } })),
+      label: { color: INK, fontSize: 11, formatter: '{b}\n{c}' }, labelLine: { lineStyle: { color: 'rgba(122,158,224,.4)' } },
+      itemStyle: { borderColor: PANEL, borderWidth: 2.5 },
+    }],
   });
 
-  // 类型柱状
   const catCount = {};
-  FILTERED.forEach(r => catCount[r.category] = (catCount[r.category]||0) + 1);
-  const catSorted = Object.entries(catCount).sort((a,b)=>b[1]-a[1]);
+  FILTERED.forEach(r => catCount[r.category] = (catCount[r.category] || 0) + 1);
+  const catS = Object.entries(catCount).sort((a, b) => b[1] - a[1]).slice(0, 8);
   CH2.setOption({
-    grid:{left:90, right:20, top:10, bottom:20},
-    xAxis:{type:'value', axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:SUB, fontSize:10}},
-    yAxis:{type:'category', data:catSorted.map(c=>c[0]), axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:INK, fontSize:10}},
-    series:[{type:'bar', data:catSorted.map(c=>c[1]), itemStyle:{color:ACC},
-      label:{show:true, position:'right', color:INK, fontSize:10}}],
+    tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, TIP),
+    grid: { left: 92, right: 34, top: 8, bottom: 8 },
+    xAxis: Object.assign({ type: 'value' }, AXIS),
+    yAxis: Object.assign({ type: 'category', data: catS.map(c => c[0]).reverse() }, AXIS),
+    series: [{
+      type: 'bar', data: catS.map(c => c[1]).reverse(),
+      itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#2f7ae0' }, { offset: 1, color: ACC2 }]), borderRadius: [0, 4, 4, 0] },
+      label: { show: true, position: 'right', color: INK, fontSize: 10 }, barMaxWidth: 15,
+    }],
   });
 
-  // 各区柱状
   const dCount = {};
-  FILTERED.forEach(r => dCount[r.district] = (dCount[r.district]||0) + 1);
-  const dSorted = Object.entries(dCount).sort((a,b)=>b[1]-a[1]);
+  FILTERED.forEach(r => dCount[r.district] = (dCount[r.district] || 0) + 1);
+  const dS = Object.entries(dCount).sort((a, b) => b[1] - a[1]);
   CH3.setOption({
-    grid:{left:80, right:20, top:10, bottom:30},
-    xAxis:{type:'category', data:dSorted.map(c=>c[0]), axisLine:{lineStyle:{color:EDGE}},
-      axisLabel:{color:INK, fontSize:9, rotate:30}},
-    yAxis:{type:'value', axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:SUB, fontSize:10}},
-    series:[{type:'bar', data:dSorted.map(c=>c[1]), itemStyle:{color:ACC2},
-      label:{show:true, position:'top', color:INK, fontSize:10}}],
+    tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, TIP),
+    grid: { left: 46, right: 16, top: 14, bottom: 52 },
+    xAxis: Object.assign({ type: 'category', data: dS.map(c => c[0]) }, AXIS,
+      { axisLabel: { color: '#8fa2c4', fontSize: 9.5, rotate: 38, interval: 0 } }),
+    yAxis: Object.assign({ type: 'value' }, AXIS),
+    series: [{
+      type: 'bar', data: dS.map(c => c[1]),
+      itemStyle: { color: new echarts.graphic.LinearGradient(0, 1, 0, 0, [{ offset: 0, color: '#2f7ae0' }, { offset: 1, color: ACC }]), borderRadius: [4, 4, 0, 0] },
+      label: { show: true, position: 'top', color: INK, fontSize: 9.5 },
+    }],
   });
 
-  // 地图散点叠加（用 effectScatter 叠在 geo 上）
   try {
-    // 防御：剔除落在北京地图可视范围之外的点（经纬度越界会被画出版图，形成孤点）
-    const inBbox = r => {
-      if (r.lng == null || r.lat == null) return false;
-      const lng = +r.lng, lat = +r.lat;
-      // 北京 admin 边界实测：lng 115.4~117.5, lat 39.4~41.1（含密云/平谷最东）
-      return lng > 115.35 && lng < 117.50 && lat > 39.40 && lat < 41.10;
-    };
-    const points = FILTERED.filter(inBbox).slice(0, 3000);
+    const inB = r => r.lng != null && r.lat != null && +r.lng > 115.35 && +r.lng < 117.50 && +r.lat > 39.40 && +r.lat < 41.10;
+    const points = FILTERED.filter(inB).slice(0, 3000);
     MAP_CHART.setOption({
       series: [
-        {type:'map', geoIndex:0},
-        {type:'effectScatter', coordinateSystem:'geo',
-          data: points.map(r => ({name:r.name, value:[r.lng, r.lat, r.level||'其他']})),
-          symbolSize: v => v[2]==='三级'?6:v[2]==='二级'?4:2,
-          rippleEffect:{period:4, scale:2.5, brushType:'stroke'},
-          itemStyle:{
-            color: v => v[2]==='三级'?CRIT:v[2]==='二级'?WARN:ACC2,
-            shadowBlur:8, shadowColor:'#3aa0ff'
-          },
-          showEffectOn:'render', zlevel:2},
+        { type: 'map', geoIndex: 0 },
+        {
+          type: 'effectScatter', coordinateSystem: 'geo', zlevel: 2,
+          data: points.map(r => ({ name: r.name, value: [r.lng, r.lat, r.level || '其他'] })),
+          symbolSize: v => v[2] === '三级' ? 6.5 : v[2] === '二级' ? 4.5 : 2.6,
+          rippleEffect: { period: 4, scale: 2.6, brushType: 'stroke' },
+          itemStyle: { color: v => v[2] === '三级' ? CRIT : v[2] === '二级' ? WARN : ACC2, shadowBlur: 8, shadowColor: 'rgba(76,154,255,.8)' },
+          showEffectOn: 'render',
+        },
       ],
     });
-  } catch (e) {
-    console.error('[updateCharts] 散点更新失败:', e);
-  }
+  } catch (e) { console.error('[updateCharts] 散点:', e); }
 }
 
-// ========== 10.5 多维分析图表（随 7 维筛选联动）==========
-let CH_OWN, CH_FEAT, CH_NET, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD;
+// ============================================================================
+//  9. 多维分析图表
+// ============================================================================
+function grp(arr, key) { const m = {}; arr.forEach(r => { const k = key(r); m[k] = (m[k] || 0) + 1; }); return m; }
+function lvGroup(l) { return ['三级', '二级', '一级', '未定级'].indexOf(l) >= 0 ? l : '不适用'; }
 
-function grp(arr, key) { const m = {}; arr.forEach(r => { const k = key(r); m[k] = (m[k]||0)+1; }); return m; }
-function pct(a, b) { return b ? (a/b*100).toFixed(1) + '%' : '0%'; }
-function setText(id, v) { const e = document.getElementById(id); if (e) e.textContent = v; }
-function lvGroup(l) { return (['三级','二级','一级','未定级'].indexOf(l) >= 0) ? l : '不适用'; }
-function trName(n, max) { max = max || 12; return n.length > max ? n.slice(0, max) + '…' : n; }
-
-function pieOpt(data, name) {
+function pieOpt(data) {
   return {
-    tooltip:{trigger:'item', formatter:'{b}: {c} ({d}%)', backgroundColor:'#0b1530', borderColor:EDGE, textStyle:{color:INK}},
-    legend:{bottom:0, textStyle:{color:INK, fontSize:11}},
-    series:[{type:'pie', radius:['40%','68%'], center:['50%','44%'],
-      data: data.map(d => ({name:d[0], value:d[1], itemStyle:{color:d[2]}})),
-      label:{color:INK, fontSize:11}, labelLine:{lineStyle:{color:SUB}},
-      itemStyle:{borderColor:PANEL, borderWidth:2}}]
+    tooltip: Object.assign({ trigger: 'item', formatter: '{b}：{c}（{d}%）' }, TIP),
+    legend: Object.assign({ bottom: 0 }, LEGEND),
+    series: [{
+      type: 'pie', radius: ['42%', '70%'], center: ['50%', '44%'],
+      data: data.map(d => ({ name: d[0], value: d[1], itemStyle: { color: d[2] } })),
+      label: { color: INK, fontSize: 11 }, labelLine: { lineStyle: { color: 'rgba(122,158,224,.4)' } },
+      itemStyle: { borderColor: PANEL, borderWidth: 2.5 },
+    }],
   };
 }
 function barHOpt(pairs, colors) {
   const cols = Array.isArray(colors) ? colors : pairs.map(() => colors);
   return {
-    grid:{left:118, right:26, top:8, bottom:18},
-    tooltip:{trigger:'axis', axisPointer:{type:'shadow'}, backgroundColor:'#0b1530', borderColor:EDGE, textStyle:{color:INK}},
-    xAxis:{type:'value', axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:SUB, fontSize:10}},
-    yAxis:{type:'category', data:pairs.map(p => p[0]), axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:INK, fontSize:10}},
-    series:[{type:'bar', data:pairs.map((p,i) => ({value:p[1], itemStyle:{color:cols[i]||ACC}})),
-      label:{show:true, position:'right', color:INK, fontSize:10}, itemStyle:{borderRadius:[0,3,3,0]}}]
+    tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, TIP),
+    grid: { left: 122, right: 40, top: 8, bottom: 8 },
+    xAxis: Object.assign({ type: 'value' }, AXIS),
+    yAxis: Object.assign({ type: 'category', data: pairs.map(p => p[0]) }, AXIS),
+    series: [{
+      type: 'bar', barMaxWidth: 15,
+      data: pairs.map((p, i) => ({ value: p[1], itemStyle: { color: cols[i] || ACC, borderRadius: [0, 4, 4, 0] } })),
+      label: { show: true, position: 'right', color: INK, fontSize: 10 },
+    }],
   };
 }
 function stackOpt(cats, series) {
   return {
-    tooltip:{trigger:'axis', axisPointer:{type:'shadow'}, backgroundColor:'#0b1530', borderColor:EDGE, textStyle:{color:INK}},
-    legend:{bottom:0, textStyle:{color:INK, fontSize:10}},
-    grid:{left:58, right:18, top:8, bottom:38},
-    xAxis:{type:'category', data:cats, axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:INK, fontSize:9, rotate: cats.length>10 ? 35 : 0}},
-    yAxis:{type:'value', axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:SUB, fontSize:10}},
-    series: series
+    tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, TIP),
+    legend: Object.assign({ bottom: 0 }, LEGEND),
+    grid: { left: 50, right: 16, top: 8, bottom: 40 },
+    xAxis: Object.assign({ type: 'category', data: cats }, AXIS,
+      { axisLabel: { color: '#8fa2c4', fontSize: 9, rotate: cats.length > 10 ? 38 : 0, interval: 0 } }),
+    yAxis: Object.assign({ type: 'value' }, AXIS),
+    series: series.map(s => Object.assign({ barMaxWidth: 26 }, s)),
   };
 }
 
 function initAnalyticsCharts() {
-  const mk = id => { const el = document.getElementById(id); return el ? echarts.init(el) : null; };
+  const mk = id => { const el = $(id); return el ? echarts.init(el) : null; };
   CH_OWN = mk('ch_own'); CH_FEAT = mk('ch_feat'); CH_NET = mk('ch_net');
   CH_LVOWN = mk('ch_lvown'); CH_TOPSP = mk('ch_topsp'); CH_DEPTOP = mk('ch_deptop');
   CH_DISTLV = mk('ch_distlv'); CH_COORD = mk('ch_coord');
-  window.addEventListener('resize', () => {
-    [CH_OWN,CH_FEAT,CH_NET,CH_LVOWN,CH_TOPSP,CH_DEPTOP,CH_DISTLV,CH_COORD].forEach(c => c && c.resize());
-  });
 }
 
 function updateAnalyticsCharts() {
-  if (!CH_OWN) return;            // 图表尚未初始化
-  const F = FILTERED;
-  const tot = F.length || 1;
-  // KPI
-  const pub = F.filter(r => r.ownership === '公立').length;
-  const l3  = F.filter(r => r.level === '三级').length;
-  const feat1 = F.filter(r => (r.feature_level||'') === '1').length;
-  const net = F.filter(r => (r.net_pediatric==='核心'||r.net_pediatric==='成员') || r.net_stroke==='1' || r.net_neonatal==='市级' || r.net_maternal==='市级').length;
-  setText('ak_pub', pct(pub, tot));
-  setText('ak_l3', pct(l3, tot));
-  setText('ak_feat', feat1.toLocaleString());
-  setText('ak_net', net.toLocaleString());
+  if (!CH_OWN) return;
+  const F = FILTERED, tot = F.length || 1;
+  setText('ak_pub', pct(F.filter(r => r.ownership === '公立').length, tot));
+  setText('ak_l3', pct(F.filter(r => r.level === '三级').length, tot));
+  setText('ak_feat', F.filter(r => (r.key_specialty_count || 0) > 0).length.toLocaleString());
+  setText('ak_net', F.filter(r => r.net_pediatric || r.net_stroke === '1' || r.net_neonatal === '市级' || r.net_maternal === '市级').length.toLocaleString());
 
-  // 1 办别分布
   const own = grp(F, r => r.ownership || '未标注');
-  CH_OWN.setOption(pieOpt([
-    ['公立', own['公立']||0, '#5fd3c0'],
-    ['民营', own['民营']||0, '#f7b955'],
-    ['未标注', own['未标注']||0, '#8aa1c8']], '办别'));
+  CH_OWN.setOption(pieOpt([['公立', own['公立'] || 0, ACC2], ['民营', own['民营'] || 0, WARN], ['未标注', own['未标注'] || 0, DIM]]));
 
-  // 2 重点专科分级（feature_level：1重点/2优势/3诊疗）
-  const fl = {L1:0, L2:0, L3:0, none:0};
-  F.forEach(r => { const v = r.feature_level;
-    if (v === '1') fl.L1++; else if (v === '2') fl.L2++; else if (v === '3') fl.L3++; else fl.none++; });
-  CH_FEAT.setOption(barHOpt([
-    ['重点专科 L1', fl.L1], ['优势科室 L2', fl.L2], ['诊疗科室 L3', fl.L3], ['无分级', fl.none]],
-    ['#ff6b6b','#f7b955','#3aa0ff','#8aa1c8']));
+  const fl = { L1: 0, L2: 0, L3: 0, none: 0 };
+  F.forEach(r => { const v = r.feature_level; if (v === '1') fl.L1++; else if (v === '2') fl.L2++; else if (v === '3') fl.L3++; else fl.none++; });
+  CH_FEAT.setOption(barHOpt([['重点专科 L1', fl.L1], ['优势科室 L2', fl.L2], ['诊疗科室 L3', fl.L3], ['无分级', fl.none]], [CRIT, WARN, ACC, DIM]));
 
-  // 3 协作网络覆盖
-  const np = F.filter(r => r.net_pediatric === '核心').length;
-  const nm = F.filter(r => r.net_pediatric === '成员').length;
-  const ns = F.filter(r => r.net_stroke === '1').length;
-  const nn = F.filter(r => r.net_neonatal === '市级').length;
-  const mm = F.filter(r => r.net_maternal === '市级').length;
   CH_NET.setOption(barHOpt([
-    ['儿科医联体·核心', np], ['儿科医联体·成员', nm], ['卒中中心', ns],
-    ['危重新生儿', nn], ['危重孕产妇', mm]],
-    ['#a78bfa','#6d5bd0','#ff6b6b','#5fd3c0','#3aa0ff']));
+    ['儿科医联体·核心', F.filter(r => r.net_pediatric === '核心').length],
+    ['儿科医联体·成员', F.filter(r => r.net_pediatric === '成员').length],
+    ['卒中中心', F.filter(r => r.net_stroke === '1').length],
+    ['危重新生儿', F.filter(r => r.net_neonatal === '市级').length],
+    ['危重孕产妇', F.filter(r => r.net_maternal === '市级').length],
+  ], [VIO, '#6d5bd0', CRIT, ACC2, ACC]));
 
-  // 4 等级 × 办别 堆叠
-  const levels = ['三级','二级','一级','未定级'];
-  const owns = ['公立','民营','未标注'];
-  const lvOwn = owns.map(o => ({
-    name:o, type:'bar', stack:'t', emphasis:{focus:'series'},
-    itemStyle:{color: o==='公立' ? '#5fd3c0' : o==='民营' ? '#f7b955' : '#8aa1c8'},
-    data: levels.map(l => F.filter(r => r.level === l && (r.ownership||'未标注') === o).length)
-  }));
-  CH_LVOWN.setOption(stackOpt(levels, lvOwn));
+  const levels = ['三级', '二级', '一级', '未定级'], owns = ['公立', '民营', '未标注'];
+  CH_LVOWN.setOption(stackOpt(levels, owns.map(o => ({
+    name: o, type: 'bar', stack: 't', emphasis: { focus: 'series' },
+    itemStyle: { color: o === '公立' ? ACC2 : o === '民营' ? WARN : DIM },
+    data: levels.map(l => F.filter(r => r.level === l && (r.ownership || '未标注') === o).length),
+  }))));
 
-  // 5 专科能力 TOP10（key_specialty_count）
-  const top = F.filter(r => (r.key_specialty_count||0) > 0)
-    .sort((a,b) => b.key_specialty_count - a.key_specialty_count).slice(0, 10).reverse();
-  CH_TOPSP.setOption(barHOpt(
-    top.map(r => [trName(r.name, 12), r.key_specialty_count]), ['#ff6b6b']));
+  const top = F.filter(r => (r.key_specialty_count || 0) > 0)
+    .slice().sort((a, b) => b.key_specialty_count - a.key_specialty_count).slice(0, 10).reverse();
+  CH_TOPSP.setOption(barHOpt(top.map(r => [trunc(r.name, 11), r.key_specialty_count]), CRIT));
 
-  // 6 区域 × 等级 堆叠
   const dists = (DATA.meta.districts || []).map(d => d.district);
-  const lvGroups = [['三级','#ff6b6b'],['二级','#f7b955'],['一级','#3aa0ff'],['未定级','#a78bfa'],['不适用','#8aa1c8']];
-  const distStack = lvGroups.map(g => ({
-    name:g[0], type:'bar', stack:'d', emphasis:{focus:'series'}, itemStyle:{color:g[1]},
-    data: dists.map(dn => F.filter(r => r.district === dn && lvGroup(r.level) === g[0]).length)
-  }));
-  CH_DISTLV.setOption(stackOpt(dists, distStack));
+  const lvG = [['三级', CRIT], ['二级', WARN], ['一级', ACC], ['未定级', VIO], ['不适用', DIM]];
+  CH_DISTLV.setOption(stackOpt(dists, lvG.map(g => ({
+    name: g[0], type: 'bar', stack: 'd', emphasis: { focus: 'series' }, itemStyle: { color: g[1] },
+    data: dists.map(dn => F.filter(r => r.district === dn && lvGroup(r.level) === g[0]).length),
+  }))));
 
-  // 7 坐标精度（数据质量）
   const cp = grp(F, r => r.coord_precision || 'missing');
-  CH_COORD.setOption(pieOpt([
-    ['高精度', cp['high']||0, '#5fd3c0'],
-    ['粗略', cp['rough']||0, '#f7b955'],
-    ['缺失', cp['missing']||0, '#ff6b6b']], '坐标精度'));
+  CH_COORD.setOption(pieOpt([['高精度', cp['high'] || 0, ACC2], ['粗略', cp['rough'] || 0, WARN], ['缺失', cp['missing'] || 0, CRIT]]));
 
-  // 8 科室覆盖 TOP15（feature + key_depts 拼接拆分）
   const dc = {};
   F.forEach(r => {
-    const txt = (r.feature||'') + ';' + (r.key_depts||'');
-    txt.split(';').forEach(x => { x = x.trim(); if (x) dc[x] = (dc[x]||0) + 1; });
+    ((r.feature || '') + ';' + (r.key_depts || '')).split(';').forEach(x => { x = x.trim(); if (x) dc[x] = (dc[x] || 0) + 1; });
   });
-  const topDepts = Object.entries(dc).sort((a,b) => b[1]-a[1]).slice(0, 15).reverse();
-  CH_DEPTOP.setOption(barHOpt(topDepts.map(p => [trName(p[0], 12), p[1]]), '#3aa0ff'));
+  const td = Object.entries(dc).sort((a, b) => b[1] - a[1]).slice(0, 15).reverse();
+  CH_DEPTOP.setOption(barHOpt(td.map(p => [trunc(p[0], 11), p[1]]), ACC));
 }
 
+// ============================================================================
+//  10. 导航
+// ============================================================================
 function initNav() {
   const tabs = document.querySelectorAll('.navtab');
-  const views = document.querySelectorAll('.view');
-  tabs.forEach(btn => btn.addEventListener('click', () => {
+  Array.prototype.forEach.call(tabs, btn => btn.addEventListener('click', () => {
     const v = btn.getAttribute('data-view');
-    tabs.forEach(b => b.classList.toggle('active', b === btn));
-    views.forEach(s => s.classList.toggle('active', s.id === 'view-' + v));
-    // 隐藏容器尺寸为 0，切换后需重算尺寸
-    setTimeout(() => {
-      [CH1,CH2,CH3,CH_OWN,CH_FEAT,CH_NET,CH_LVOWN,CH_TOPSP,CH_DEPTOP,CH_DISTLV,CH_COORD,MAP_CHART]
-        .forEach(c => { if (c) { try { c.resize(); } catch(e) {} } });
-    }, 40);
+    Array.prototype.forEach.call(tabs, b => b.classList.toggle('active', b === btn));
+    Array.prototype.forEach.call(document.querySelectorAll('.view'), s => s.classList.toggle('active', s.id === 'view-' + v));
+    if (v === 'admin') renderAdmin();
+    setTimeout(resizeAll, 60);
   }));
 }
+function switchView(v) {
+  const btn = document.querySelector('.navtab[data-view="' + v + '"]');
+  if (btn) btn.click();
+}
 
-// ========== 11. 详情弹窗 ==========
-function showDetail(id) {
-  const r = DATA.institutions.find(x => x.id === String(id));
-  if (!r) return;
-  document.getElementById('m_title').textContent = r.name;
-  document.getElementById('m_info').innerHTML = `
-    <div><div class="l">区 域</div><div class="v">${r.district}</div></div>
-    <div><div class="l">等 级</div><div class="v">${levelBadge(r.level)} ${r.level === '不适用医院分级' ? '（该机构类型不参加医院等级评审）' : r.level}</div></div>
-    <div><div class="l">类 型</div><div class="v">${r.category || '—'}${r.category_sub && r.category_sub !== '未细分' ? ' · ' + r.category_sub : ''}</div></div>
-    <div><div class="l">协作网络</div><div class="v">${netDetail(r)}</div></div>
-    <div><div class="l">办 别</div><div class="v">${ownBadge(r.ownership) || (r.ownership || '未标注')}${r.ownership_basis ? ` <span style="color:#8aa1c8;font-size:10px">依据 ${r.ownership_basis}</span>` : ''}</div></div>
-    <div><div class="l">科 室 数</div><div class="v">${r.dept_count || 0}</div></div>
-    <div><div class="l">重点专科数</div><div class="v">${r.key_specialty_count || 0}</div></div>
-    <div><div class="l">国家重点专科</div><div class="v">${r.national_specialty_count ? `<span style="color:#f0c674;font-weight:600">${r.national_specialty_count} 个</span> <span style="color:#8aa1c8;font-size:10px">（国家级）</span>` : '<span style="color:#8aa1c8">—</span>'}</div></div>
-    <div><div class="l">市级重点专科</div><div class="v">${r.municipal_specialty_count ? `<span style="color:#81c784;font-weight:600">${r.municipal_specialty_count} 项</span> <span style="color:#8aa1c8;font-size:10px">（北京市级）</span>${r.municipal_specialty ? ` <span title="${r.municipal_specialty.replace(/;/g,'、')}" style="color:#8aa1c8;font-size:10px;cursor:help">［清单］</span>` : ''}` : '<span style="color:#8aa1c8">—</span>'}</div></div>
-    <div><div class="l">坐 标 精 度</div><div class="v">${r.coord_precision || '—'}</div></div>
-    <div><div class="l">综 合 评 分</div><div class="v" style="color:#f7b955">${(r._score||0).toFixed(3)}</div></div>
-  `;
-  // 擅长科室：只保留有重点科室数据的显示（L1 重点专科 / L2 优势科室）；L3 诊疗科室多为规则推导，不在详情展示
-  const featDepts = r.feature ? r.feature.split(/[;；]/).map(x => x.trim()).filter(x => x) : [];
-  const keyDepts = r.key_depts ? r.key_depts.split(/[,,、;\s]+/).filter(x => x) : [];
-  const lv = r.feature_level;
-  if (featDepts.length && lv !== '3') {
-    const lvColor = lv === '1' ? '#ff6b6b' : '#f7b955';
-    const lvBg = lv === '1' ? '#ff6b6b22' : '#f7b95522';
-    document.getElementById('m_depts').innerHTML =
-      `<span style="color:#8aa1c8;font-size:10px;width:100%;display:inline-block;margin-bottom:4px">` +
-      `${FEAT_LABEL[lv] || '擅长'}（权威度分级 L${lv}，共 ${featDepts.length} 项）` +
-      `${r.key_specialty_count ? ` · 其中重点专科 ${r.key_specialty_count} 项` : ''}：</span>` +
-      featDepts.map(d =>
-        `<span style="border:1px solid ${lvColor}44;background:${lvBg};color:${lvColor};font-weight:600">${d}</span>`
-      ).join('');
-  } else if (keyDepts.length) {
-    document.getElementById('m_depts').innerHTML =
-      `<span style="color:#8aa1c8;font-size:10px;width:100%">诊疗科目（共 ${keyDepts.length} 项）：</span>` +
-      keyDepts.map(d => `<span>${d}</span>`).join('');
-  } else {
-    document.getElementById('m_depts').innerHTML = '<span style="color:#8aa1c8">无重点科室/科室标注</span>';
+// ============================================================================
+//  11. 详情抽屉
+// ============================================================================
+let DW_CUR = null;
+
+function initDrawer() {
+  $('dw_close').addEventListener('click', closeDrawer);
+  $('scrim').addEventListener('click', closeDrawer);
+  Array.prototype.forEach.call(document.querySelectorAll('.dw-tab'), t => t.addEventListener('click', () => {
+    Array.prototype.forEach.call(document.querySelectorAll('.dw-tab'), x => x.classList.toggle('active', x === t));
+    Array.prototype.forEach.call(document.querySelectorAll('.dw-pane'), p => p.classList.toggle('active', p.id === 'pane-' + t.getAttribute('data-pane')));
+  }));
+  $('dw_copy').addEventListener('click', () => {
+    if (!DW_CUR) return;
+    const name = DW_CUR.name || '';
+    if (navigator.clipboard) navigator.clipboard.writeText(name).then(() => toast('✅ 已复制机构名称：' + esc(name)), () => toast('⚠️ 复制失败'));
+    else toast('机构名称：' + esc(name));
+  });
+  $('dw_pick').addEventListener('click', () => {
+    if (!DW_CUR) return;
+    togglePick(String(DW_CUR.id));
+    $('dw_pick').textContent = PICKED.has(String(DW_CUR.id)) ? '✓ 已加入对比' : '＋ 加入对比';
+  });
+  $('dw_ai').addEventListener('click', () => runAIAdvice());
+}
+
+function closeDrawer() {
+  $('drawer').classList.remove('show');
+  $('scrim').classList.remove('show');
+  if (DW_CHART) { try { DW_CHART.dispose(); } catch (e) { } DW_CHART = null; }
+}
+
+function openDrawer(id) {
+  const local = DATA.institutions.find(x => String(x.id) === String(id));
+  if (!local) return;
+  DW_CUR = local;
+  track('detail', local.name, local.district);
+
+  // 先用本地数据即时渲染（不等接口），保证离线与弱网也秒开
+  paintDrawerLocal(local);
+  $('drawer').classList.add('show');
+  $('scrim').classList.add('show');
+  $('dw_pick').textContent = PICKED.has(String(local.id)) ? '✓ 已加入对比' : '＋ 加入对比';
+  $('dw_ai').style.display = (window.__AI_LLM_ON__ && ENV.api) ? '' : 'none';
+  $('dw_ft_note').textContent = ENV.api ? '' : '离线模式 · 周边配套与 AI 提示需本地服务';
+
+  if (!ENV.api) return;
+  fetch('/api/inst/' + encodeURIComponent(id) + '/detail')
+    .then(r => r.ok ? r.json() : null)
+    .then(j => { if (j && j.ok && DW_CUR && String(DW_CUR.id) === String(id)) paintDrawerFull(j); })
+    .catch(() => { });
+}
+
+function paintDrawerLocal(r) {
+  $('dw_name').textContent = r.name;
+  $('dw_meta').innerHTML = levelBadge(r.level) + catBadge(r.category) + ownBadge(r.ownership) +
+    '<span class="chip">' + esc(r.district) + '</span>' +
+    (r.category_sub && r.category_sub !== '未细分' ? '<span class="chip">' + esc(r.category_sub) + '</span>' : '');
+  const base = BASE_POINTS[$('f_base').value] || BASE_POINTS.tiananmen;
+  const dist = (r.lng != null && r.lat != null) ? haversine(base.lng, base.lat, r.lng, r.lat).toFixed(1) + ' km' : '—';
+  $('pane-ov').innerHTML =
+    '<div class="infogrid">' +
+      box('机构类型', esc(r.category || '—')) +
+      box('医院等级', levelBadge(r.level) + '<div class="mini" style="color:' + FAINT + ';font-size:11px;margin-top:4px">' + esc(r.level === '不适用医院分级' ? '该类型不参加等级评审' : r.level) + '</div>') +
+      box('办别性质', (r.ownership || '未标注') + (r.ownership_basis ? '<div style="color:' + FAINT + ';font-size:10px;margin-top:3px">依据 ' + esc(r.ownership_basis) + '</div>' : '')) +
+      box('科室数量', num(r.dept_count) + ' 个') +
+      box('重点专科', num(r.key_specialty_count) + ' 项') +
+      box('距' + base.name, dist) +
+    '</div>' +
+    '<div class="blk"><h4><span class="bar"></span>实时状态 <span class="r">演示模拟数据</span></h4>' + statusHTML(mockStatus(r)) + '</div>' +
+    '<div class="blk"><h4><span class="bar"></span>协作网络</h4><div class="deptchips">' +
+      (netDetail(r) ? netDetail(r).split('、').map(x => '<span class="chip acc">' + esc(x) + '</span>').join('')
+                    : '<span style="color:' + DIM + ';font-size:12px">未纳入市级协作网络</span>') +
+    '</div></div>' +
+    '<div class="blk"><h4><span class="bar"></span>同区科室数 TOP10 对比 <span class="r">红色为本机构</span></h4>' +
+      '<div class="dwchart" id="dw_chart"></div></div>';
+  paintDwChart(r);
+  // 离线单文件（file://）没有后端，联系方式必须用快照里的 addr/phone 本地渲染，
+  // 否则面板会永远停在「正在获取联系方式…」——这是必须避免的空转假象。
+  $('pane-contact').innerHTML = ENV.api ? '<div class="empty">正在获取联系方式…</div>' : contactLocalHTML(r);
+  $('pane-spec').innerHTML = specialtyHTML(r);
+  $('pane-near').innerHTML = aroundPlaceholder(r);
+}
+
+// 离线模式的「就诊与挂号」面板：只用快照数据，不依赖任何接口
+function contactLocalHTML(r) {
+  const items = [];
+  items.push(linkCard('🏛️', '北京市预约挂号统一平台（114）', '官方统一平台 · 打开后按机构名检索', GUAhAO_114, false));
+  items.push(linkCard('📞', '电话预约挂号 010-114', '24 小时人工坐席', 'tel:010-114', false));
+  if (r.phone) items.push(linkCard('☎️', '机构电话 ' + r.phone, '预约 / 咨询（以医院公布为准）', 'tel:' + r.phone, false));
+  else items.push(linkCard('☎️', '机构电话未收录', '公开数据中无联系电话', '', true));
+  const nav = navLink(r);
+  if (nav) items.push(linkCard('🧭', '高德地图导航', '一键导航到该机构', nav, false));
+  else items.push(linkCard('🧭', '暂无坐标', '缺少经纬度，无法导航', '', true));
+  return '<div class="linklist">' + items.join('') + '</div>' +
+    '<div class="blk"><h4><span class="bar"></span>联系方式 <span class="r">来源：数据快照</span></h4>' +
+      '<div class="infogrid">' +
+        box('联系电话', r.phone ? '<a href="tel:' + esc(r.phone) + '">' + esc(r.phone) + '</a>' : '<span style="color:' + FAINT + '">未收录</span>') +
+        box('所属区域', esc(r.district)) +
+        box('经纬度', r.lng != null ? (r.lng + ', ' + r.lat) : '<span style="color:' + FAINT + '">无坐标</span>') +
+        box('坐标精度', esc(r.coord_precision || '—')) +
+      '</div>' +
+      '<div class="ibox" style="margin-top:10px"><div class="k">地址</div><div class="v">' + esc(r.addr || '未收录') + '</div></div>' +
+    '</div>' +
+    '<div class="notice" style="margin-top:14px">当前为<b>离线单文件</b>模式：地址、电话、导航与 114 挂号入口均可正常使用；' +
+    '周边配套（最近地铁站 / 停车场 / 公交站）与 AI 就医提示需本地 Flask 服务支持。</div>';
+}
+
+// 同区科室数横向对比（在当前区县内看该机构的相对位置）
+let DW_CHART = null;
+function paintDwChart(r) {
+  const el = $('dw_chart');
+  if (!el || typeof echarts === 'undefined') return;
+  const same = DATA.institutions.filter(x => x.district === r.district && x.dept_count);
+  const top10 = same.slice().sort((a, b) => (b.dept_count || 0) - (a.dept_count || 0)).slice(0, 10);
+  if (!top10.some(x => String(x.id) === String(r.id))) top10.push(r);
+  top10.reverse();
+  if (!DW_CHART) DW_CHART = echarts.init(el);
+  DW_CHART.setOption({
+    tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, TIP),
+    grid: { left: 108, right: 34, top: 6, bottom: 6 },
+    xAxis: Object.assign({ type: 'value' }, AXIS),
+    yAxis: Object.assign({ type: 'category', data: top10.map(x => trunc(x.name, 12)) }, AXIS),
+    series: [{
+      type: 'bar', barMaxWidth: 13,
+      data: top10.map(x => ({
+        value: x.dept_count || 0,
+        itemStyle: { color: String(x.id) === String(r.id) ? CRIT : ACC, borderRadius: [0, 4, 4, 0] },
+      })),
+      label: { show: true, position: 'right', color: INK, fontSize: 10 },
+    }],
+  }, true);
+  setTimeout(() => { try { DW_CHART.resize(); } catch (e) { } }, 60);
+}
+
+function box(k, v) { return '<div class="ibox"><div class="k">' + esc(k) + '</div><div class="v">' + v + '</div></div>'; }
+
+function specialtyHTML(r) {
+  const nat = (r.national_specialty || '').split(';').filter(x => x.trim());
+  const mun = (r.municipal_specialty || '').split(';').filter(x => x.trim());
+  const feat = (r.feature || '').split(';').filter(x => x.trim());
+  let h = '';
+  if (nat.length) h += '<div class="blk"><h4><span class="bar"></span>国家级重点专科 <span class="r">' + nat.length + ' 项</span></h4><div class="deptchips">' +
+    nat.map(x => '<span class="chip emg">' + esc(x.trim()) + '</span>').join('') + '</div></div>';
+  if (mun.length) h += '<div class="blk"><h4><span class="bar"></span>北京市级重点专科 <span class="r">' + mun.length + ' 项</span></h4><div class="deptchips">' +
+    mun.map(x => '<span class="chip" style="background:rgba(255,181,71,.14);color:' + WARN + ';border-color:rgba(255,181,71,.34)">' + esc(x.trim()) + '</span>').join('') + '</div></div>';
+  if (feat.length) h += '<div class="blk"><h4><span class="bar"></span>擅长 / 诊疗科室 <span class="r">' + feat.length + ' 项</span></h4><div class="deptchips">' +
+    feat.map(x => '<span class="chip">' + esc(x.trim()) + '</span>').join('') + '</div></div>';
+  if (!h) h = '<div class="empty">该机构未收录重点专科或擅长科室信息</div>';
+
+  // 专家团队入口：不伪造医生姓名，而是把「真实重点专科 → 官方挂号入口」打通
+  h += '<div class="blk"><h4><span class="bar"></span>专家团队 · 挂号入口 <span class="r">真实数据 · 不展示未经核实的人员信息</span></h4>' +
+    '<div style="color:' + DIM + ';font-size:11.5px;line-height:1.75;margin-bottom:10px">' +
+    '本系统<b>不收录医生姓名与职称</b>（公开数据中无可靠来源，编造会在答辩与实用中造成误导）。' +
+    '下方的重点专科清单来自官方公示名单，点击按钮可直达官方平台查询该机构、该专科的真实出诊专家。</div>' +
+    '<div class="taglist">' +
+      (nat.concat(mun).length ? nat.concat(mun).slice(0, 6).map(d =>
+        '<div class="tagrow"><span class="tk" style="background:rgba(255,107,129,.16);color:#ffa4b3;border:1px solid rgba(255,107,129,.34)">' + esc(d.trim()) + '</span>' +
+        '<span class="tv">该科室为' + (nat.indexOf(d) >= 0 ? '国家级' : '市级') + '重点专科 — ' +
+        '<a href="' + GUAhAO_114 + '" target="_blank" rel="noopener">到 114 平台查询该科专家号 →</a></span></div>').join('')
+        : '<div style="color:' + DIM + ';font-size:12px">暂无重点专科记录，可通过 114 平台按机构名检索</div>') +
+    '</div></div>';
+  return h;
+}
+
+function aroundPlaceholder(r) {
+  const link = navLink(r);
+  return '<div class="notice">周边配套（最近地铁站 / 停车场 / 公交站）通过高德开放平台实时查询，' +
+    '需要本地 Flask 服务支持。<br>当前为离线模式，你仍可查看地址并使用导航。</div>' +
+    '<div class="blk"><h4><span class="bar"></span>地址与导航</h4>' +
+    '<div class="poilist"><div class="poi"><div class="pi" style="background:rgba(76,154,255,.14)">📍</div>' +
+    '<div class="pb"><div class="pn">' + esc(r.addr || (r.district + '（详细地址未收录）')) + '</div>' +
+    '<div class="ps">' + esc(r.district) + ' · ' + (r.lng != null ? (r.lng + ', ' + r.lat) : '无坐标') + '</div></div>' +
+    (link ? '<a class="btn ghost sm" href="' + link + '" target="_blank" rel="noopener">导航</a>' : '') +
+    '</div></div></div>';
+}
+
+function navLink(r) {
+  if (r.lng == null || r.lat == null) return '';
+  return 'https://uri.amap.com/marker?position=' + r.lng + ',' + r.lat +
+    '&name=' + encodeURIComponent(r.name || '医院') + '&src=hospital-dashboard&coordinate=gaode&callnative=1';
+}
+
+// 与后端 _mock_status 同构的确定性模拟状态（离线可用；在线时以后端返回为准）
+function mockStatus(r) {
+  const s = String(r.id);
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  const labels = ['空闲', '较少', '中等', '较多', '繁忙'];
+  let bias = { '三级': 2, '二级': 1, '一级': 0 }[r.level];
+  if (bias === undefined) bias = -1;
+  const idx = Math.min(4, Math.max(0, (h % 5) + bias - 1));
+  const waits = [5, 12, 20, 35, 55];
+  const slots = ['上午号源充足', '上午偏紧、下午充足', '当日号源偏紧', '当日号源紧张', '当日号源已满'];
+  return { simulated: true, level: labels[idx], level_index: idx, wait_min: waits[idx], slots: slots[idx], note: '演示模拟数据 · 非医院实时候诊信息' };
+}
+
+function statusHTML(st) {
+  const heat = [0, 1, 2, 3, 4].map(i => '<i class="' + (i <= st.level_index ? 'on' : '') + '"></i>').join('');
+  return '<div class="statusbox">' +
+    '<div class="sh"><span class="simtag">🧪 演示模拟</span>' +
+    '<span style="font-size:15px;font-weight:800;color:' + WARN + '">当前挂号排队：' + esc(st.level) + '</span>' +
+    '<span style="color:' + SUB + ';font-size:12px">预计等候约 ' + st.wait_min + ' 分钟</span></div>' +
+    '<div class="heats">' + heat + '</div>' +
+    '<div style="color:' + DIM + ';font-size:11px;margin-top:9px">号源参考：' + esc(st.slots) + '</div>' +
+    '<div style="color:' + FAINT + ';font-size:10.5px;margin-top:6px">' + esc(st.note) + '。真实号源请以 114 平台及医院官方公布为准。</div>' +
+    '</div>';
+}
+
+// 接口返回后补全：联系方式 / 挂号入口 / 周边配套 / 权威状态
+function paintDrawerFull(d) {
+  const c = d.contact || {}, L = d.links || {};
+  const st = d.status || mockStatus(DW_CUR);
+
+  // 概览补状态（把本地模拟状态替换为后端权威返回值，两者口径一致）
+  const sBox = $('pane-ov').querySelector('.statusbox');
+  if (sBox) {
+    const blk = sBox.closest('.blk');
+    if (blk) blk.innerHTML = '<h4><span class="bar"></span>实时状态 <span class="r">演示模拟数据</span></h4>' + statusHTML(st);
   }
 
-  // 弹窗里的 mini chart：当前机构在所属区的科室数对比
-  const sameDist = DATA.institutions.filter(x => x.district === r.district && x.dept_count);
-  const top10 = sameDist.sort((a,b) => (b.dept_count||0) - (a.dept_count||0)).slice(0, 10);
-  const highlight = top10.find(x => x.id === r.id);
-  document.getElementById('modal').classList.add('show');
-  setTimeout(() => {
-    if (!MODAL_CHART) MODAL_CHART = echarts.init(document.getElementById('modalChart'));
-    MODAL_CHART.setOption({
-      backgroundColor: PANEL, textStyle:{color:INK},
-      title:{text:`同区 TOP 10 科室数对比 · 当前位置：${highlight?'★':'·'}`, textStyle:{color:ACC, fontSize:12}, left:6, top:4},
-      grid:{left:120, right:20, top:36, bottom:20},
-      xAxis:{type:'value', axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:SUB, fontSize:10}},
-      yAxis:{type:'category', data:top10.map(x=>x.name.slice(0,18)).reverse(),
-        axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:INK, fontSize:10}},
-      series:[{type:'bar',
-        data: top10.map(x => ({value: x.dept_count, itemStyle:{color: x.id===r.id?CRIT:ACC}})).reverse(),
-        label:{show:true, position:'right', color:INK, fontSize:10}}],
+  // 就诊与挂号
+  const items = [];
+  items.push(linkCard('🏛️', '北京市预约挂号统一平台（114）', '官方唯一统一平台 · 打开后按机构名检索', L.guahao_114, false));
+  items.push(linkCard('📞', '电话预约挂号 010-114', '24 小时人工坐席（按语音提示操作）', 'tel:010-114', false));
+  if (L.hospital_tel_link) items.push(linkCard('☎️', '机构电话 ' + L.hospital_phone, '预约 / 咨询（以医院公布为准）', L.hospital_tel_link, false));
+  else items.push(linkCard('☎️', '机构电话未收录', '该机构在公开数据中无联系电话', '', true));
+  if (L.amap_nav) items.push(linkCard('🧭', '高德地图导航', '一键导航到该机构', L.amap_nav, false));
+  else items.push(linkCard('🧭', '暂无坐标', '该机构缺少经纬度，无法导航', '', true));
+
+  $('pane-contact').innerHTML =
+    '<div class="linklist">' + items.join('') + '</div>' +
+    '<div class="blk"><h4><span class="bar"></span>联系方式 <span class="r">来源：公开数据</span></h4>' +
+      '<div class="infogrid">' +
+        box('联系电话', c.phone ? '<a href="tel:' + esc(c.phone) + '">' + esc(c.phone) + '</a>' : '<span style="color:' + FAINT + '">未收录</span>') +
+        box('邮政编码', c.postal ? esc(c.postal) : '<span style="color:' + FAINT + '">未收录</span>') +
+        box('坐标精度', esc(c.coord_precision || '—')) +
+        box('经纬度', c.lng != null ? (c.lng + ', ' + c.lat) : '<span style="color:' + FAINT + '">无坐标</span>') +
+      '</div>' +
+      '<div class="ibox" style="margin-top:10px"><div class="k">地址</div><div class="v">' + esc(c.addr || '未收录') + '</div></div>' +
+    '</div>' +
+    '<div class="notice" style="margin-top:14px">' +
+      '<b>关于挂号：</b>114 统一平台为 JS 单页应用，不存在可构造的「按医院直达」链接，因此本系统只提供官方入口 + 机构名复制，' +
+      '不伪造深链（伪造会得到死链）。点击「复制名称」后到 114 平台粘贴检索即可。' +
+    '</div>';
+  $('pane-contact').innerHTML += '<div class="blk"><h4><span class="bar"></span>快捷操作</h4>' +
+    '<div class="linklist">' + linkCard('📋', '复制机构名称', '到 114 平台粘贴检索', '#copy', false) + '</div></div>';
+  const cp = $('pane-contact').querySelector('a[href="#copy"]');
+  if (cp) cp.addEventListener('click', e => {
+    e.preventDefault();
+    const n = L.hospital_name || (DW_CUR && DW_CUR.name) || '';
+    if (navigator.clipboard) navigator.clipboard.writeText(n).then(() => toast('✅ 已复制：' + esc(n)), () => toast('复制失败'));
+  });
+
+  // 周边配套
+  const a = d.around || {};
+  let near = '';
+  if (d.around_enabled === false) {
+    near = '<div class="notice">未配置高德 Key，周边配套不可用。可在 <code>data/.amap_key.txt</code> 配置后重试。</div>';
+  } else if (!d.around_online) {
+    near = '<div class="notice">高德接口暂时不可用（网络或额度问题），已保留地址与导航入口。</div>';
+  }
+  near += poiBlock('🚇', '最近地铁站', a.metro, 'rgba(76,154,255,.16)') +
+          poiBlock('🅿️', '附近停车场', a.parking, 'rgba(255,181,71,.16)') +
+          poiBlock('🚌', '附近公交站', a.bus, 'rgba(56,224,192,.16)');
+  if (!a.metro && !a.parking && !a.bus) {
+    near += '<div class="blk"><h4><span class="bar"></span>地址与导航</h4><div class="poilist">' +
+      '<div class="poi"><div class="pi" style="background:rgba(76,154,255,.14)">📍</div><div class="pb">' +
+      '<div class="pn">' + esc(c.addr || '未收录详细地址') + '</div>' +
+      '<div class="ps">' + esc(c.lng != null ? (c.lng + ', ' + c.lat) : '无坐标') + '</div></div>' +
+      (L.amap_nav ? '<a class="btn ghost sm" href="' + L.amap_nav + '" target="_blank" rel="noopener">导航</a>' : '') +
+      '</div></div></div>';
+  }
+  near += '<div style="color:' + FAINT + ';font-size:10.5px;margin-top:12px">' +
+    '周边配套来自高德开放平台 POI 实时查询（步行时间按 75 米/分钟估算），结果已按坐标网格缓存以避免重复请求。</div>';
+  $('pane-near').innerHTML = near;
+
+  // 专科页（接口版更完整，含科室明细）
+  let sp = specialtyHTML(d.specialty ? {
+    national_specialty: (d.specialty.national || []).join(';'),
+    municipal_specialty: (d.specialty.municipal || []).join(';'),
+    feature: (d.specialty.feature || []).join(';'),
+  } : DW_CUR);
+  if (d.depts && d.depts.length) {
+    const rows = d.depts.slice(0, 40).map(x =>
+      '<tr><td>' + esc(x.dept_name) + '</td><td>' + (String(x.is_key_specialty) === '1' || x.is_key_specialty === 1 || x.is_key_specialty === true ? '<span class="chip emg">重点专科</span>' : '<span style="color:' + DIM + '">普通</span>') + '</td>' +
+      '<td class="mono">' + esc(x.source || '—') + '</td></tr>').join('');
+    sp += '<div class="blk"><h4><span class="bar"></span>科室明细 <span class="r">共 ' + d.depts.length + ' 条（最多显示 40）</span></h4>' +
+      '<div class="tblbox"><table class="tiny"><thead><tr><th>科室</th><th>是否重点</th><th>来源</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+  }
+  $('pane-spec').innerHTML = sp;
+}
+
+function linkCard(icon, title, sub, href, disabled) {
+  const inner = '<div class="li">' + icon + '</div><div style="flex:1;min-width:0"><div class="lt">' + esc(title) + '</div>' +
+    '<div class="ls">' + esc(sub) + '</div></div><div style="color:' + DIM + ';font-size:14px">↗</div>';
+  if (disabled || !href) return '<div class="linkbtn dis">' + inner + '</div>';
+  return '<a class="linkbtn" href="' + href + '" target="_blank" rel="noopener">' + inner + '</a>';
+}
+function poiBlock(icon, title, list, bg) {
+  if (!list || !list.length) return '';
+  return '<div class="blk"><h4><span class="bar"></span>' + title + ' <span class="r">共 ' + list.length + ' 个 · 按距离排序</span></h4>' +
+    '<div class="poilist">' + list.map(p =>
+      '<div class="poi"><div class="pi" style="background:' + bg + '">' + icon + '</div>' +
+      '<div class="pb"><div class="pn">' + esc(p.name) + '</div>' +
+      '<div class="ps">' + esc(trunc(p.address || p.type || '', 34)) + (p.tel ? ' · ' + esc(p.tel) : '') + '</div></div>' +
+      '<div class="pd">' + (p.distance_m != null ? (p.distance_m >= 1000 ? (p.distance_m / 1000).toFixed(1) + ' km' : p.distance_m + ' m') : '—') +
+      '<span>约 ' + (p.walk_min || '—') + ' 分钟</span></div>' +
+      (p.lng != null ? '<a class="btn ghost sm" href="https://uri.amap.com/marker?position=' + p.lng + ',' + p.lat +
+        '&name=' + encodeURIComponent(p.name) + '&coordinate=gaode&callnative=1" target="_blank" rel="noopener">导航</a>' : '') +
+      '</div>').join('') + '</div></div>';
+}
+
+function runAIAdvice() {
+  if (!DW_CUR) return;
+  const btn = $('dw_ai'), adv = $('aiadv');
+  const wrap = document.getElementById('aiadv') || document.createElement('div');
+  wrap.id = 'aiadv'; wrap.className = 'aiadv';
+  const pane = $('pane-ov');
+  if (!wrap.parentElement) pane.appendChild(wrap);
+  wrap.classList.add('show');
+  wrap.innerHTML = '<div class="who">🧠 AI 就医提示 <span class="chip eng">仅基于本页真实字段生成 · 禁止编造</span></div>' +
+    '<div class="typing"><i></i><i></i><i></i> 正在生成…</div>';
+  btn.disabled = true;
+  fetch('/api/ai/advice?id=' + encodeURIComponent(DW_CUR.id))
+    .then(r => r.ok ? r.json() : null)
+    .then(j => {
+      if (j && j.ok) {
+        wrap.innerHTML = '<div class="who">🧠 AI 就医提示 <span class="chip eng">' + esc(j.model || 'Agnes') + ' · 仅基于真实字段</span></div>' +
+          '<div>' + esc(j.advice) + '</div>' +
+          '<div style="color:' + FAINT + ';font-size:10.5px;margin-top:9px">约束：不允许输出医生姓名、职称、出诊时间、号源数量与任何未经核实的具体数字。</div>';
+      } else {
+        wrap.innerHTML = '<div class="who">🧠 AI 就医提示</div><div style="color:' + WARN + '">' +
+          esc((j && (j.hint || j.detail)) || '生成失败，请稍后重试') + '</div>';
+      }
+    })
+    .catch(() => { wrap.innerHTML = '<div class="who">🧠 AI 就医提示</div><div style="color:' + WARN + '">网络异常，生成失败</div>'; })
+    .then(() => { btn.disabled = false; });
+}
+
+// ============================================================================
+//  12. 对比
+// ============================================================================
+function initCompare() {
+  $('cmp_clear').addEventListener('click', clearPicks);
+  $('cmp_go').addEventListener('click', openCompare);
+  $('cmp_close').addEventListener('click', closeCompare);
+  $('cmp_add').addEventListener('click', () => { closeCompare(); switchView('overview'); toast('请在列表中勾选更多机构（最多 ' + PICK_MAX + ' 家）'); });
+  $('cmpwrap').addEventListener('click', e => { if (e.target.id === 'cmpwrap') closeCompare(); });
+  renderPickBar();
+}
+
+function togglePick(id) {
+  id = String(id);
+  if (PICKED.has(id)) PICKED.delete(id);
+  else {
+    if (PICKED.size >= PICK_MAX) { toast('⚠️ 最多同时对比 ' + PICK_MAX + ' 家机构，请先移除已选项'); return; }
+    PICKED.add(id);
+  }
+  renderPickBar();
+  // 只更新受影响的那一行，避免整表重绘导致滚动位置跳动
+  const row = document.querySelector('.row[data-id="' + id + '"]');
+  if (row) row.classList.toggle('sel', PICKED.has(id));
+  if (DW_CUR && String(DW_CUR.id) === id) $('dw_pick').textContent = PICKED.has(id) ? '✓ 已加入对比' : '＋ 加入对比';
+}
+function clearPicks() {
+  PICKED.clear(); renderPickBar(); renderList();
+  if (DW_CUR) $('dw_pick').textContent = '＋ 加入对比';
+}
+// 注意：对比浮条上的「×」用事件委托处理（renderPickBar 会重建浮条内容）
+function renderPickBar() {
+  const bar = $('cmpbar');
+  $('cmp_n').textContent = PICKED.size;
+  bar.classList.toggle('show', PICKED.size > 0);
+  $('cmp_list').innerHTML = Array.from(PICKED).map(id => {
+    const r = DATA && DATA.institutions.find(x => String(x.id) === String(id));
+    const nm = r ? r.name : id;
+    return '<span class="cp"><span title="' + esc(nm) + '">' + esc(trunc(nm, 13)) + '</span><b data-rm="' + esc(id) + '">×</b></span>';
+  }).join('');
+  Array.prototype.forEach.call($('cmp_list').querySelectorAll('[data-rm]'), b =>
+    b.addEventListener('click', () => togglePick(b.getAttribute('data-rm'))));
+  $('cmp_go').disabled = PICKED.size < 2;
+  $('cmp_go').textContent = PICKED.size < 2 ? '再选 ' + (2 - PICKED.size) + ' 家' : '开始对比';
+}
+
+function openCompare() {
+  if (PICKED.size < 2) { toast('⚠️ 至少选择 2 家机构才能对比'); return; }
+  const ids = Array.from(PICKED).join(',');
+  track('compare', ids, null, PICKED.size);
+  $('cmp_sub').textContent = '共 ' + PICKED.size + ' 家机构 · 逐项横向对比';
+  $('cmpwrap').classList.add('show');
+
+  const localRows = Array.from(PICKED).map(id => DATA.institutions.find(x => String(x.id) === String(id))).filter(Boolean);
+
+  if (!ENV.api) {
+    paintCompare(localRows.map(localCompareRow), true);
+    return;
+  }
+  $('cmp_table').querySelector('tbody').innerHTML = '<tr><td colspan="' + (PICKED.size + 1) + '" style="color:' + DIM + '">正在加载对比数据…</td></tr>';
+  fetch('/api/inst/compare?ids=' + encodeURIComponent(ids))
+    .then(r => r.ok ? r.json() : null)
+    .then(j => {
+      if (j && j.ok && j.items && j.items.length) {
+        j.items.forEach(it => {
+          const lc = localRows.find(x => String(x.id) === String(it.id));
+          it._dist_local = lc ? lc._dist : null;
+        });
+        paintCompare(j.items.map(apiCompareRow), false, j.fields);
+      } else paintCompare(localRows.map(localCompareRow), true);
+    })
+    .catch(() => paintCompare(localRows.map(localCompareRow), true));
+}
+
+function localCompareRow(r) {
+  let base = BASE_POINTS[$('f_base').value] || BASE_POINTS.tiananmen;
+  if (base.lng == null || base.lat == null) base = BASE_POINTS.tiananmen;
+  const dist = (r.lng != null && r.lat != null && base.lng != null) ? haversine(base.lng, base.lat, r.lng, r.lat) : null;
+  return {
+    id: r.id, name: r.name, level: r.level, category: r.category, ownership: r.ownership || '未标注',
+    district: r.district, key_specialty_count: r.key_specialty_count || 0,
+    national_specialty_count: r.national_specialty_count || 0, municipal_specialty_count: r.municipal_specialty_count || 0,
+    dept_count: r.dept_count || 0, networks_text: netDetail(r) || '未纳入',
+    national_specialty: r.national_specialty || '', municipal_specialty: r.municipal_specialty || '',
+    feature: r.feature || '', addr: r.addr || '', phone: r.phone || '',
+    distance_km: dist == null ? null : +dist.toFixed(1),
+    distance_text: dist == null ? '—' : dist.toFixed(1) + ' km（距' + base.name + '）',
+    coord_precision: r.coord_precision || '—',
+  };
+}
+
+function apiCompareRow(it) {
+  return {
+    id: it.id, name: it.name, level: it.level, category: it.category, ownership: it.ownership || '未标注',
+    district: it.district, key_specialty_count: it.key_specialty_count || 0,
+    national_specialty_count: it.national_specialty_count || 0, municipal_specialty_count: it.municipal_specialty_count || 0,
+    dept_count: it.dept_count || 0, networks_text: it.networks_text || '未纳入',
+    national_specialty: it.national_specialty || '', municipal_specialty: it.municipal_specialty || '',
+    feature: it.feature || '', addr: it.addr || '', phone: it.phone || '',
+    distance_km: it.distance_km, distance_text: it.distance_text || '—',
+    coord_precision: it.coord_precision || '—',
+  };
+}
+
+// 需要"越大越好 / 越小越好"判定的数值行
+const CMP_NUM = {
+  key_specialty_count: 'high', national_specialty_count: 'high', municipal_specialty_count: 'high',
+  dept_count: 'high', distance_km: 'low',
+};
+const CMP_ROWS = [
+  ['level', '医院等级'], ['category', '机构类型'], ['ownership', '办别性质'], ['district', '所属区域'],
+  ['key_specialty_count', '重点专科数'], ['national_specialty_count', '国家级重点专科'],
+  ['municipal_specialty_count', '市级重点专科'], ['dept_count', '科室数量'],
+  ['distance_km', '距离基准点'], ['networks_text', '协作网络'],
+  ['national_specialty', '国家级专科清单'], ['municipal_specialty', '市级专科清单'],
+  ['feature', '擅长科室'], ['addr', '地址'], ['phone', '联系电话'], ['coord_precision', '坐标精度'],
+];
+
+function paintCompare(rows, isLocal, fields) {
+  const ths = ['对比项'].concat(rows.map(r => esc(r.name)));
+  $('cmp_table').querySelector('thead').innerHTML = '<tr><th>' + esc('对比项') + '</th>' + rows.map(r => '<th>' + esc(r.name) + '</th>').join('') + '</tr>';
+
+  const body = CMP_ROWS.map(([k, label]) => {
+    const vals = rows.map(r => r[k]);
+    let bestIdx = -1;
+    if (CMP_NUM[k]) {
+      const nums = vals.map(v => (v === null || v === undefined || v === '' ? null : Number(v)));
+      const valid = nums.filter(v => v !== null && !isNaN(v));
+      if (valid.length > 1) {
+        const target = CMP_NUM[k] === 'high' ? Math.max.apply(null, valid) : Math.min.apply(null, valid);
+        if (valid.filter(v => v === target).length < valid.length) bestIdx = nums.indexOf(target);
+      }
+    }
+    const cells = rows.map((r, i) => {
+      let v = r[k];
+      let extra = '';
+      if (k === 'level') v = esc(v || '—');
+      else if (k === 'ownership') v = ownBadge(r.ownership) || esc(r.ownership);
+      else if (k === 'distance_km') { v = esc(r.distance_text); extra = r.distance_km != null ? '<div class="mini">Haversine 球面距离</div>' : ''; }
+      else if (k === 'national_specialty' || k === 'municipal_specialty' || k === 'feature') {
+        const arr = String(r[k] || '').split(';').filter(x => x.trim());
+        v = arr.length ? arr.map(x => '<span class="chip" style="margin:0 3px 3px 0">' + esc(x.trim()) + '</span>').join('') : '<span style="color:' + FAINT + '">—</span>';
+      } else if (k === 'phone') v = r.phone ? '<a href="tel:' + esc(r.phone) + '">' + esc(r.phone) + '</a>' : '<span style="color:' + FAINT + '">未收录</span>';
+      else if (k === 'addr') v = esc(r.addr || '未收录');
+      else if (k === 'category' || k === 'district' || k === 'networks_text' || k === 'coord_precision') v = esc(v || '—');
+      else v = '<b>' + esc(v) + '</b>';
+      return '<td class="' + (i === bestIdx ? 'best' : '') + '">' + v + extra + '</td>';
+    }).join('');
+    return '<tr><th>' + esc(label) + (CMP_NUM[k] ? '<div class="mini" style="color:' + FAINT + ';font-size:9.5px;font-weight:400">' + (CMP_NUM[k] === 'high' ? '越高越好' : '越近越好') + '</div>' : '') + '</th>' + cells + '</tr>';
+  }).join('');
+  const linkRow = '<tr><th>操作</th>' + rows.map(r =>
+    '<td><div style="display:flex;gap:6px;flex-wrap:wrap">' +
+    '<a class="btn ghost sm" href="' + GUAhAO_114 + '" target="_blank" rel="noopener">114 挂号</a>' +
+    (r.addr || r.distance_km != null ? '<button class="btn ghost sm" data-cmp-detail="' + esc(r.id) + '">查看详情</button>' : '') +
+    '</div></td>').join('') + '</tr>';
+
+  $('cmp_table').querySelector('tbody').innerHTML = body + linkRow;
+  Array.prototype.forEach.call($('cmp_table').querySelectorAll('[data-cmp-detail]'), b =>
+    b.addEventListener('click', () => { closeCompare(); openDrawer(b.getAttribute('data-cmp-detail')); }));
+}
+
+function closeCompare() { $('cmpwrap').classList.remove('show'); }
+
+// ============================================================================
+//  13. 智能导诊（多轮对话）
+// ============================================================================
+const TRIAGE_STATE = { ctx: [], extra: [], turn: 0, lastDepts: [], done: false };
+
+function initTriageChat() {
+  const input = $('t_in');
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') sendTriage(); });
+  $('t_send').addEventListener('click', sendTriage);
+  $('btn_triage_clear').addEventListener('click', resetTriage);
+  if (!ENV.http) {
+    $('triage_hint').innerHTML = '⚠️ 智能导诊需要本地服务：请运行 <code style="color:' + ACC + '">bash web/start.sh</code> 后访问 http://localhost:5001';
+  }
+  resetTriage();
+}
+
+function resetTriage() {
+  TRIAGE_STATE.ctx = []; TRIAGE_STATE.extra = []; TRIAGE_STATE.turn = 0;
+  TRIAGE_STATE.lastDepts = []; TRIAGE_STATE.done = false;
+  $('chat_body').innerHTML = '';
+  addBot(
+    '<b>你好，我是智能导诊助手。</b><br>直接用大白话描述你的不舒服就可以了，' +
+    '我会先判断该挂哪个科室，再结合<b>医院等级、与你的距离、科室匹配度</b>推荐机构，并把评分理由逐项摊开给你核对。' +
+    '<div class="hint">主链路是本地疾病-科室知识库（完全离线可用）；只有在本地完全匹配不到时，才会调用大模型兜底。</div>',
+    ['头痛伴呕吐', '孩子发烧咳嗽', '摔了一跤膝盖疼', '高血压复诊', '孕早期产检', '牙痛']
+  );
+  setEngineTag('local');
+}
+
+function setEngineTag(engine) {
+  const el = $('eng_tag');
+  if (!el) return;
+  if (engine === 'llm') { el.textContent = '🧠 AI 兜底'; el.className = 'chip ai'; }
+  else { el.textContent = '本地知识库'; el.className = 'chip eng'; }
+}
+
+function addUser(text) {
+  const d = document.createElement('div');
+  d.className = 'msg me';
+  d.innerHTML = '<div class="av2">👤</div><div class="bub">' + esc(text) + '</div>';
+  $('chat_body').appendChild(d);
+  scrollChat();
+}
+function addBot(html, quick, extras) {
+  const d = document.createElement('div');
+  d.className = 'msg';
+  let q = '';
+  if (quick && quick.length) {
+    q = '<div class="chips">' + quick.map(x =>
+      '<span class="chip pick" data-q="' + esc(x) + '">' + esc(x) + '</span>').join('') + '</div>';
+  }
+  if (extras && extras.length) {
+    q += '<div class="chips">' + extras.map(x =>
+      '<span class="chip pick acc" data-extra="' + esc(x) + '">＋ ' + esc(x) + '</span>').join('') + '</div>';
+  }
+  d.innerHTML = '<div class="av2">🩺</div><div class="bub">' + html + q + '</div>';
+  $('chat_body').appendChild(d);
+  Array.prototype.forEach.call(d.querySelectorAll('[data-q]'), c =>
+    c.addEventListener('click', () => { $('t_in').value = c.getAttribute('data-q'); sendTriage(); }));
+  Array.prototype.forEach.call(d.querySelectorAll('[data-extra]'), c =>
+    c.addEventListener('click', () => pickExtra(c.getAttribute('data-extra'))));
+  scrollChat();
+  return d;
+}
+function addTyping() {
+  const d = document.createElement('div');
+  d.className = 'msg'; d.id = 'typing';
+  d.innerHTML = '<div class="av2">🩺</div><div class="bub"><span class="typing"><i></i><i></i><i></i></span> 正在分析…</div>';
+  $('chat_body').appendChild(d);
+  scrollChat();
+  return d;
+}
+function scrollChat() { const b = $('chat_body'); b.scrollTop = b.scrollHeight; }
+
+function sendTriage() {
+  const q = ($('t_in').value || '').trim();
+  if (!q) return;
+  $('t_in').value = '';
+  if (!ENV.http) {
+    addUser(q);
+    addBot('⚠️ 当前为离线打开模式（file://），智能导诊需要本地 Flask 服务支持。' +
+      '请运行 <code>bash web/start.sh</code> 后访问 <b>http://localhost:5001</b>。');
+    return;
+  }
+  addUser(q);
+  TRIAGE_STATE.ctx.push(q);
+  TRIAGE_STATE.turn++;
+  track('triage', q, null, TRIAGE_STATE.turn);
+  requestTriage();
+}
+
+// 追问快捷选项 → 作为 extra 参与科室匹配（不污染原始主诉）
+function pickExtra(v) {
+  TRIAGE_STATE.extra.push(v);
+  addUser(v);
+  requestTriage();
+}
+
+function requestTriage() {
+  const typing = addTyping();
+  const q = TRIAGE_STATE.ctx.join(' ');
+  const extra = TRIAGE_STATE.extra.join(' ');
+  let url = '/api/triage?q=' + encodeURIComponent(q) + '&top_n=6';
+  if (extra) url += '&extra=' + encodeURIComponent(extra);
+  const d = $('t_district').value, l = $('t_level').value;
+  if (d) url += '&district=' + encodeURIComponent(d);
+  if (l) url += '&level=' + encodeURIComponent(l);
+  const g = $('t_use_geo');
+  if (g && g.checked && BASE_POINTS.geo.lng != null) url += '&lng=' + BASE_POINTS.geo.lng + '&lat=' + BASE_POINTS.geo.lat;
+
+  fetch(url).then(r => r.ok ? r.json() : null).then(j => {
+    typing.remove();
+    if (!j) { addBot('⚠️ 服务异常，请确认 Flask 已启动（<code>bash web/start.sh</code>）。'); return; }
+    setEngineTag(j.engine);
+    if (!j.ok) {
+      const ex = (j.examples || []).map(x => esc(x));
+      let h = '<b style="color:' + WARN + '">没能识别出对应科室。</b><br>' + esc(j.hint || '');
+      if (j.llm_attempted) h += '<div class="hint">已尝试 AI 兜底' + (j.llm_note ? '：' + esc(j.llm_note) : '') + '</div>';
+      addBot(h, ex);
+      return;
+    }
+    const chips = j.matched_depts.map(x =>
+      '<span class="chip' + (x.emergency ? ' emg' : '') + (j.engine === 'llm' ? ' ai' : '') + '">' +
+      esc(x.dept) + (x.emergency ? ' · 急诊' : '') + '</span>').join('');
+    let html = '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:7px">' +
+      (j.engine === 'llm' ? '<span class="chip ai">🧠 AI 理解</span>' : '<span class="chip eng">本地知识库</span>') +
+      '<span style="color:' + DIM + ';font-size:11px">病情「' + esc(j.query) + '」对应科室</span></div>' + chips;
+    if (j.engine === 'llm' && j.ai_note) html += '<div class="hint">AI 依据：' + esc(j.ai_note) + '</div>';
+    if (j.extra) html += '<div class="hint">已结合补充信息：' + esc(j.extra) + '</div>';
+
+    if (!j.hospitals.length) {
+      html += '<div class="hint">暂无具备该科室的匹配机构，试试放宽区域/等级限制。</div>';
+      addBot(html);
+      return;
+    }
+
+    const emg = j.matched_depts.some(x => x.emergency);
+    if (emg) {
+      html += '<div style="margin-top:9px;padding:9px 12px;border-radius:10px;background:rgba(255,107,129,.12);border:1px solid rgba(255,107,129,.36);color:#ffa4b3;font-size:12px">' +
+        '⚠️ 涉及急诊科室：如出现胸痛、意识不清、大出血、呼吸困难等急危症状，请<b>立即拨打 120 或直接前往最近医院急诊</b>，不要依赖线上筛选。</div>';
+    }
+    html += '<div style="margin-top:10px;color:' + DIM + ';font-size:11.5px">按 <b>等级 0.5 / 距离 0.3 / 科室匹配 0.2</b> 加权评分排序，为你推荐以下 ' + j.hospitals.length + ' 家：</div>';
+    html += j.hospitals.map(h => recCard(h, j)).join('');
+    addBot(html);
+
+    // 多轮：先追问澄清，再给下一步引导
+    if (!TRIAGE_STATE.done) {
+      TRIAGE_STATE.done = true;
+      const follow = buildFollowUp(j);
+      if (follow) setTimeout(() => addBot(follow.text, null, follow.opts), 380);
+    }
+  }).catch(() => {
+    typing.remove();
+    addBot('⚠️ 网络异常，请确认 Flask 已启动（<code>bash web/start.sh</code>）。');
+  });
+}
+
+function recCard(h, j) {
+  const sc = Math.round((h.score || 0) * 100);
+  const dist = h.distance_km == null ? '距离未知' : (h.distance_km.toFixed(1) + ' km');
+  const dchs = (h.matched_depts || []).map(x => '<span class="chip acc">' + esc(x) + '</span>').join('');
+  const bars = (h.reason_detail || []).map(r =>
+    '<div class="barrow"><span class="bk">' + esc(r.label) + '</span>' +
+    '<span class="bt"><i style="width:' + Math.min(100, Math.round((r.score / (r.weight || 1)) * 100)) + '%"></i></span>' +
+    '<span class="bv">' + esc(String(r.value)) + ' · +' + r.score + '</span></div>').join('');
+  return '<div class="rec" data-detail="' + esc(h.id) + '">' +
+    '<div class="rh"><span class="rn">' + esc(h.name) + '</span>' +
+      (h.is_key_specialty ? '<span class="chip emg">重点专科</span>' : '') +
+      '<span class="rs">' + sc + '<span style="font-size:10px;color:' + DIM + ';font-weight:400"> 分</span></span></div>' +
+    '<div class="rm">' + levelBadge(h.level) + '<span>' + esc(h.district) + '</span><span style="color:' + FAINT + '">·</span><span>' + dist + '</span>' + dchs + '</div>' +
+    '<div class="hint" style="color:' + DIM + ';font-size:10.5px;margin-top:3px">' + esc(h.reason || '') + '</div>' +
+    '<div class="bars">' + bars + '</div>' +
+    '<div style="display:flex;gap:6px;margin-top:9px;flex-wrap:wrap">' +
+      '<span class="chip pick" data-open="' + esc(h.id) + '">查看详情</span>' +
+      '<span class="chip pick" data-pick2="' + esc(h.id) + '">加入对比</span>' +
+    '</div></div>';
+}
+
+function buildFollowUp(j) {
+  const depts = j.matched_depts.map(x => x.dept);
+  const opts = [];
+  if (depts.length >= 2) {
+    opts.push('症状持续 3 天以内', '症状持续 1 周以上', '伴随发热', '是老年人', '是儿童');
+    return { text: '<b>再确认一下，好让推荐更准：</b><br>你命中多个科室（' + depts.slice(0, 3).join('、') + '），补充一点信息我可以收窄范围：', opts: opts };
+  }
+  opts.push('只要三级医院', '只要离我近的', '不限条件，看全部');
+  return { text: '<b>结果出来了。</b>如果还想收窄，可以点下面的快捷条件，或直接在左侧限定区域 / 等级：', opts: opts };
+}
+
+// 事件委托：推荐卡片上的操作按钮
+document.addEventListener('click', e => {
+  const open = e.target.closest('[data-open]');
+  if (open) { openDrawer(open.getAttribute('data-open')); return; }
+  const pk = e.target.closest('[data-pick2]');
+  if (pk) {
+    const id = pk.getAttribute('data-pick2');
+    togglePick(id);
+    toast(PICKED.has(String(id)) ? '✅ 已加入对比' : '已移出对比');
+    return;
+  }
+  // 点击推荐卡片空白处也打开详情
+  const rc = e.target.closest('.rec');
+  if (rc && !e.target.closest('.chip')) openDrawer(rc.getAttribute('data-detail'));
+});
+
+// ============================================================================
+//  14. 运营后台
+// ============================================================================
+function initAdminCharts() {
+  const mk = id => { const el = $(id); return el ? echarts.init(el) : null; };
+  A_KW = mk('a_kw'); A_DIST = mk('a_dist'); A_TRIAGE = mk('a_triage'); A_DAILY = mk('a_daily');
+  A_DENSITY = mk('a_density'); A_LEVEL = mk('a_level'); A_SPEC = mk('a_spec'); A_NET = mk('a_net');
+  A_OWN = mk('a_own'); A_CAT = mk('a_cat');
+}
+
+let _adminBusy = false;
+function renderAdmin() {
+  renderAdminResources();       // 资源热度：完全由本地真实数据算，离线也有内容
+  if (!ENV.api) {
+    setText('ad_ev', '—'); setText('ad_ev30', '—'); setText('ad_kw_n', '—'); setText('ad_tbl', '—');
+    setText('ad_note', '离线模式：用户行为分析需要本地 Flask 服务（行为日志存于 MySQL fact_user_event 表）');
+    renderAdminEmpty('离线模式无法读取行为日志');
+    return;
+  }
+  // 每次进入运营后台都重新拉取，保证刚产生的行为立即反映（接口只做 4 个聚合查询，开销极小）
+  if (_adminBusy) return;
+  _adminBusy = true;
+  fetch('/api/admin/stats').then(r => r.ok ? r.json() : null).then(j => {
+    if (!j || !j.ok) { renderAdminEmpty('行为统计获取失败'); return; }
+    const b = j.behaviors || {};
+    setText('ad_ev', num(b.total_events));
+    const ev30 = (b.totals || []).reduce((s, x) => s + (x.n || 0), 0);
+    setText('ad_ev30', num(ev30));
+    setText('ad_kw_n', num((b.top_keywords || []).length));
+    setText('ad_note', b.total_events
+      ? ('埋点实时记录 · 累计 ' + num(b.total_events) + ' 条真实操作日志（窗口：近 30 天）')
+      : '尚无行为数据：使用一段时间后（搜索 / 筛选 / 导诊 / 查看详情）这里会自动累积');
+    const rows = {
+      a_kw: [b.top_keywords, '搜索词', ACC], a_dist: [b.top_districts, '区域', ACC2],
+      a_triage: [b.top_triage, '病情', VIO],
+    };
+    Object.keys(rows).forEach(k => {
+      const chart = { a_kw: A_KW, a_dist: A_DIST, a_triage: A_TRIAGE }[k];
+      const [data, , color] = rows[k];
+      if (!chart) return;
+      const arr = (data || []).slice(0, 10).reverse();
+      chart.setOption(arr.length ? barHOpt(arr.map(x => [trunc(x.label, 12), x.n]), color) : emptyOpt('暂无数据'), !arr.length);
     });
-  }, 50);
+    if (A_DAILY) {
+      const daily = b.daily || [];
+      if (!daily.length) { A_DAILY.setOption(emptyOpt('暂无数据'), true); }
+      else A_DAILY.setOption({
+        tooltip: Object.assign({ trigger: 'axis' }, TIP),
+        grid: { left: 42, right: 18, top: 14, bottom: 34 },
+        xAxis: Object.assign({ type: 'category', data: daily.map(x => String(x.d).slice(5)) }, AXIS,
+          { axisLabel: { color: '#8fa2c4', fontSize: 9.5, rotate: 30 } }),
+        yAxis: Object.assign({ type: 'value' }, AXIS),
+        series: [{
+          type: 'line', smooth: true, data: daily.map(x => x.n), symbolSize: 6,
+          lineStyle: { width: 2.5, color: ACC }, itemStyle: { color: ACC2 },
+          areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(76,154,255,.42)' }, { offset: 1, color: 'rgba(76,154,255,0)' }]) },
+        }],
+      });
+    }
+    // 表数量
+    fetch('/api/about').then(r => r.ok ? r.json() : null).then(a2 => {
+      if (a2 && a2.ok) setText('ad_tbl', num(a2.counts.tables));
+    }).catch(() => { });
+  }).catch(() => renderAdminEmpty('行为统计获取失败'))
+    .then(() => { _adminBusy = false; });
 }
 
-function closeModal() {
-  document.getElementById('modal').classList.remove('show');
+function emptyOpt(msg) {
+  return {
+    title: { text: msg, left: 'center', top: 'middle', textStyle: { color: FAINT, fontSize: 12, fontWeight: 400 } },
+    xAxis: { show: false }, yAxis: { show: false }, series: [],
+  };
+}
+function renderAdminEmpty(msg) {
+  [A_KW, A_DIST, A_TRIAGE, A_DAILY].forEach(c => { if (c) c.setOption(emptyOpt(msg), true); });
 }
 
-// ========== 启动 ==========
+function renderAdminResources() {
+  const o = DATA.overviews || {}, m = DATA.meta || {};
+  const dens = (o.districts || []).slice(0, 16).slice().reverse();
+  if (A_DENSITY) A_DENSITY.setOption(barHOpt(dens.map(d => [d.district, d.inst_count]), ACC));
+  if (A_LEVEL) A_LEVEL.setOption(pieOpt((o.levels || []).map(d =>
+    [d.level, d.inst_count, LV_COLOR[d.level] || DIM])));
+  if (A_SPEC) A_SPEC.setOption(barHOpt((o.depts || []).slice(0, 12).map(d => [trunc(d.dept_name, 11), d.hospital_count]), ACC2));
+  if (A_NET) {
+    const nets = (DATA.institutions || []);
+    A_NET.setOption(barHOpt([
+      ['儿科医联体·核心', nets.filter(r => r.net_pediatric === '核心').length],
+      ['儿科医联体·成员', nets.filter(r => r.net_pediatric === '成员').length],
+      ['卒中中心', nets.filter(r => r.net_stroke === '1').length],
+      ['危重新生儿', nets.filter(r => r.net_neonatal === '市级').length],
+      ['危重孕产妇', nets.filter(r => r.net_maternal === '市级').length],
+    ], [VIO, '#6d5bd0', CRIT, ACC2, PINK]));
+  }
+  if (A_OWN) {
+    const own = {}; DATA.institutions.forEach(r => own[r.ownership || '未标注'] = (own[r.ownership || '未标注'] || 0) + 1);
+    A_OWN.setOption(pieOpt([['公立', own['公立'] || 0, ACC2], ['民营', own['民营'] || 0, WARN], ['未标注', own['未标注'] || 0, DIM]]));
+  }
+  if (A_CAT) A_CAT.setOption(barHOpt((m.categories || []).slice(0, 10).map(c => [trunc(c.category, 10), c.inst_count]), VIO));
+}
+
+// ============================================================================
+//  15. 关于页
+// ============================================================================
+function loadAbout() {
+  const snap = DATA.snapshot_time;
+  setText('ab_snap', snap);
+  // 本地即可算出的规模指标（离线也有内容）
+  const local = {
+    institutions: DATA.total,
+    with_coord: DATA.institutions.filter(r => r.lng != null).length,
+    key_specialty_inst: DATA.institutions.filter(r => (r.key_specialty_count || 0) > 0).length,
+    network_inst: DATA.institutions.filter(r => r.net_pediatric || r.net_stroke === '1' || r.net_neonatal === '市级' || r.net_maternal === '市级').length,
+    districts: (DATA.meta.districts || []).length,
+    depts: (DATA.meta.depts || []).length,
+  };
+  const paint = (c) => {
+    $('ab_counts').innerHTML =
+      box('机构总数', num(c.institutions) + ' 家') +
+      box('含坐标机构', num(c.with_coord) + ' 家') +
+      box('重点专科机构', num(c.key_specialty_inst) + ' 家') +
+      box('协作网络机构', num(c.network_inst) + ' 家') +
+      box('覆盖行政区', num(c.districts) + ' 个') +
+      box('标准科室数', num(c.depts) + ' 个') +
+      (c.dept_relations ? box('科室关联记录', num(c.dept_relations) + ' 条') : '') +
+      (c.triage_dict ? box('导诊知识库词条', num(c.triage_dict) + ' 条') : '') +
+      (c.tables ? box('数仓表数量', num(c.tables) + ' 张') : '');
+  };
+  paint(local);
+
+  $('ab_pipeline').innerHTML = PIPELINE.map(p =>
+    '<div class="tstep"><div class="num">' + p.step + '</div><div class="tc">' +
+    '<div class="tn">' + esc(p.name) + '</div><div class="tt">' + esc(p.tool) + '</div>' +
+    '<div class="td">' + esc(p.desc) + '</div></div></div>').join('');
+
+  $('ab_sources').innerHTML = SOURCES.map(s =>
+    '<a class="srccard" href="' + s.url + '" target="_blank" rel="noopener">' +
+    '<div class="sn">' + s.icon + ' ' + esc(s.name) + '</div>' +
+    '<div class="sd">' + esc(s.desc) + '</div>' +
+    '<div class="su">' + esc(s.url) + '</div></a>').join('');
+
+  $('ab_log').innerHTML = UPDATES.map(u =>
+    '<div class="logrow"><span class="ld">' + esc(u.date) + '</span><span class="lx">' + esc(u.desc) + '</span></div>').join('');
+
+  $('ab_tables').innerHTML = WAREHOUSE.map(t =>
+    '<tr><td class="mono">' + esc(t[0]) + '</td><td class="mono">' + esc(t[1]) + '</td><td>' + esc(t[2]) + '</td></tr>').join('');
+
+  if (!ENV.api) return;
+  fetch('/api/about').then(r => r.ok ? r.json() : null).then(j => {
+    if (!j || !j.ok) return;
+    const c = j.counts || {};
+    paint(Object.assign({}, local, {
+      dept_relations: c.dept_relations, triage_dict: c.triage_dict, tables: c.tables,
+      dwd_institutions: c.dwd_institutions,
+    }));
+    if (j.warehouse && j.warehouse.length) {
+      const LAYER = name => name.indexOf('ods_') === 0 ? 'ODS 原始层'
+        : name.indexOf('dwd_') === 0 ? 'DWD 明细层'
+        : name.indexOf('dws_') === 0 ? 'DWS 汇总层'
+        : name.indexOf('ads_') === 0 ? 'ADS 应用层' : '维度 / 日志表';
+      const DESC = {
+        ods_institution: '原始机构表（清洗前）', ods_dept_dict: '科室字典', ods_dept_relation: '机构-科室关联原始表',
+        ods_specialty: '重点专科原始名单', ods_geocode: '地理编码结果',
+        dwd_institution_clean: '机构明细清洗表（去重、办别判定、类别细分）',
+        dwd_dept_relation_clean: '机构-科室关联清洗表（重点专科标记）',
+        dwd_specialty_clean: '重点专科清洗表',
+        dws_inst_by_district: '区域汇总', dws_inst_by_level: '等级汇总',
+        dws_inst_by_category: '类型汇总', dws_dept_coverage: '科室覆盖度汇总',
+        ads_inst_search: '筛选排序主表（前端数据源）', ads_district_overview: '区域概览',
+        ads_level_overview: '等级概览', ads_specialty_hospital: '重点专科医院清单',
+        dim_disease_dept: '疾病-科室导诊知识库维度表', dim_ai_cache: '大模型结果缓存',
+        dim_poi_cache: '高德周边 POI 缓存', fact_user_event: '用户行为埋点日志',
+      };
+      $('ab_tables').innerHTML = j.warehouse.map(t =>
+        '<tr><td class="mono">' + esc(LAYER(t.name)) + '</td><td class="mono">' + esc(t.name) + '</td>' +
+        '<td>' + esc(DESC[t.name] || (t.comment || '—')) + '</td></tr>').join('');
+    }
+  }).catch(() => { });
+}
+
+const PIPELINE = [
+  { step: 1, name: '数据采集', tool: '多源公开文件 · 去重后 70 个源文件', desc: '整合北京市卫健委公开数据、医疗机构名录、重点专科公示名单、协作网络名单等多源文件。' },
+  { step: 2, name: '数据治理', tool: 'etl/govern_master.py', desc: '机构去重合并、办别归属判定（国有 + 集体全资 → 公立）、机构类型细分、机构更名与别名纠偏。' },
+  { step: 3, name: '资源整合', tool: 'etl/integrate_networks.py', desc: '接入儿科医联体、卒中中心、危重新生儿 / 危重孕产妇救治中心等协作网络名单，形成网络维度。' },
+  { step: 4, name: '数仓分层 ETL', tool: 'Spark 3.5.3 · spark/etl_hospital.py', desc: 'ODS 原始层 → DWD 明细清洗层 → DWS 汇总层 → ADS 应用层，四层建模，Spark SQL 完成清洗、关联与聚合。' },
+  { step: 5, name: '地理编码与距离', tool: '高德地理编码 · Haversine 球面距离', desc: '补全机构经纬度（覆盖率 99.98%），支撑距离计算、距离排序、地图散点与周边配套查询。' },
+  { step: 6, name: '索引优化', tool: 'etl/create_indexes.py', desc: '为筛选主表建立复合前缀索引（TEXT 列按 UTF-8 汉字 3 字节取前缀长度），实测典型多维筛选扫描行数由 9,777 降至 33。' },
+  { step: 7, name: '服务与可视化', tool: 'Flask + ECharts + Docker Compose', desc: 'Flask 提供筛选 / 排序 / 详情 / 对比 / 导诊 / 埋点接口，ECharts 渲染地图与多维图表，并导出零依赖离线单文件。' },
+];
+const SOURCES = [
+  { icon: '🏛️', name: '北京市卫生健康委员会', url: 'https://wjw.beijing.gov.cn/', desc: '医疗机构名录、重点专科公示名单、协作网络名单' },
+  { icon: '📞', name: '北京市预约挂号统一平台（114）', url: GUAhAO_114, desc: '预约挂号官方入口，仅做链接跳转，不抓取号源与排班数据' },
+  { icon: '🗂️', name: '北京市政务数据资源网', url: 'https://data.beijing.gov.cn/', desc: '医疗机构基础信息开放数据' },
+  { icon: '🗺️', name: '高德开放平台', url: 'https://lbs.amap.com/', desc: '地理编码补全与周边配套（地铁站 / 停车场 / 公交站）POI 查询' },
+];
+const UPDATES = [
+  { date: '2026-09-11', desc: '新增机构详情抽屉（联系方式 / 挂号入口 / 重点专科 / 周边配套 / 实时状态）、机构横向对比、智能导诊多轮对话、运营后台与关于页；前端视觉体系重构。' },
+  { date: '2026-09-11', desc: '智能导诊接入本地疾病-科室知识库（262 条），并保留大模型零命中兜底能力。' },
+  { date: '2026-09-08', desc: '快照数据更新至 9,789 家机构；修正机构更名（空军特色医学中心、北京通用航天医院）与别名映射。' },
+  { date: '2026-09-05', desc: '新增医疗协作网络维度（儿科医联体 / 卒中中心 / 危重新生儿 / 危重孕产妇）。' },
+  { date: '2026-09-04', desc: '完成数据治理列贯通（办别归属、类别细分、擅长科室三级分级），筛选维度扩展至 7 维。' },
+];
+const WAREHOUSE = [
+  ['ODS 原始层', 'ods_institution / ods_dept_dict / ods_dept_relation / ods_specialty / ods_geocode', '接入原始多源数据'],
+  ['DWD 明细层', 'dwd_institution_clean / dwd_dept_relation_clean / dwd_specialty_clean', '清洗、去重、标准化'],
+  ['DWS 汇总层', 'dws_inst_by_district / dws_inst_by_level / dws_inst_by_category / dws_dept_coverage', '按区域 / 等级 / 类型 / 科室汇总'],
+  ['ADS 应用层', 'ads_inst_search / ads_district_overview / ads_level_overview / ads_specialty_hospital', '直接服务前端查询'],
+  ['维度 / 支撑表', 'dim_disease_dept / dim_ai_cache / dim_poi_cache / fact_user_event', '导诊知识库、模型缓存、POI 缓存、行为日志'],
+];
+
+// ============================================================================
+//  启动
+// ============================================================================
+console.log('[dashboard] 版本', DASHBOARD_VERSION);
 loadData();

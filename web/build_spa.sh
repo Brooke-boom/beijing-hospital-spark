@@ -27,6 +27,7 @@ for r in rows:
     r['id'] = str(r['id']).strip()
     for k in ('name','district','level','category','category_sub','ownership',
               'feature','feature_level','coord_precision','key_depts','grade_scope',
+              'addr','phone',
               'national_specialty','municipal_specialty',
               'net_pediatric','net_stroke','net_neonatal','net_maternal'):
         v = r.get(k); r[k] = ('' if v is None else v.strip() if isinstance(v, str) else v)

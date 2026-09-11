@@ -33,6 +33,10 @@ DB_CONFIG = {
 }
 
 app = Flask(__name__)
+# 模板热重载：build_spa.sh 会重新生成 templates/index.html，若不开启自动重载，
+# debug=False 下 Jinja 会把模板缓存在内存里，导致「产物已更新但页面还是旧的」这一经典误判。
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.jinja_env.auto_reload = True
 
 # 默认坐标参考点：天安门（距离排序基准点）
 DEFAULT_LNG, DEFAULT_LAT = 116.397428, 39.909230
@@ -664,6 +668,10 @@ def api_triage():
     q = (request.args.get("q") or "").strip()
     if not q:
         return jsonify({"ok": False, "reason": "empty"})
+    # 多轮对话：extra 为前几轮已确认的补充信息（如"伴发热""3天""老年人"），
+    # 只参与科室匹配，不改变对外回显的 query（保持对话可追溯）。
+    extra = (request.args.get("extra") or "").strip()
+    match_text = q + (" " + extra if extra else "")
     district = (request.args.get("district") or "").strip()
     level = (request.args.get("level") or "").strip()
     try:
@@ -680,12 +688,12 @@ def api_triage():
     pairs = load_triage_map()
     matched = {}        # dept_name -> (weight, is_emergency)
     for kw, dept, w, emg in pairs:
-        if kw and kw in q:
+        if kw and kw in match_text:
             old = matched.get(dept)
             if old is None or w > old[0]:
                 matched[dept] = (w, emg)
     for kw, dept, w, emg in pairs:      # 直接输入科室名也能命中
-        if dept in q and dept not in matched:
+        if dept in match_text and dept not in matched:
             matched[dept] = (w, emg)
 
     # 1.5) 本地知识库零命中 → 大模型兜底（用 AI_LLM_ENABLED=0 或 &llm=0 可强制关闭）
@@ -763,8 +771,8 @@ def api_triage():
             dist_c = 0.3 * (1.0 / (1.0 + (dist or 999) / 5.0)) if dist is not None else 0.0
             dept_c = 0.2 * frac
             score = level_c + dist_c + dept_c
-            if r["has_key"] in (1, "1", True):
-                score = min(1.0, score + 0.05)
+            key_bonus = 0.05 if r["has_key"] in (1, "1", True) else 0.0
+            score = min(1.0, score + key_bonus)
             results.append({
                 "id": r["id"], "name": r["name"], "district": r["district"],
                 "level": r["level"], "addr": r["addr"], "phone": r["phone"],
@@ -776,6 +784,19 @@ def api_triage():
                     "level": round(level_c, 3), "distance": round(dist_c, 3),
                     "dept": round(dept_c, 3),
                 },
+                # 推荐理由可视化：把加权评分的每一项摊开给用户看（可解释，非黑箱）
+                "reason_detail": [
+                    {"label": "医院等级", "value": r["level_norm"] or "未知",
+                     "weight": 0.5, "score": round(level_c, 3),
+                     "desc": "等级越高得分越高（三级=满分）"},
+                    {"label": "距离", "weight": 0.3, "score": round(dist_c, 3),
+                     "value": ("%.1f km" % dist) if dist is not None else "无坐标",
+                     "desc": "基于 Haversine 球面距离，越近得分越高"},
+                    {"label": "科室匹配", "weight": 0.2, "score": round(dept_c, 3),
+                     "value": "、".join(hit) or "—",
+                     "desc": "命中科室权重之和 / 全部候选科室权重之和"},
+                ] + ([{"label": "重点专科加成", "weight": 0.05, "score": key_bonus,
+                       "value": "含重点专科", "desc": "该院该科室为权威认定重点专科"}] if key_bonus else []),
                 "reason": _triage_reason(hit, r["level"], dist, r["has_key"]),
             })
 
@@ -786,6 +807,7 @@ def api_triage():
     return jsonify({
         "ok": True,
         "query": q,
+        "extra": extra,
         "engine": engine,
         "model": AI_MODEL if engine == "llm" else None,
         "ai_note": ai_note,
@@ -808,6 +830,503 @@ def _triage_reason(hit_depts, level, dist, has_key):
     if has_key in (1, "1", True):
         parts.append("含重点专科")
     return "；".join(parts)
+
+
+# ==============================================================================
+# 增强模块：医院详情（联系方式/挂号入口/周边配套/实时状态）+ 对比 + 行为埋点 + 运营后台
+# ==============================================================================
+# 设计原则（与智能导诊一致）：
+#   1) 一切"真实可得"的信息优先用真实数据：重点专科、联系方式、地址、坐标、距离；
+#   2) 需要外部数据的（周边地铁站/停车场）走高德开放平台实时查询，结果落库缓存；
+#   3) 拿不到真实数据的（实时排队人数）**明确标注"演示模拟"**，绝不伪装成真实数据；
+#   4) 不外呼大模型编造医生姓名/职称——医学事实性错误在答辩现场是致命伤。
+
+import hashlib
+import urllib.parse
+
+# 高德开放平台（Key 存 data/.amap_key.txt，已 gitignore）
+AMAP_KEY = os.environ.get("AMAP_KEY") or _read_secret("data/.amap_key.txt")
+
+# 北京市预约挂号统一平台（北京 114）：官方入口。京医通已于 2022 年停用，
+# 现行为 114 统一平台 + 各医院自有渠道，故统一指向 114。
+GUAHao_114 = "https://www.114yygh.com/"
+POI_CACHE_DDL = (
+    "CREATE TABLE IF NOT EXISTS dim_poi_cache ("
+    " cache_key VARCHAR(191) NOT NULL PRIMARY KEY,"
+    " kind VARCHAR(16) NOT NULL,"
+    " payload MEDIUMTEXT NOT NULL,"
+    " created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+    " ON UPDATE CURRENT_TIMESTAMP) DEFAULT CHARSET=utf8mb4"
+)
+
+
+def _poi_cache_get(key):
+    try:
+        with get_db().cursor() as cur:
+            cur.execute("SELECT payload FROM dim_poi_cache WHERE cache_key=%s", (key,))
+            row = cur.fetchone()
+        return _json.loads(row["payload"]) if row else None
+    except Exception:
+        return None
+
+
+def _poi_cache_put(key, kind, payload):
+    try:
+        db = get_db()
+        with db.cursor() as cur:
+            cur.execute(POI_CACHE_DDL)
+            cur.execute(
+                "INSERT INTO dim_poi_cache (cache_key, kind, payload) VALUES (%s,%s,%s)"
+                " ON DUPLICATE KEY UPDATE payload=VALUES(payload)",
+                (key, kind, _json.dumps(payload, ensure_ascii=False)))
+        db.commit()
+    except Exception:
+        pass
+
+
+def _amap_around(lng, lat, keywords, radius=2000, limit=5):
+    """高德「周边搜索」。失败（无 Key / 超额 / 断网）一律返回 None，由调用方降级。"""
+    if not AMAP_KEY:
+        return None
+    qs = urllib.parse.urlencode({
+        "key": AMAP_KEY, "location": f"{lng:.6f},{lat:.6f}",
+        "keywords": keywords, "radius": radius, "offset": limit,
+        "page": 1, "sortrule": "distance", "output": "json",
+    })
+    try:
+        req = urllib.request.Request(
+            "https://restapi.amap.com/v3/place/around?" + qs,
+            headers={"User-Agent": "hospital-dashboard/1.0"})
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            data = _json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+    if str(data.get("status")) != "1":
+        return None
+    out = []
+    for p in (data.get("pois") or [])[:limit]:
+        dm = p.get("distance")
+        try:
+            dm = int(float(dm))
+        except (TypeError, ValueError):
+            dm = None
+        addr = p.get("address")
+        if isinstance(addr, list):
+            addr = ""
+        out.append({
+            "name": p.get("name") or "",
+            "distance_m": dm,
+            "walk_min": max(1, int(round(dm / 75.0))) if dm else None,  # 75 m/min 步行
+            "type": (p.get("type") or "").split(";")[-1],
+            "address": addr or "",
+            "tel": (p.get("tel") if isinstance(p.get("tel"), str) else "") or "",
+            "lng": _safe_float((p.get("location") or ",").split(",")[0]),
+            "lat": _safe_float((p.get("location") or ",").split(",")[-1]),
+        })
+    return out
+
+
+def _safe_float(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _around_cached(lng, lat, kind, keywords, radius=2000, limit=5):
+    """周边配套查询（缓存键按 ~100m 网格取整，避免同一医院反复消耗高德额度）。"""
+    if lng is None or lat is None:
+        return None
+    key = f"poi|{round(float(lng),3)}|{round(float(lat),3)}|{kind}|{radius}|{limit}"
+    hit = _poi_cache_get(key)
+    if hit is not None:
+        return hit
+    res = _amap_around(lng, lat, keywords, radius, limit)
+    if res is not None:
+        _poi_cache_put(key, kind, res)
+    return res
+
+
+def _mock_status(inst_id, level):
+    """就诊实时状态（**演示模拟数据**，非真实候诊信息）。
+
+    以机构 id 做确定性散列，保证同一医院每次显示一致（不像随机数那样跳变，
+    答辩演示时可复现）；三级医院整体偏繁忙，符合常识直觉。
+    """
+    h = int(hashlib.md5(str(inst_id).encode("utf-8")).hexdigest(), 16)
+    labels = ["空闲", "较少", "中等", "较多", "繁忙"]
+    bias = {"三级": 2, "二级": 1, "一级": 0}.get(level, -1)
+    idx = min(4, max(0, (h % 5) + bias - 1))
+    wait = [5, 12, 20, 35, 55][idx]
+    slots = ["上午号源充足", "上午偏紧、下午充足", "当日号源偏紧", "当日号源紧张", "当日号源已满"]
+    return {
+        "simulated": True,
+        "level": labels[idx],
+        "level_index": idx,
+        "queue_label": labels[idx],
+        "wait_min": wait,
+        "slots": slots[idx],
+        "note": "演示模拟数据 · 非医院实时候诊信息",
+    }
+
+
+def _consult_links(r):
+    """就诊入口链接：114 统一平台 / 电话 / 官网 / 导航。
+
+    只给真实可用的入口，不伪造深度链接（114 平台为 JS 单页应用，
+    不存在可构造的按医院直达 URL，硬拼会得到死链）。
+    """
+    lng, lat = _safe_float(r.get("lng")), _safe_float(r.get("lat"))
+    nav = ""
+    if lng is not None and lat is not None:
+        nav = ("https://uri.amap.com/marker?position=%.6f,%.6f&name=%s&src=hospital-dashboard"
+               "&coordinate=gaode&callnative=1" % (lng, lat, urllib.parse.quote(r.get("name") or "医院")))
+    phone = (r.get("phone") or "").strip()
+    return {
+        "guahao_114": GUAHao_114,
+        "guahao_114_tel": "010-114",
+        "hospital_phone": phone,
+        "hospital_tel_link": ("tel:" + phone) if phone else "",
+        "website": (r.get("website") or "").strip(),
+        "amap_nav": nav,
+        "hospital_name": r.get("name") or "",
+    }
+
+
+def _specialty_detail(r):
+    """特色科室 / 重点专科：来自真实数据的权威分级。
+
+    国家级重点专科 > 北京市级重点专科 > 擅长科室（feature）。全部有据可查。
+    """
+    nat = [x.strip() for x in (r.get("national_specialty") or "").split(";") if x.strip()]
+    mun = [x.strip() for x in (r.get("municipal_specialty") or "").split(";") if x.strip()]
+    feat = [x.strip() for x in (r.get("feature") or "").split(";") if x.strip()]
+    return {"national": nat, "municipal": mun, "feature": feat,
+            "national_count": r.get("national_specialty_count") or 0,
+            "municipal_count": r.get("municipal_specialty_count") or 0,
+            "key_count": r.get("key_specialty_count") or 0}
+
+
+# -------- 详情 --------
+@app.route("/api/inst/<inst_id>/detail")
+def api_inst_detail(inst_id):
+    """医院详情：联系方式 + 就诊入口 + 特色科室 + 周边配套 + 实时状态（模拟）。"""
+    r = query(
+        "SELECT id, name, district, category_norm, category_sub, level_norm, level_sub,"
+        " grade_scope, ownership, ownership_basis, feature, feature_level,"
+        " addr, phone, postal, key_depts,"
+        " national_specialty, national_specialty_count,"
+        " municipal_specialty, municipal_specialty_count, key_specialty_count, dept_count,"
+        " net_pediatric, net_stroke, net_neonatal, net_maternal,"
+        " lng, lat, coord_precision"
+        " FROM ads_inst_search WHERE id = %s", [inst_id], one=True)
+    if not r:
+        return jsonify({"ok": False, "reason": "not_found"}), 404
+
+    lng, lat = _safe_float(r.get("lng")), _safe_float(r.get("lat"))
+    around, around_ok = {"metro": None, "parking": None, "bus": None}, False
+    if lng is not None and lat is not None:
+        metro = _around_cached(lng, lat, "metro", "地铁站", 3000, 3)
+        parking = _around_cached(lng, lat, "parking", "停车场", 1500, 3)
+        bus = _around_cached(lng, lat, "bus", "公交站", 800, 3)
+        around = {"metro": metro, "parking": parking, "bus": bus}
+        around_ok = any(v for v in (metro, parking, bus))
+
+    return jsonify({
+        "ok": True,
+        "base": {
+            "id": r["id"], "name": r["name"], "district": r["district"],
+            "level": r["level_norm"], "level_sub": r["level_sub"],
+            "category": r["category_norm"],
+            "category_sub": r.get("category_sub") or "",
+            "ownership": r.get("ownership") or "", "ownership_basis": r.get("ownership_basis") or "",
+            "grade_scope": r.get("grade_scope") or "",
+            "dept_count": r.get("dept_count") or 0,
+            "key_specialty_count": r.get("key_specialty_count") or 0,
+        },
+        "contact": {
+            "addr": (r.get("addr") or "").strip(),
+            "phone": (r.get("phone") or "").strip(),
+            "postal": (r.get("postal") or "").strip(),
+            "website": (r.get("website") or "").strip(),
+            "traffic": (r.get("traffic") or "").strip(),
+            "lng": lng, "lat": lat, "coord_precision": r.get("coord_precision") or "",
+        },
+        "links": _consult_links(r),
+        "specialty": _specialty_detail(r),
+        "networks": _net_list(r),
+        "around": around,
+        "around_online": around_ok,
+        "around_enabled": bool(AMAP_KEY),
+        "status": _mock_status(r["id"], r["level_norm"]),
+        "depts": query(
+            "SELECT dept_name, is_key_specialty, source FROM dwd_dept_relation_clean"
+            " WHERE hospital_id = %s ORDER BY is_key_specialty DESC, dept_name LIMIT 60",
+            [inst_id]),
+    })
+
+
+def _net_list(r):
+    n = []
+    if r.get("net_pediatric") == "核心":
+        n.append("儿科医联体·核心医院")
+    elif r.get("net_pediatric") == "成员":
+        n.append("儿科医联体·成员机构")
+    if r.get("net_stroke") == "1":
+        n.append("卒中中心")
+    if r.get("net_neonatal") == "市级":
+        n.append("危重新生儿救治中心（市级）")
+    if r.get("net_maternal") == "市级":
+        n.append("危重孕产妇救治中心（市级）")
+    return n
+
+
+# -------- 对比 --------
+COMPARE_FIELDS = [
+    ("name", "机构名称"), ("level", "医院等级"), ("category", "机构类型"),
+    ("ownership", "办别性质"), ("district", "所属区域"),
+    ("key_specialty_count", "重点专科数"), ("national_specialty_count", "国家级重点专科"),
+    ("municipal_specialty_count", "市级重点专科"), ("dept_count", "科室数量"),
+    ("networks_text", "协作网络"), ("national_specialty", "国家级专科清单"),
+    ("municipal_specialty", "市级专科清单"), ("feature", "擅长科室"),
+    ("addr", "地址"), ("phone", "联系电话"), ("distance_text", "距离基准点"),
+    ("coord_precision", "坐标精度"),
+]
+
+
+@app.route("/api/inst/compare")
+def api_inst_compare():
+    """多机构横向对比（2~4 家）。
+
+    距离统一以「天安门」为基准，保证横向可比（不同机构用不同基准点没有意义）。
+    """
+    ids = [x.strip() for x in (request.args.get("ids") or "").split(",") if x.strip()][:4]
+    if len(ids) < 2:
+        return jsonify({"ok": False, "reason": "need_2_to_4_ids"})
+    ph = ",".join(["%s"] * len(ids))
+    rows = query(
+        "SELECT id, name, district, category_norm, level_norm, ownership, ownership_basis,"
+        " addr, phone, feature, national_specialty, national_specialty_count,"
+        " municipal_specialty, municipal_specialty_count, key_specialty_count, dept_count,"
+        " net_pediatric, net_stroke, net_neonatal, net_maternal, lng, lat, coord_precision"
+        f" FROM ads_inst_search WHERE id IN ({ph})", ids)
+    order = {i: n for n, i in enumerate(ids)}
+    rows.sort(key=lambda r: order.get(str(r["id"]), 99))
+    for r in rows:
+        lng, lat = _safe_float(r.get("lng")), _safe_float(r.get("lat"))
+        r["distance_km"] = (round(haversine(DEFAULT_LNG, DEFAULT_LAT, lng, lat), 1)
+                            if (lng is not None and lat is not None) else None)
+        r["distance_text"] = (f"{r['distance_km']} km（距天安门）"
+                              if r["distance_km"] is not None else "—")
+        r["level"] = r.pop("level_norm")
+        r["category"] = r.pop("category_norm")
+        r["networks_text"] = "、".join(_net_list(r)) or "未纳入"
+        for k in ("feature", "national_specialty", "municipal_specialty", "addr", "phone"):
+            r[k] = (r.get(k) or "").strip()
+    return jsonify({"ok": True, "fields": COMPARE_FIELDS, "items": rows})
+
+
+# -------- 行为埋点 --------
+EVENT_DDL = (
+    "CREATE TABLE IF NOT EXISTS fact_user_event ("
+    " id BIGINT AUTO_INCREMENT PRIMARY KEY,"
+    " ev VARCHAR(24) NOT NULL,"
+    " k1 VARCHAR(191) DEFAULT NULL,"
+    " k2 VARCHAR(191) DEFAULT NULL,"
+    " num INT DEFAULT NULL,"
+    " sid VARCHAR(40) DEFAULT NULL,"
+    " created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+    " INDEX idx_ev (ev), INDEX idx_created (created_at)"
+    ") DEFAULT CHARSET=utf8mb4"
+)
+
+
+@app.route("/api/track", methods=["GET", "POST"])
+def api_track():
+    """行为埋点。用于「运营后台」的真实使用统计。
+
+    刻意保持极简（单条 INSERT，失败静默）：埋点绝不能影响主流程。
+    """
+    a = request.values
+    ev = (a.get("ev") or "").strip()[:24]
+    if not ev:
+        return jsonify({"ok": False})
+    try:
+        db = get_db()
+        with db.cursor() as cur:
+            cur.execute(EVENT_DDL)
+            cur.execute(
+                "INSERT INTO fact_user_event (ev, k1, k2, num, sid) VALUES (%s,%s,%s,%s,%s)",
+                (ev, (a.get("k1") or "")[:191] or None, (a.get("k2") or "")[:191] or None,
+                 a.get("num", type=int), (a.get("sid") or "")[:40] or None))
+        db.commit()
+    except Exception:
+        pass
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/stats")
+def api_admin_stats():
+    """运营后台：① 真实行为统计（埋点累积） ② 资源热度（源自 9,789 家真实数据）。
+
+    冷启动时行为统计为空，前端会明确提示「尚无行为数据」——不编造演示数据。
+    """
+    def top(ev, limit=10, days=30):
+        return query(
+            "SELECT k1 AS label, COUNT(*) AS n FROM fact_user_event"
+            f" WHERE ev=%s AND k1 IS NOT NULL AND k1<>''"
+            f" AND created_at > DATE_SUB(NOW(), INTERVAL {days} DAY)"
+            " GROUP BY k1 ORDER BY n DESC LIMIT %s", (ev, limit))
+
+    behaviors = {
+        "days": 30,
+        "totals": query(
+            "SELECT ev, COUNT(*) AS n FROM fact_user_event"
+            " WHERE created_at > DATE_SUB(NOW(), INTERVAL 30 DAY) GROUP BY ev ORDER BY n DESC"),
+        "total_events": (query("SELECT COUNT(*) AS n FROM fact_user_event", one=True) or {}).get("n", 0),
+        "top_keywords": top("search", 10),
+        "top_districts": top("filter_district", 10),
+        "top_triage": top("triage", 10),
+        "top_detail": top("detail", 8),
+        "top_nlq": top("nlq", 8),
+        "daily": query(
+            "SELECT DATE(created_at) AS d, COUNT(*) AS n FROM fact_user_event"
+            " WHERE created_at > DATE_SUB(NOW(), INTERVAL 14 DAY)"
+            " GROUP BY DATE(created_at) ORDER BY d"),
+    }
+    # 资源热度：完全由真实数据计算，冷启动即有内容
+    resources = {
+        "district_density": query(
+            "SELECT district, inst_count, level_3_count, coord_high_count"
+            " FROM ads_district_overview ORDER BY inst_count DESC LIMIT 16"),
+        "level_mix": query(
+            "SELECT level_norm AS level, inst_count FROM ads_level_overview"
+            " WHERE level_norm <> '不适用医院分级' ORDER BY inst_count DESC"),
+        "specialty_top": query(
+            "SELECT dept_name, hospital_count, key_specialty_count FROM dws_dept_coverage"
+            " ORDER BY hospital_count DESC LIMIT 12"),
+        "category_mix": query(
+            "SELECT category_norm AS category, inst_count FROM dws_inst_by_category"
+            " ORDER BY inst_count DESC LIMIT 10"),
+        "network_cover": {
+            "ped_core": (query("SELECT COUNT(*) AS n FROM ads_inst_search WHERE net_pediatric='核心'", one=True) or {}).get("n", 0),
+            "ped_member": (query("SELECT COUNT(*) AS n FROM ads_inst_search WHERE net_pediatric='成员'", one=True) or {}).get("n", 0),
+            "stroke": (query("SELECT COUNT(*) AS n FROM ads_inst_search WHERE net_stroke='1'", one=True) or {}).get("n", 0),
+            "neonatal": (query("SELECT COUNT(*) AS n FROM ads_inst_search WHERE net_neonatal='市级'", one=True) or {}).get("n", 0),
+            "maternal": (query("SELECT COUNT(*) AS n FROM ads_inst_search WHERE net_maternal='市级'", one=True) or {}).get("n", 0),
+        },
+        "ownership": query(
+            "SELECT ownership, COUNT(*) AS n FROM ads_inst_search GROUP BY ownership ORDER BY n DESC"),
+    }
+    return jsonify({"ok": True, "behaviors": behaviors, "resources": resources})
+
+
+# -------- AI 就医提示（可选增强，绝不编造事实） --------
+AI_ADVICE_RULES = (
+    "你是北京市就医助手。请基于用户给出的【该机构的真实数据】，写一段 80~120 字的就医提示。\n"
+    "硬性要求：\n"
+    "① 只能引用给定的真实信息（等级、区域、重点专科名称、协作网络、类型），"
+    "不得添加任何未给出的信息；\n"
+    "② 严禁编造医生姓名、职称、出诊时间、号源数量、价格、治愈率或任何具体数字；\n"
+    "③ 严禁使用「全国第一」「最好的医院」等无法核实的绝对化表述；\n"
+    "④ 语气客观，最后用一句提示用户「具体号源与出诊信息请以 114 平台及医院官方公布为准」；\n"
+    "⑤ 只输出这段文字，不要标题、不要 Markdown、不要 JSON。\n"
+    "【该机构的真实数据】\n"
+)
+
+
+@app.route("/api/ai/advice")
+def api_ai_advice():
+    inst_id = (request.args.get("id") or "").strip()
+    if not inst_id:
+        return jsonify({"ok": False, "reason": "empty"})
+    r = query(
+        "SELECT name, district, level_norm, category_norm, ownership, feature,"
+        " national_specialty, municipal_specialty, key_specialty_count, dept_count,"
+        " net_pediatric, net_stroke, net_neonatal, net_maternal"
+        " FROM ads_inst_search WHERE id=%s", [inst_id], one=True)
+    if not r:
+        return jsonify({"ok": False, "reason": "not_found"}), 404
+    if not (AI_LLM_ENABLED and AI_API_KEY):
+        return jsonify({"ok": False, "reason": "llm_disabled",
+                        "hint": "大模型未启用（离线版不支持该增强）"})
+    facts = (
+        f"名称：{r['name']}\n区域：{r['district']}\n等级：{r['level_norm']}\n"
+        f"类型：{r['category_norm']}\n办别：{r.get('ownership') or '未标注'}\n"
+        f"国家级重点专科：{r.get('national_specialty') or '无'}\n"
+        f"北京市级重点专科：{r.get('municipal_specialty') or '无'}\n"
+        f"擅长科室：{(r.get('feature') or '无')}\n"
+        f"重点专科总数：{r.get('key_specialty_count') or 0}\n"
+        f"协作网络：{'、'.join(_net_list(r)) or '未纳入'}"
+    )
+    try:
+        txt = _llm_chat([{"role": "user", "content": AI_ADVICE_RULES + facts}],
+                        timeout=AI_TIMEOUT)
+        return jsonify({"ok": True, "engine": "llm", "model": AI_MODEL,
+                        "advice": txt.strip(), "constraint": "仅基于真实字段生成，禁止编造医生与数字"})
+    except LLMRateLimited:
+        return jsonify({"ok": False, "reason": "llm_rate_limited",
+                        "hint": "Agnes 免费额度限流（约 1 次/30 秒），稍后重试"})
+    except Exception as e:
+        return jsonify({"ok": False, "reason": "llm_error", "detail": str(e)[:160]})
+
+
+# -------- 数据来源 / 更新日志（关于页） --------
+@app.route("/api/about")
+def api_about():
+    """关于页数据：数据来源、清洗流程、更新时间、规模指标。全部取自真实表。"""
+    def one(sql):
+        return (query(sql, one=True) or {})
+    return jsonify({
+        "ok": True,
+        "counts": {
+            "institutions": one("SELECT COUNT(*) AS n FROM ads_inst_search")["n"],
+            "dwd_institutions": one("SELECT COUNT(*) AS n FROM dwd_institution_clean")["n"],
+            "dept_relations": one("SELECT COUNT(*) AS n FROM dwd_dept_relation_clean")["n"],
+            "specialty_rows": one("SELECT COUNT(*) AS n FROM dwd_specialty_clean")["n"],
+            "tables": one(
+                "SELECT COUNT(*) AS n FROM information_schema.tables"
+                " WHERE table_schema='hospital'")["n"],
+            "with_coord": one(
+                "SELECT COUNT(*) AS n FROM ads_inst_search WHERE lng IS NOT NULL")["n"],
+            "triage_dict": one("SELECT COUNT(*) AS n FROM dim_disease_dept")["n"],
+        },
+        "warehouse": query(
+            "SELECT table_schema AS db, table_name AS name, table_rows AS rows_,"
+            " table_comment AS comment FROM information_schema.tables"
+            " WHERE table_schema='hospital' ORDER BY table_name"),
+        "pipeline": [
+            {"step": 1, "name": "数据采集", "tool": "公开渠道 / 26 类来源",
+             "desc": "整合北京市卫健委公开数据、医疗机构名录、重点专科公示名单、协作网络名单等多源文件（去重后 70 个源文件）。"},
+            {"step": 2, "name": "数据治理", "tool": "etl/govern_master.py",
+             "desc": "机构去重合并、办别归属判定（国有+集体全资→公立）、机构类型细分、机构更名纠偏。"},
+            {"step": 3, "name": "资源整合", "tool": "etl/integrate_networks.py",
+             "desc": "接入儿科医联体、卒中中心、危重新生儿/孕产妇救治中心等协作网络名单，形成网络维度。"},
+            {"step": 4, "name": "数仓分层 ETL", "tool": "Spark 3.5.3 · spark/etl_hospital.py",
+             "desc": "ODS 原始层 → DWD 明细清洗层 → DWS 汇总层 → ADS 应用层，共四层建模，Spark SQL 完成清洗、关联、聚合。"},
+            {"step": 5, "name": "地理编码与距离", "tool": "高德地理编码 / Haversine",
+             "desc": "补全机构经纬度（覆盖率 99.98%），用于距离计算、排序与地图散点。"},
+            {"step": 6, "name": "索引优化", "tool": "etl/create_indexes.py",
+             "desc": "为筛选主表建立复合前缀索引，实测典型多维筛选扫描行数由 9,777 降至 33。"},
+            {"step": 7, "name": "服务与可视化", "tool": "Flask + ECharts",
+             "desc": "Flask 提供筛选/排序/详情/导诊接口，ECharts 渲染地图与多维分析图表，并可导出零依赖离线单文件。"},
+        ],
+        "sources": [
+            {"name": "北京市卫生健康委员会", "url": "https://wjw.beijing.gov.cn/",
+             "desc": "医疗机构名录、重点专科公示、协作网络名单"},
+            {"name": "北京市预约挂号统一平台（114）", "url": GUAHao_114,
+             "desc": "预约挂号官方入口（仅做链接跳转，不抓取号源数据）"},
+            {"name": "北京市政务数据资源网", "url": "https://data.beijing.gov.cn/",
+             "desc": "医疗机构基础信息开放数据"},
+            {"name": "高德开放平台", "url": "https://lbs.amap.com/",
+             "desc": "地理编码与周边配套（地铁站/停车场）POI 查询"},
+        ],
+        "updated_at": "2026-09-08",
+        "update_log": [
+            {"date": "2026-09-08", "desc": "快照数据更新（9,789 家机构）；修正机构更名与别名映射"},
+            {"date": "2026-09-11", "desc": "新增智能导诊、多维分析、详情抽屉、机构对比、运营后台模块"},
+        ],
+    })
 
 
 if __name__ == "__main__":
