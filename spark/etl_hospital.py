@@ -195,11 +195,13 @@ def main():
             "id", "name", "district_clean", "category", "category_norm",
             "category_sub",
             "level", "level_sub", "level_norm", "grade_scope",
-            "addr", "phone", "postal", "beds", "key_depts",
+            "addr", "phone", "postal", "key_depts",
             "feature", "feature_level",
             "national_specialty", "national_specialty_count",
             "municipal_specialty", "municipal_specialty_count",
             "ownership", "ownership_basis",
+            # 医疗协作网络维度（由 etl/integrate_networks.py 写入主表，此处透传至 DWD/ADS）
+            "net_pediatric", "net_stroke", "net_neonatal", "net_maternal",
             "lng_d", "lat_d", "coord_formatted", "coord_level", "coord_source", "coord_precision",
             "econ", "profit", "category_raw", "src_count_int", "source_files",
         )

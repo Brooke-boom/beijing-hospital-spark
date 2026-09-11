@@ -34,15 +34,24 @@ MYSQL = dict(
     charset="utf8mb4",
 )
 
-# (索引名, "列定义") —— 列定义含前缀长度
+# (索引名, 列名列表) —— 前缀长度由脚本按列类型自动决定
 INDEXES = [
-    ("idx_inst_search_main", "district(24), level_norm(24), category(24)"),
-    ("idx_inst_level", "level_norm(24)"),
-    ("idx_inst_district", "district(24)"),
-    ("idx_inst_name", "name(60)"),
-    # net_* 由 ALTER TABLE 显式建为 VARCHAR，非 TEXT，无需前缀长度
-    ("idx_inst_net", "net_pediatric, net_stroke, net_neonatal, net_maternal"),
+    ("idx_inst_search_main", ["district", "level_norm", "category"]),
+    ("idx_inst_level", ["level_norm"]),
+    ("idx_inst_district", ["district"]),
+    ("idx_inst_name", ["name"]),
+    ("idx_inst_net", ["net_pediatric", "net_stroke", "net_neonatal", "net_maternal"]),
 ]
+
+# TEXT/BLOB 列必须指定前缀长度才能建索引；VARCHAR/INT 等则不能加
+PREFIX_LEN = 24
+
+
+def build_definition(col_name, col_type):
+    """按列类型生成索引列定义：TEXT/BLOB 加前缀长度，其余原样。"""
+    if "text" in col_type.lower() or "blob" in col_type.lower():
+        return "%s(%d)" % (col_name, PREFIX_LEN)
+    return col_name
 
 
 def main():
@@ -50,17 +59,19 @@ def main():
     cur = conn.cursor()
 
     cur.execute("SHOW COLUMNS FROM ads_inst_search")
-    cols = {r[0] for r in cur.fetchall()}
+    col_types = {r[0]: r[1] for r in cur.fetchall()}
+    cols = set(col_types)
 
     created = skipped = 0
-    for name, definition in INDEXES:
-        # 校验列存在（去掉前缀长度后比对）
-        fields = [f.split("(")[0].strip() for f in definition.split(",")]
+    for name, fields in INDEXES:
         missing = [f for f in fields if f not in cols]
         if missing:
             print("  跳过 %s：缺少列 %s" % (name, missing))
             skipped += 1
             continue
+        definition = ", ".join(
+            build_definition(f, col_types[f]) for f in fields
+        )
         try:
             cur.execute("CREATE INDEX %s ON ads_inst_search (%s)" % (name, definition))
             print("  已创建 %s (%s)" % (name, definition))
