@@ -3,7 +3,7 @@
 科室字典生成脚本（医院-科室映射表）
 ====================================
 输入：
-  毕设/data/processed/master_institutions.csv     9,791 家机构主表
+  毕设/data/processed/master_institutions.csv     9,789 家机构主表
   毕设/data/processed/specialty_departments.csv   20 家三甲国家级重点专科
 输出：
   毕设/data/processed/dept_dict.csv       标准科室字典（科室名 + 大类）

@@ -2,7 +2,7 @@
 """
 高德地图批量地理编码脚本（地址 -> 经纬度）
 =============================================
-输入：毕设/data/processed/master_institutions.csv（9,791 家机构主表）
+输入：毕设/data/processed/master_institutions.csv（9,789 家机构主表）
 输出：毕设/data/processed/geocode_cache.csv（增量缓存，断点续跑）
 
 特性：

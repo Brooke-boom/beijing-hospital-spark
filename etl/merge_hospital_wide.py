@@ -3,7 +3,7 @@
 主表 + 地理编码缓存 合并为 hospital_wide.csv
 ==============================================
 输入：
-  - 毕设/data/processed/master_institutions.csv（9,791 家机构）
+  - 毕设/data/processed/master_institutions.csv（9,789 家机构）
   - 毕设/data/processed/geocode_cache.csv（地理编码结果，按 id 增量）
   - 毕设/data/processed/hospital_depts.csv（科室映射）
   - 毕设/data/processed/dept_dict.csv（科室字典）

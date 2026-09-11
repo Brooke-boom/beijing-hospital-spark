@@ -3,7 +3,7 @@
 北京市医院医疗资源整合与多维筛选可视化系统 —— Flask API
 =========================================================
 数据源：MySQL hospital 库 ADS 层（由 spark/etl_hospital.py 生成）
-  - ads_inst_search        筛选排序主表（9,791 家机构）
+  - ads_inst_search        筛选排序主表（9,789 家机构）
   - ads_district_overview  区域概览
   - ads_level_overview     等级概览
   - ads_specialty_hospital 重点专科医院
@@ -239,7 +239,7 @@ def api_overview_districts():
 def api_overview_levels():
     """等级分布概览。
 
-    统计口径（数据治理要点）：全表 9791 家机构中仅约 1287 家属"参加医院等级评审"
+    统计口径（数据治理要点）：全表 9789 家机构中仅约 1287 家属"参加医院等级评审"
     的医疗机构，其余 8500+ 家（诊所/村卫生室/门诊部/社区卫生服务站/医务室/急救/疾控
     /体检中心等）在制度上就没有一/二/三级等级，被归入 level_norm='不适用医院分级'。
     若把它们计入"未定级"，会形成 87% 的假性未定级，掩盖真实分布。
