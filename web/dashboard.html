@@ -9,10 +9,20 @@
 <title>北京市医院医疗资源整合与多维筛选可视化系统</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
 <script>
-  /* 大模型兜底开关：默认 false（规则引擎解析，完全离线可用）。
-     如需启用：后端设 AI_LLM_ENABLED=1 及 AI_API_BASE/AI_API_KEY/AI_MODEL，再把这里改为 true。
-     规则引擎零命中时才会调用大模型，调用失败自动回退，绝不影响主流程。*/
+  /* 大模型兜底开关：默认关闭。前端规则引擎与本地疾病-科室知识库完全离线可用，
+     这是答辩的主路径；大模型只在本地零命中时兜底。
+     页面由 Flask 提供服务时，运行期自动探活 /api/ai/health，成功才开启；
+     离线单文件（file://）与在线静态版永不发起网络请求，绝不影响演示。*/
   window.__AI_LLM_ON__ = false;
+  (function () {
+    try {
+      if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+      fetch('/api/ai/health', { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) { if (j && j.llm_enabled) window.__AI_LLM_ON__ = true; })
+        .catch(function () {});
+    } catch (e) { /* 探活失败保持关闭，不影响任何主流程 */ }
+  })();
 </script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
@@ -102,7 +112,25 @@
   #map_diag.err{color:#ff9b9b;border-color:#ff6b6b;background:rgba(60,20,20,0.92)}
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;padding:0 32px 18px}
   .panel.sm{height:240px}
-  #ch1,#ch2,#ch3,#ch4,#ch5{width:100%;height:100%}
+  #ch1,#ch2,#ch3,#ch4,#ch5,#ch_own,#ch_feat,#ch_net,#ch_lvown,#ch_topsp,#ch_deptop,#ch_distlv,#ch_coord{width:100%;height:100%}
+  /* 顶部导航栏（视图切换） */
+  .navbar{display:flex;align-items:center;gap:8px;padding:10px 32px;background:#0e1a36;border-bottom:1px solid #1f3a68;position:sticky;top:0;z-index:50}
+  .navtab{background:#14213d;border:1px solid #1f3a68;color:#8aa1c8;padding:8px 18px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s;display:flex;align-items:center;gap:6px}
+  .navtab:hover{color:#e8eefc;border-color:#3aa0ff}
+  .navtab.active{background:linear-gradient(90deg,#3aa0ff,#2680d8);color:#fff;border-color:#3aa0ff;box-shadow:0 0 0 3px #3aa0ff22}
+  .navspacer{flex:1}
+  .navnote{color:#8aa1c8;font-size:11px}
+  .view{display:none}
+  .view.active{display:block;animation:vf .25s ease}
+  @keyframes vf{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  /* 多维分析视图 */
+  .akpi{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:14px 32px 0}
+  .akpi .card .v{font-size:26px}
+  .agrid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;padding:14px 32px 18px}
+  .apanel{background:#14213d;border:1px solid #1f3a68;border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;height:300px;min-width:0}
+  .apanel h3{font-size:13px;color:#e8eefc;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
+  .apanel h3 .tag{color:#8aa1c8;font-size:10px;font-weight:700;letter-spacing:1px}
+  .apanel .achart{flex:1;width:100%;min-height:0}
   .footer{padding:14px 32px;color:#8aa1c8;font-size:11px;border-top:1px solid #1f3a68;text-align:center}
   .footer code{background:#1f3a68;padding:2px 6px;border-radius:3px;color:#3aa0ff}
   /* 详情弹窗 */
@@ -141,6 +169,8 @@
   .ai-echo .chip{display:inline-block;background:#1f3a68;color:#a78bfa;padding:2px 8px;border-radius:10px;font-size:11px;margin:0 4px 4px 0}
   .ai-echo .warn{color:#f7b955}
   .ai-echo .hit{color:#5fd3c0}
+  .ai-echo .chip.ai{background:#1d4a44;color:#5fd3c0;border:1px solid #5fd3c055;font-weight:600}
+  .ai-echo .engine{background:#1f3a68;color:#8aa1c8;border:1px solid #2a4a7855}
   .triagebar{background:#14213d;border:1px solid #1f3a68;border-radius:8px;padding:14px 16px;margin:14px 32px 0;border-left:4px solid #a78bfa}
   .triagebar h3{font-size:13px;color:#a78bfa;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
   .triagebar h3 .right{color:#8aa1c8;font-weight:normal;font-size:11px}
@@ -175,6 +205,17 @@
   </div>
 </div>
 
+<!-- 顶部导航栏：视图切换 -->
+<nav class="navbar" id="navbar">
+  <button class="navtab active" data-view="overview">📊 综合看板</button>
+  <button class="navtab" data-view="analytics">📈 多维分析</button>
+  <button class="navtab" data-view="triage">🩺 智能导诊</button>
+  <span class="navspacer"></span>
+  <span class="navnote">7 维筛选全局联动 · 所有图表随筛选实时刷新</span>
+</nav>
+
+<!-- 综合看板视图 -->
+<section id="view-overview" class="view active">
 <div class="main" id="cards">
   <div class="card"><div class="l">CURRENT · 筛选后</div><div class="v" id="v_match">0</div><div class="s">符合当前条件</div></div>
   <div class="card c2"><div class="l">LEVEL 3 · 三级</div><div class="v" id="v_l3">0</div><div class="s">筛选结果中的三级</div></div>
@@ -235,26 +276,7 @@
   </div>
 </div>
 
-<div class="triagebar" id="triagebar">
-    <h3>智能导诊 <span class="right">输入病情 / 疾病名称 → 推荐对应科室的医院 · 离线知识库 · 零依赖</span></h3>
-    <div class="nlqbar">
-      <div class="nlq-in">
-        <span class="nlq-badge" style="background:#a78bfa">导诊</span>
-        <input id="f_triage" placeholder="如：头痛伴呕吐 / 骨折 / 高血压复诊 / 儿童反复发烧 / 孕早期产检">
-        <button id="btn_triage" type="button">智能导诊</button>
-        <button id="btn_triage_clear" type="button" class="gray">清空</button>
-      </div>
-      <div id="triage_echo" class="ai-echo"></div>
-    </div>
-    <div class="triage-opts">
-      <select id="t_district"><option value="">全部区域</option></select>
-      <select id="t_level"><option value="">全部等级</option></select>
-      <select id="t_topn"><option value="10">Top 10</option><option value="20">Top 20</option></select>
-      <label class="t-geocbx"><input type="checkbox" id="t_use_geo"> 用我的位置排序</label>
-      <span class="t-hint" id="triage_hint"></span>
-    </div>
-    <div id="triage_result" class="triage-result"></div>
-  </div>
+<!-- 智能导诊已移至独立视图（view-triage） -->
 
 <div class="grid2">
   <div class="panel">
@@ -290,6 +312,51 @@
   <div class="panel sm"><h3>类型分布 <span class="tag">CATEGORIES</span></h3><div id="ch2"></div></div>
   <div class="panel sm"><h3>各区机构数 <span class="tag">DISTRICTS</span></h3><div id="ch3"></div></div>
 </div>
+</section>
+
+<!-- 多维分析视图 -->
+<section id="view-analytics" class="view">
+  <div class="akpi" id="cards2">
+    <div class="card"><div class="l">公立机构</div><div class="v" id="ak_pub">0</div><div class="s">占筛选结果比例</div></div>
+    <div class="card c2"><div class="l">三级医院</div><div class="v" id="ak_l3">0</div><div class="s">占筛选结果比例</div></div>
+    <div class="card c3"><div class="l">重点专科机构</div><div class="v" id="ak_feat">0</div><div class="s">含国家/市级重点专科</div></div>
+    <div class="card c4"><div class="l">协作网络覆盖</div><div class="v" id="ak_net">0</div><div class="s">任一市级协作网络</div></div>
+  </div>
+  <div class="agrid">
+    <div class="apanel"><h3>办别分布 <span class="tag">OWNERSHIP</span></h3><div class="achart" id="ch_own"></div></div>
+    <div class="apanel"><h3>重点专科分级 <span class="tag">FEATURE LEVEL</span></h3><div class="achart" id="ch_feat"></div></div>
+    <div class="apanel"><h3>协作网络覆盖 <span class="tag">NETWORKS</span></h3><div class="achart" id="ch_net"></div></div>
+    <div class="apanel"><h3>等级 × 办别 <span class="tag">LEVEL × OWNER</span></h3><div class="achart" id="ch_lvown"></div></div>
+    <div class="apanel"><h3>专科能力 TOP10 <span class="tag">KEY SPECIALTY</span></h3><div class="achart" id="ch_topsp"></div></div>
+    <div class="apanel"><h3>区域 × 等级 <span class="tag">DISTRICT × LEVEL</span></h3><div class="achart" id="ch_distlv"></div></div>
+    <div class="apanel"><h3>坐标精度（数据质量） <span class="tag">COORD PRECISION</span></h3><div class="achart" id="ch_coord"></div></div>
+    <div class="apanel"><h3>科室覆盖 TOP15 <span class="tag">DEPT COVERAGE</span></h3><div class="achart" id="ch_deptop"></div></div>
+  </div>
+</section>
+
+<!-- 智能导诊视图 -->
+<section id="view-triage" class="view">
+  <div class="triagebar" id="triagebar">
+    <h3>智能导诊 <span class="right">输入病情 / 疾病名称 → 推荐对应科室的医院 · 离线知识库 · 零依赖</span></h3>
+    <div class="nlqbar">
+      <div class="nlq-in">
+        <span class="nlq-badge" style="background:#a78bfa">导诊</span>
+        <input id="f_triage" placeholder="如：头痛伴呕吐 / 骨折 / 高血压复诊 / 儿童反复发烧 / 孕早期产检">
+        <button id="btn_triage" type="button">智能导诊</button>
+        <button id="btn_triage_clear" type="button" class="gray">清空</button>
+      </div>
+      <div id="triage_echo" class="ai-echo"></div>
+    </div>
+    <div class="triage-opts">
+      <select id="t_district"><option value="">全部区域</option></select>
+      <select id="t_level"><option value="">全部等级</option></select>
+      <select id="t_topn"><option value="10">Top 10</option><option value="20">Top 20</option></select>
+      <label class="t-geocbx"><input type="checkbox" id="t_use_geo"> 用我的位置排序</label>
+      <span class="t-hint" id="triage_hint"></span>
+    </div>
+    <div id="triage_result" class="triage-result"></div>
+  </div>
+</section>
 
 <div class="footer">
   <b>技术栈：</b>Spark 3.5.3 (ARM64) · MySQL 8 · Flask · ECharts · Docker Compose &nbsp;|&nbsp;

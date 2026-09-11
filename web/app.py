@@ -325,14 +325,151 @@ def api_health():
     return jsonify({"status": "ok", "institutions": row["n"]})
 
 
-# ============== 自然语言解析（可选大模型增强，默认关闭） ==============
-# 设计要点：前端 JS 规则引擎是默认路径，纯离线、零依赖，答辩现场绝不受网络/额度影响；
-# 本接口仅在显式开启时提供大模型兜底，用于规则引擎零命中的长尾句式。
-# 开启方式：export AI_LLM_ENABLED=1 AI_API_BASE=https://xxx/v1 AI_API_KEY=sk-xxx AI_MODEL=xxx
-AI_LLM_ENABLED = os.environ.get("AI_LLM_ENABLED", "0") == "1"
-AI_API_BASE = os.environ.get("AI_API_BASE", "").rstrip("/")
-AI_API_KEY = os.environ.get("AI_API_KEY", "")
-AI_MODEL = os.environ.get("AI_MODEL", "")
+# ============== 大模型（Agnes AI）配置与调用 ==============
+# 设计要点：前端 JS 规则引擎 + 本地疾病-科室知识库是**默认路径**，纯离线、零依赖、
+# 可复现，答辩现场绝不受网络与额度影响；大模型只在「本地零命中」时兜底，
+# 用于口语长尾句式与知识库未收录的病情描述。
+# 开启方式（三级优先，后者兜底）：
+#   1) export AI_API_KEY=sk-xxx            # 环境变量
+#   2) data/.ai_key.txt                    # 密钥文件（已被 .gitignore 排除，绝不入库）
+#   3) AI_LLM_ENABLED=0 可强制关闭（离线答辩时用）
+# 可选覆盖：AI_API_BASE / AI_MODEL / AI_TIMEOUT
+import json as _json
+import time
+import urllib.error
+import urllib.request
+
+
+def _read_secret(rel_path):
+    """从项目根目录读取密钥文件（用于本地开发；文件已 gitignore，不会入库）。"""
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", rel_path)
+    try:
+        if os.path.exists(p):
+            with open(p, encoding="utf-8") as f:
+                return f.read().strip()
+    except OSError:
+        return ""
+    return ""
+
+
+AI_API_BASE = (os.environ.get("AI_API_BASE")
+               or "https://apihub.agnes-ai.com/v1").rstrip("/")
+AI_API_KEY = os.environ.get("AI_API_KEY") or _read_secret("data/.ai_key.txt")
+# 实测选型：agnes-2.0-flash 平均约 4s；agnes-2.5-flash 平均约 18s（最长 32s），
+# 交互式导诊必须用快模型，慢模型只适合离线批处理。可用 AI_MODEL 覆盖。
+AI_MODEL = os.environ.get("AI_MODEL") or "agnes-2.0-flash"
+# 开关：显式设置 AI_LLM_ENABLED 时以其为准；未设置则「有密钥即自动启用」
+_ENV_FLAG = os.environ.get("AI_LLM_ENABLED", "").strip()
+AI_LLM_ENABLED = (_ENV_FLAG == "1") if _ENV_FLAG != "" else bool(AI_API_KEY)
+AI_TIMEOUT = float(os.environ.get("AI_TIMEOUT", "10"))
+# 实测 2.0-flash 正常约 4 秒，10 秒已留 2.5 倍余量；
+# 设太大（如 20 秒）会让「模型不可用」时用户干等太久。
+
+class LLMRateLimited(Exception):
+    """免费额度限流（HTTP 429）：既非网络故障也非配置错误，需向用户明确区分。"""
+
+
+# 双层缓存（进程内内存 + MySQL 持久化）：
+# Agnes 免费额度实测约 1 次/30~40 秒，靠重试硬扛会让界面长时间空转；
+# 因此把「问题 → 科室」结果落库，重复提问零额度、零等待，且答辩前可预热。
+_LLM_CACHE = {}
+_LLM_CACHE_MAX = 200
+_AI_CACHE_DDL = (
+    "CREATE TABLE IF NOT EXISTS dim_ai_cache ("
+    " cache_key VARCHAR(255) NOT NULL PRIMARY KEY,"
+    " kind VARCHAR(24) NOT NULL,"
+    " model VARCHAR(64) DEFAULT NULL,"
+    " payload MEDIUMTEXT NOT NULL,"
+    " created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+    " ON UPDATE CURRENT_TIMESTAMP) DEFAULT CHARSET=utf8mb4"
+)
+
+
+def _ai_cache_get(key):
+    """读持久化缓存；表不存在或数据库异常时静默返回 None（缓存不是主链路）。"""
+    try:
+        db = get_db()
+        with db.cursor() as cur:
+            cur.execute("SELECT payload FROM dim_ai_cache WHERE cache_key=%s", (key,))
+            row = cur.fetchone()
+        return _json.loads(row["payload"]) if row else None
+    except Exception:
+        return None
+
+
+def _ai_cache_put(key, kind, payload):
+    """写持久化缓存；失败不影响本次返回结果。"""
+    try:
+        db = get_db()
+        with db.cursor() as cur:
+            cur.execute(_AI_CACHE_DDL)
+            cur.execute(
+                "INSERT INTO dim_ai_cache (cache_key, kind, model, payload) "
+                "VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE "
+                "payload=VALUES(payload), model=VALUES(model)",
+                (key, kind, AI_MODEL, _json.dumps(payload, ensure_ascii=False)))
+        db.commit()
+    except Exception:
+        pass
+
+
+def _llm_chat(messages, timeout=None, temperature=0):
+    """调用 OpenAI 兼容的 /chat/completions，返回助手正文。
+
+    Agnes 是推理模型，思维链在 reasoning_content、正文在 content，取后者。
+    免费额度实测约 1 次/30~40 秒：命中 429 时短暂退避重试，仍失败则抛
+    LLMRateLimited，由调用方给出明确提示（而不是含糊的"服务异常"）。
+    """
+    payload = _json.dumps({
+        "model": AI_MODEL, "messages": messages, "temperature": temperature,
+    }, ensure_ascii=False).encode("utf-8")
+    # 免费额度窗口实测约 30~40 秒，短退避重试等不到窗口恢复，
+    # 故只做一次极短重试后快速失败并明确告知——不把用户挂在「导诊中…」干等。
+    # 真正的解法是预热缓存（/api/ai/warm，见 etl/warm_ai_cache.py）。
+    backoff = [2.0]
+    for attempt in range(len(backoff) + 1):
+        req = urllib.request.Request(
+            AI_API_BASE + "/chat/completions", data=payload,
+            headers={"Content-Type": "application/json",
+                     "Authorization": "Bearer " + AI_API_KEY})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout or AI_TIMEOUT) as resp:
+                data = _json.loads(resp.read().decode("utf-8"))
+            return (data["choices"][0]["message"].get("content") or "").strip()
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                if attempt < len(backoff):
+                    time.sleep(backoff[attempt])
+                    continue
+                raise LLMRateLimited("Agnes 免费额度限流（429）")
+            if e.code in (500, 502, 503, 504) and attempt < len(backoff):
+                time.sleep(backoff[attempt])
+                continue
+            raise
+
+
+def _llm_json(prompt, kind, q, timeout=None):
+    """要求模型只输出 JSON，按「内存 → MySQL → 接口」三级读取并回写缓存。
+
+    容忍模型用代码块围栏包裹 JSON，或前后带解释性客套话。
+    """
+    ck = AI_MODEL + "|" + kind + "|" + q
+    if ck in _LLM_CACHE:
+        return _LLM_CACHE[ck]
+    cached = _ai_cache_get(ck)
+    if cached is not None:
+        _LLM_CACHE[ck] = cached
+        return cached
+    txt = _llm_chat([{"role": "user", "content": prompt}], timeout=timeout)
+    a, b = txt.find("{"), txt.rfind("}")
+    if a < 0 or b <= a:
+        raise ValueError("模型未返回 JSON：" + txt[:80])
+    out = _json.loads(txt[a:b + 1])
+    if len(_LLM_CACHE) >= _LLM_CACHE_MAX:
+        _LLM_CACHE.clear()
+    _LLM_CACHE[ck] = out
+    _ai_cache_put(ck, kind, out)
+    return out
 
 STD_DEPTS = ("心血管内科 呼吸内科 消化内科 神经内科 肾内科 内分泌科 血液内科 老年病科 普内科 "
              "全科医疗科 普通外科 骨科 神经外科 心胸外科 泌尿外科 肛肠外科 妇产科 儿科 肿瘤科 "
@@ -349,38 +486,93 @@ AI_PARSE_PROMPT = (
 )
 
 
+@app.route("/api/ai/health")
+def api_ai_health():
+    """大模型探活：前端据此决定是否开启兜底（离线单文件永不调用）。
+
+    默认不发起真实推理（避免拖慢首屏）；加 ?probe=1 才做一次真实连通性测试。
+    """
+    enabled = bool(AI_LLM_ENABLED and AI_API_KEY)
+    out = {
+        "ok": True,
+        "llm_enabled": enabled,
+        "model": AI_MODEL if enabled else None,
+        "base": AI_API_BASE if enabled else None,
+    }
+    if request.args.get("probe") == "1" and enabled:
+        try:
+            _llm_chat([{"role": "user", "content": "回复 ok"}], timeout=AI_TIMEOUT)
+            out["probe"] = "ok"
+        except Exception as e:
+            out["probe"] = "fail"
+            out["detail"] = str(e)[:120]
+    return jsonify(out)
+
+
 @app.route("/api/ai/parse")
 def api_ai_parse():
     q = (request.args.get("q") or "").strip()
     if not q:
         return jsonify({"ok": False, "reason": "empty"})
-    if not (AI_LLM_ENABLED and AI_API_BASE and AI_API_KEY):
+    if not (AI_LLM_ENABLED and AI_API_KEY):
         return jsonify({
             "ok": False, "reason": "llm_disabled",
-            "hint": "未启用大模型兜底（这是默认状态）。前端规则引擎可独立完成解析，"
-                    "如需启用请设置 AI_LLM_ENABLED=1 及 AI_API_BASE/AI_API_KEY/AI_MODEL。",
+            "hint": "大模型兜底未启用。前端规则引擎可独立完成解析（离线可用）；"
+                    "如需启用请在 data/.ai_key.txt 放置密钥或设置 AI_API_KEY。",
         })
-    import json as _json
-    import urllib.request
-
-    payload = _json.dumps({
-        "model": AI_MODEL,
-        "messages": [{"role": "user", "content": AI_PARSE_PROMPT + q}],
-        "temperature": 0,
-    }, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(
-        AI_API_BASE + "/chat/completions", data=payload,
-        headers={"Content-Type": "application/json",
-                 "Authorization": "Bearer " + AI_API_KEY},
-    )
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = _json.loads(resp.read().decode("utf-8"))
-        content = data["choices"][0]["message"]["content"]
-        cond = _json.loads(content[content.find("{"):content.rfind("}") + 1])
-        return jsonify({"ok": True, "engine": "llm", "conditions": cond})
+        cond = _llm_json(AI_PARSE_PROMPT + q, "parse", q)
+        return jsonify({"ok": True, "engine": "llm", "model": AI_MODEL,
+                        "conditions": cond})
+    except LLMRateLimited:
+        return jsonify({"ok": False, "reason": "llm_rate_limited",
+                        "hint": "Agnes 免费额度限流（约 1 次/30 秒），稍后重试即可；"
+                                "前端规则引擎不受影响，仍可离线解析。"})
     except Exception as e:  # 兜底绝不影响主流程
-        return jsonify({"ok": False, "reason": "llm_error", "detail": str(e)})
+        return jsonify({"ok": False, "reason": "llm_error", "detail": str(e)[:200]})
+
+
+@app.route("/api/ai/warm")
+def api_ai_warm():
+    """预热大模型缓存：演示/答辩前跑一次，把常用问法固化到缓存，现场零等待。
+
+    用法：/api/ai/warm?queries=手抖还瘦了很多|眼睛干涩发痒&kind=triage
+    免费额度约 1 次/30 秒，故每次调用间自动 sleep，避免连续 429。
+    返回每个问法的预热结果（ok / cached / rate_limited）。
+    """
+    raw = (request.args.get("queries") or "").strip()
+    kind = (request.args.get("kind") or "triage").strip()
+    if not raw:
+        return jsonify({"ok": False, "reason": "empty"})
+    if not (AI_LLM_ENABLED and AI_API_KEY):
+        return jsonify({"ok": False, "reason": "llm_disabled"})
+    queries = [x.strip() for x in raw.split("|") if x.strip()][:20]
+    local_pairs = load_triage_map()
+    out = []
+    for i, q in enumerate(queries):
+        ck = AI_MODEL + "|" + kind + "|" + q
+        if ck in _LLM_CACHE or _ai_cache_get(ck) is not None:
+            out.append({"q": q, "status": "cached"})
+            continue
+        # 本地知识库已能命中的问法不必消耗额度（现场本来就走的离线链路）
+        if kind == "triage" and any(kw and kw in q for kw, _d, _w, _e in local_pairs):
+            out.append({"q": q, "status": "skipped_local"})
+            continue
+        if i:                       # 免费额度约 1 次/30 秒，串行预热必须留足间隔
+            time.sleep(30)
+        try:
+            if kind == "triage":
+                wl = _dept_whitelist()
+                picked, note = _llm_map_dept(q, wl)
+                out.append({"q": q, "status": "ok", "depts": picked, "note": note})
+            else:
+                cond = _llm_json(AI_PARSE_PROMPT + q, "parse", q)
+                out.append({"q": q, "status": "ok", "conditions": cond})
+        except LLMRateLimited:
+            out.append({"q": q, "status": "rate_limited"})
+        except Exception as e:
+            out.append({"q": q, "status": "error", "detail": str(e)[:120]})
+    return jsonify({"ok": True, "kind": kind, "total": len(queries), "results": out})
 
 
 # ============== 智能导诊（疾病/症状 → 科室 → 医院）==============
@@ -425,6 +617,43 @@ def haversine(lng1, lat1, lng2, lat2):
     return 2 * 6371.0 * math.asin(min(1.0, math.sqrt(a)))
 
 
+def _dept_whitelist():
+    """取库里真实存在的标准科室名，作为大模型的候选约束。
+
+    必须用真实取值而非写死清单：若模型返回库里没有的科室（如"神经外科"），
+    join 结果会是 0 家，用户会误以为系统坏了。实测库中为 29 个科室。
+    """
+    db = get_db()
+    with db.cursor() as cur:
+        cur.execute("SELECT DISTINCT dept_name FROM dwd_dept_relation_clean")
+        return sorted(r["dept_name"] for r in cur.fetchall() if r["dept_name"])
+
+
+TRIAGE_LLM_RULES = (
+    "你是北京市就医导诊助手。请把用户口语化的病情/症状，映射到【标准科室清单】中"
+    "最相关的一个或多个科室。\n"
+    "硬性要求：\n"
+    "① 科室名只能从清单中原样选取，不得改写、不得自创、不得返回清单外名称；\n"
+    "② 最多 3 个科室，按相关度从高到低排列；\n"
+    "③ 属急危重症（胸痛、卒中、大出血、昏迷、呼吸困难、严重外伤、抽搐等）时，"
+    "必须包含\"急诊科\"；\n"
+    "④ 只输出 JSON 本体，格式 {\"depts\": [\"科室名\"], \"reason\": \"一句话依据\"}，"
+    "不要解释、不要代码块；无法判断时 depts 返回空数组。\n"
+    "【标准科室清单】"
+)
+
+
+def _llm_map_dept(q, whitelist, timeout=None):
+    """大模型兜底：口语病情 → 标准科室。返回 (科室列表, 依据)。"""
+    prompt = TRIAGE_LLM_RULES + "、".join(whitelist) + "\n用户描述："
+    out = _llm_json(prompt + q, "triage", q, timeout=timeout)
+    depts = out.get("depts") or []
+    if isinstance(depts, str):
+        depts = [depts]
+    picked = [d for d in depts if isinstance(d, str) and d in whitelist]
+    return picked, str(out.get("reason") or "")
+
+
 @app.route("/api/triage")
 def api_triage():
     """智能导诊：输入病情/疾病文本，推荐具备对应科室的医院。
@@ -459,10 +688,31 @@ def api_triage():
         if dept in q and dept not in matched:
             matched[dept] = (w, emg)
 
+    # 1.5) 本地知识库零命中 → 大模型兜底（用 AI_LLM_ENABLED=0 或 &llm=0 可强制关闭）
+    engine, ai_note, llm_attempted = "local", "", False
+    if (not matched) and request.args.get("llm", "auto") != "0" \
+            and AI_LLM_ENABLED and AI_API_KEY:
+        llm_attempted = True
+        try:
+            wl = _dept_whitelist()
+            picked, ai_note = _llm_map_dept(q, wl)
+            for d in picked:
+                if d not in matched:
+                    # 知识库未收录的口语病情，权重给 0.8（低于精确词条，高于模糊词条）
+                    matched[d] = (0.8, d == "急诊科")
+            if matched:
+                engine = "llm"
+        except LLMRateLimited:
+            ai_note = "Agnes 免费额度限流，稍后重试即可（本地知识库不受影响）"
+        except Exception as e:
+            ai_note = "大模型兜底未生效：" + str(e)[:80]
+
     if not matched:
         return jsonify({
             "ok": False, "reason": "no_match",
-            "hint": "未匹配到对应科室，可尝试更具体的症状或疾病名",
+            "llm_attempted": llm_attempted,
+            "llm_note": ai_note,
+            "hint": "本地知识库与大模型均未匹配到科室，请换个说法或补充更具体的症状",
             "examples": ["头痛", "骨折", "高血压", "咳嗽", "儿童发烧", "孕检", "牙痛"],
         })
 
@@ -536,8 +786,12 @@ def api_triage():
     return jsonify({
         "ok": True,
         "query": q,
+        "engine": engine,
+        "model": AI_MODEL if engine == "llm" else None,
+        "ai_note": ai_note,
         "matched_depts": [
-            {"dept": d, "weight": matched[d][0], "emergency": bool(matched[d][1])}
+            {"dept": d, "weight": matched[d][0], "emergency": bool(matched[d][1]),
+             "source": engine}
             for d in dept_list
         ],
         "count": len(results),

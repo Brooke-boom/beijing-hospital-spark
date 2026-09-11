@@ -113,13 +113,22 @@ function runTriage() {
     }
     if (!j.ok) {
       const ex = (j.examples || []).map(x => '<span class="chip">' + x + '</span>').join('');
-      if (echo) { echo.className = 'ai-echo'; echo.innerHTML = '<span class="warn">' + (j.hint || '未匹配') + '</span><br>' + ex; }
+      // 若已尝试 AI 兜底仍无果，如实告知，避免用户以为系统没反应
+      const aiTry = j.llm_attempted
+        ? '<br><span style="color:#6b7a99">已尝试 AI 兜底' + (j.llm_note ? '：' + escHtml(j.llm_note) : '') + '</span>'
+        : '';
+      if (echo) { echo.className = 'ai-echo'; echo.innerHTML = '<span class="warn">' + (j.hint || '未匹配') + '</span>' + aiTry + '<br>' + ex; }
       if (res) res.innerHTML = '<div class="triage-empty">未匹配到对应科室，换更具体的症状试试</div>';
       return;
     }
     const chips = j.matched_depts.map(d =>
       '<span class="chip' + (d.emergency ? ' emg' : '') + '">' + d.dept + (d.emergency ? ' · 急诊' : '') + '</span>').join('');
-    if (echo) { echo.className = 'ai-echo'; echo.innerHTML = '病情「' + escHtml(j.query) + '」对应科室：' + chips; }
+    // 标注解析来源：AI 兜底 vs 本地知识库（答辩时可一眼说明走的是哪条链路）
+    const engineTag = (j.engine === 'llm')
+      ? '<span class="chip ai">🧠 AI 理解</span>'
+        + (j.ai_note ? '<span class="chip engine">' + escHtml(j.ai_note) + '</span>' : '')
+      : '<span class="chip engine">本地知识库</span>';
+    if (echo) { echo.className = 'ai-echo'; echo.innerHTML = engineTag + '病情「' + escHtml(j.query) + '」对应科室：' + chips; }
     if (!j.hospitals.length) { if (res) res.innerHTML = '<div class="triage-empty">暂无具备该科室的匹配机构</div>'; return; }
     if (res) res.innerHTML = j.hospitals.map(h => {
       const dchs = (h.matched_depts || []).map(d =>
@@ -164,8 +173,10 @@ function init() {
 
     bindEvents();
     initTriage();
-    initCharts();     // 必须先初始化图表实例
-    applyFilter();    // 再筛选并更新图表
+    initCharts();        // 必须先初始化图表实例
+    initAnalyticsCharts(); // 初始化多维分析图表（含隐藏视图）
+    initNav();           // 导航栏视图切换
+    applyFilter();       // 再筛选并更新图表
   } catch (e) {
     console.error('[init] 初始化失败:', e);
     setMapDiag('err', '初始化失败: ' + (e.message || e) + '<br>请打开浏览器 Console 查看详细错误');
@@ -593,6 +604,7 @@ function applyFilter() {
   renderCards();
   renderList();
   updateCharts();
+  updateAnalyticsCharts();   // 多维分析视图随筛选联动
 }
 
 // ========== 6. 统计卡 ==========
@@ -868,6 +880,154 @@ function updateCharts() {
   } catch (e) {
     console.error('[updateCharts] 散点更新失败:', e);
   }
+}
+
+// ========== 10.5 多维分析图表（随 7 维筛选联动）==========
+let CH_OWN, CH_FEAT, CH_NET, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD;
+
+function grp(arr, key) { const m = {}; arr.forEach(r => { const k = key(r); m[k] = (m[k]||0)+1; }); return m; }
+function pct(a, b) { return b ? (a/b*100).toFixed(1) + '%' : '0%'; }
+function setText(id, v) { const e = document.getElementById(id); if (e) e.textContent = v; }
+function lvGroup(l) { return (['三级','二级','一级','未定级'].indexOf(l) >= 0) ? l : '不适用'; }
+function trName(n, max) { max = max || 12; return n.length > max ? n.slice(0, max) + '…' : n; }
+
+function pieOpt(data, name) {
+  return {
+    tooltip:{trigger:'item', formatter:'{b}: {c} ({d}%)', backgroundColor:'#0b1530', borderColor:EDGE, textStyle:{color:INK}},
+    legend:{bottom:0, textStyle:{color:INK, fontSize:11}},
+    series:[{type:'pie', radius:['40%','68%'], center:['50%','44%'],
+      data: data.map(d => ({name:d[0], value:d[1], itemStyle:{color:d[2]}})),
+      label:{color:INK, fontSize:11}, labelLine:{lineStyle:{color:SUB}},
+      itemStyle:{borderColor:PANEL, borderWidth:2}}]
+  };
+}
+function barHOpt(pairs, colors) {
+  const cols = Array.isArray(colors) ? colors : pairs.map(() => colors);
+  return {
+    grid:{left:118, right:26, top:8, bottom:18},
+    tooltip:{trigger:'axis', axisPointer:{type:'shadow'}, backgroundColor:'#0b1530', borderColor:EDGE, textStyle:{color:INK}},
+    xAxis:{type:'value', axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:SUB, fontSize:10}},
+    yAxis:{type:'category', data:pairs.map(p => p[0]), axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:INK, fontSize:10}},
+    series:[{type:'bar', data:pairs.map((p,i) => ({value:p[1], itemStyle:{color:cols[i]||ACC}})),
+      label:{show:true, position:'right', color:INK, fontSize:10}, itemStyle:{borderRadius:[0,3,3,0]}}]
+  };
+}
+function stackOpt(cats, series) {
+  return {
+    tooltip:{trigger:'axis', axisPointer:{type:'shadow'}, backgroundColor:'#0b1530', borderColor:EDGE, textStyle:{color:INK}},
+    legend:{bottom:0, textStyle:{color:INK, fontSize:10}},
+    grid:{left:58, right:18, top:8, bottom:38},
+    xAxis:{type:'category', data:cats, axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:INK, fontSize:9, rotate: cats.length>10 ? 35 : 0}},
+    yAxis:{type:'value', axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:SUB, fontSize:10}},
+    series: series
+  };
+}
+
+function initAnalyticsCharts() {
+  const mk = id => { const el = document.getElementById(id); return el ? echarts.init(el) : null; };
+  CH_OWN = mk('ch_own'); CH_FEAT = mk('ch_feat'); CH_NET = mk('ch_net');
+  CH_LVOWN = mk('ch_lvown'); CH_TOPSP = mk('ch_topsp'); CH_DEPTOP = mk('ch_deptop');
+  CH_DISTLV = mk('ch_distlv'); CH_COORD = mk('ch_coord');
+  window.addEventListener('resize', () => {
+    [CH_OWN,CH_FEAT,CH_NET,CH_LVOWN,CH_TOPSP,CH_DEPTOP,CH_DISTLV,CH_COORD].forEach(c => c && c.resize());
+  });
+}
+
+function updateAnalyticsCharts() {
+  if (!CH_OWN) return;            // 图表尚未初始化
+  const F = FILTERED;
+  const tot = F.length || 1;
+  // KPI
+  const pub = F.filter(r => r.ownership === '公立').length;
+  const l3  = F.filter(r => r.level === '三级').length;
+  const feat1 = F.filter(r => (r.feature_level||'') === '1').length;
+  const net = F.filter(r => (r.net_pediatric==='核心'||r.net_pediatric==='成员') || r.net_stroke==='1' || r.net_neonatal==='市级' || r.net_maternal==='市级').length;
+  setText('ak_pub', pct(pub, tot));
+  setText('ak_l3', pct(l3, tot));
+  setText('ak_feat', feat1.toLocaleString());
+  setText('ak_net', net.toLocaleString());
+
+  // 1 办别分布
+  const own = grp(F, r => r.ownership || '未标注');
+  CH_OWN.setOption(pieOpt([
+    ['公立', own['公立']||0, '#5fd3c0'],
+    ['民营', own['民营']||0, '#f7b955'],
+    ['未标注', own['未标注']||0, '#8aa1c8']], '办别'));
+
+  // 2 重点专科分级（feature_level：1重点/2优势/3诊疗）
+  const fl = {L1:0, L2:0, L3:0, none:0};
+  F.forEach(r => { const v = r.feature_level;
+    if (v === '1') fl.L1++; else if (v === '2') fl.L2++; else if (v === '3') fl.L3++; else fl.none++; });
+  CH_FEAT.setOption(barHOpt([
+    ['重点专科 L1', fl.L1], ['优势科室 L2', fl.L2], ['诊疗科室 L3', fl.L3], ['无分级', fl.none]],
+    ['#ff6b6b','#f7b955','#3aa0ff','#8aa1c8']));
+
+  // 3 协作网络覆盖
+  const np = F.filter(r => r.net_pediatric === '核心').length;
+  const nm = F.filter(r => r.net_pediatric === '成员').length;
+  const ns = F.filter(r => r.net_stroke === '1').length;
+  const nn = F.filter(r => r.net_neonatal === '市级').length;
+  const mm = F.filter(r => r.net_maternal === '市级').length;
+  CH_NET.setOption(barHOpt([
+    ['儿科医联体·核心', np], ['儿科医联体·成员', nm], ['卒中中心', ns],
+    ['危重新生儿', nn], ['危重孕产妇', mm]],
+    ['#a78bfa','#6d5bd0','#ff6b6b','#5fd3c0','#3aa0ff']));
+
+  // 4 等级 × 办别 堆叠
+  const levels = ['三级','二级','一级','未定级'];
+  const owns = ['公立','民营','未标注'];
+  const lvOwn = owns.map(o => ({
+    name:o, type:'bar', stack:'t', emphasis:{focus:'series'},
+    itemStyle:{color: o==='公立' ? '#5fd3c0' : o==='民营' ? '#f7b955' : '#8aa1c8'},
+    data: levels.map(l => F.filter(r => r.level === l && (r.ownership||'未标注') === o).length)
+  }));
+  CH_LVOWN.setOption(stackOpt(levels, lvOwn));
+
+  // 5 专科能力 TOP10（key_specialty_count）
+  const top = F.filter(r => (r.key_specialty_count||0) > 0)
+    .sort((a,b) => b.key_specialty_count - a.key_specialty_count).slice(0, 10).reverse();
+  CH_TOPSP.setOption(barHOpt(
+    top.map(r => [trName(r.name, 12), r.key_specialty_count]), ['#ff6b6b']));
+
+  // 6 区域 × 等级 堆叠
+  const dists = (DATA.meta.districts || []).map(d => d.district);
+  const lvGroups = [['三级','#ff6b6b'],['二级','#f7b955'],['一级','#3aa0ff'],['未定级','#a78bfa'],['不适用','#8aa1c8']];
+  const distStack = lvGroups.map(g => ({
+    name:g[0], type:'bar', stack:'d', emphasis:{focus:'series'}, itemStyle:{color:g[1]},
+    data: dists.map(dn => F.filter(r => r.district === dn && lvGroup(r.level) === g[0]).length)
+  }));
+  CH_DISTLV.setOption(stackOpt(dists, distStack));
+
+  // 7 坐标精度（数据质量）
+  const cp = grp(F, r => r.coord_precision || 'missing');
+  CH_COORD.setOption(pieOpt([
+    ['高精度', cp['high']||0, '#5fd3c0'],
+    ['粗略', cp['rough']||0, '#f7b955'],
+    ['缺失', cp['missing']||0, '#ff6b6b']], '坐标精度'));
+
+  // 8 科室覆盖 TOP15（feature + key_depts 拼接拆分）
+  const dc = {};
+  F.forEach(r => {
+    const txt = (r.feature||'') + ';' + (r.key_depts||'');
+    txt.split(';').forEach(x => { x = x.trim(); if (x) dc[x] = (dc[x]||0) + 1; });
+  });
+  const topDepts = Object.entries(dc).sort((a,b) => b[1]-a[1]).slice(0, 15).reverse();
+  CH_DEPTOP.setOption(barHOpt(topDepts.map(p => [trName(p[0], 12), p[1]]), '#3aa0ff'));
+}
+
+function initNav() {
+  const tabs = document.querySelectorAll('.navtab');
+  const views = document.querySelectorAll('.view');
+  tabs.forEach(btn => btn.addEventListener('click', () => {
+    const v = btn.getAttribute('data-view');
+    tabs.forEach(b => b.classList.toggle('active', b === btn));
+    views.forEach(s => s.classList.toggle('active', s.id === 'view-' + v));
+    // 隐藏容器尺寸为 0，切换后需重算尺寸
+    setTimeout(() => {
+      [CH1,CH2,CH3,CH_OWN,CH_FEAT,CH_NET,CH_LVOWN,CH_TOPSP,CH_DEPTOP,CH_DISTLV,CH_COORD,MAP_CHART]
+        .forEach(c => { if (c) { try { c.resize(); } catch(e) {} } });
+    }, 40);
+  }));
 }
 
 // ========== 11. 详情弹窗 ==========

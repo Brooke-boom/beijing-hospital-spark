@@ -9,10 +9,20 @@
 <title>北京市医院医疗资源整合与多维筛选可视化系统</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
 <script>
-  /* 大模型兜底开关：默认 false（规则引擎解析，完全离线可用）。
-     如需启用：后端设 AI_LLM_ENABLED=1 及 AI_API_BASE/AI_API_KEY/AI_MODEL，再把这里改为 true。
-     规则引擎零命中时才会调用大模型，调用失败自动回退，绝不影响主流程。*/
+  /* 大模型兜底开关：默认关闭。前端规则引擎与本地疾病-科室知识库完全离线可用，
+     这是答辩的主路径；大模型只在本地零命中时兜底。
+     页面由 Flask 提供服务时，运行期自动探活 /api/ai/health，成功才开启；
+     离线单文件（file://）与在线静态版永不发起网络请求，绝不影响演示。*/
   window.__AI_LLM_ON__ = false;
+  (function () {
+    try {
+      if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+      fetch('/api/ai/health', { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) { if (j && j.llm_enabled) window.__AI_LLM_ON__ = true; })
+        .catch(function () {});
+    } catch (e) { /* 探活失败保持关闭，不影响任何主流程 */ }
+  })();
 </script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
@@ -102,7 +112,25 @@
   #map_diag.err{color:#ff9b9b;border-color:#ff6b6b;background:rgba(60,20,20,0.92)}
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;padding:0 32px 18px}
   .panel.sm{height:240px}
-  #ch1,#ch2,#ch3,#ch4,#ch5{width:100%;height:100%}
+  #ch1,#ch2,#ch3,#ch4,#ch5,#ch_own,#ch_feat,#ch_net,#ch_lvown,#ch_topsp,#ch_deptop,#ch_distlv,#ch_coord{width:100%;height:100%}
+  /* 顶部导航栏（视图切换） */
+  .navbar{display:flex;align-items:center;gap:8px;padding:10px 32px;background:#0e1a36;border-bottom:1px solid #1f3a68;position:sticky;top:0;z-index:50}
+  .navtab{background:#14213d;border:1px solid #1f3a68;color:#8aa1c8;padding:8px 18px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s;display:flex;align-items:center;gap:6px}
+  .navtab:hover{color:#e8eefc;border-color:#3aa0ff}
+  .navtab.active{background:linear-gradient(90deg,#3aa0ff,#2680d8);color:#fff;border-color:#3aa0ff;box-shadow:0 0 0 3px #3aa0ff22}
+  .navspacer{flex:1}
+  .navnote{color:#8aa1c8;font-size:11px}
+  .view{display:none}
+  .view.active{display:block;animation:vf .25s ease}
+  @keyframes vf{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  /* 多维分析视图 */
+  .akpi{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:14px 32px 0}
+  .akpi .card .v{font-size:26px}
+  .agrid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;padding:14px 32px 18px}
+  .apanel{background:#14213d;border:1px solid #1f3a68;border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;height:300px;min-width:0}
+  .apanel h3{font-size:13px;color:#e8eefc;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
+  .apanel h3 .tag{color:#8aa1c8;font-size:10px;font-weight:700;letter-spacing:1px}
+  .apanel .achart{flex:1;width:100%;min-height:0}
   .footer{padding:14px 32px;color:#8aa1c8;font-size:11px;border-top:1px solid #1f3a68;text-align:center}
   .footer code{background:#1f3a68;padding:2px 6px;border-radius:3px;color:#3aa0ff}
   /* 详情弹窗 */
@@ -141,6 +169,8 @@
   .ai-echo .chip{display:inline-block;background:#1f3a68;color:#a78bfa;padding:2px 8px;border-radius:10px;font-size:11px;margin:0 4px 4px 0}
   .ai-echo .warn{color:#f7b955}
   .ai-echo .hit{color:#5fd3c0}
+  .ai-echo .chip.ai{background:#1d4a44;color:#5fd3c0;border:1px solid #5fd3c055;font-weight:600}
+  .ai-echo .engine{background:#1f3a68;color:#8aa1c8;border:1px solid #2a4a7855}
   .triagebar{background:#14213d;border:1px solid #1f3a68;border-radius:8px;padding:14px 16px;margin:14px 32px 0;border-left:4px solid #a78bfa}
   .triagebar h3{font-size:13px;color:#a78bfa;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
   .triagebar h3 .right{color:#8aa1c8;font-weight:normal;font-size:11px}
@@ -175,6 +205,17 @@
   </div>
 </div>
 
+<!-- 顶部导航栏：视图切换 -->
+<nav class="navbar" id="navbar">
+  <button class="navtab active" data-view="overview">📊 综合看板</button>
+  <button class="navtab" data-view="analytics">📈 多维分析</button>
+  <button class="navtab" data-view="triage">🩺 智能导诊</button>
+  <span class="navspacer"></span>
+  <span class="navnote">7 维筛选全局联动 · 所有图表随筛选实时刷新</span>
+</nav>
+
+<!-- 综合看板视图 -->
+<section id="view-overview" class="view active">
 <div class="main" id="cards">
   <div class="card"><div class="l">CURRENT · 筛选后</div><div class="v" id="v_match">0</div><div class="s">符合当前条件</div></div>
   <div class="card c2"><div class="l">LEVEL 3 · 三级</div><div class="v" id="v_l3">0</div><div class="s">筛选结果中的三级</div></div>
@@ -235,26 +276,7 @@
   </div>
 </div>
 
-<div class="triagebar" id="triagebar">
-    <h3>智能导诊 <span class="right">输入病情 / 疾病名称 → 推荐对应科室的医院 · 离线知识库 · 零依赖</span></h3>
-    <div class="nlqbar">
-      <div class="nlq-in">
-        <span class="nlq-badge" style="background:#a78bfa">导诊</span>
-        <input id="f_triage" placeholder="如：头痛伴呕吐 / 骨折 / 高血压复诊 / 儿童反复发烧 / 孕早期产检">
-        <button id="btn_triage" type="button">智能导诊</button>
-        <button id="btn_triage_clear" type="button" class="gray">清空</button>
-      </div>
-      <div id="triage_echo" class="ai-echo"></div>
-    </div>
-    <div class="triage-opts">
-      <select id="t_district"><option value="">全部区域</option></select>
-      <select id="t_level"><option value="">全部等级</option></select>
-      <select id="t_topn"><option value="10">Top 10</option><option value="20">Top 20</option></select>
-      <label class="t-geocbx"><input type="checkbox" id="t_use_geo"> 用我的位置排序</label>
-      <span class="t-hint" id="triage_hint"></span>
-    </div>
-    <div id="triage_result" class="triage-result"></div>
-  </div>
+<!-- 智能导诊已移至独立视图（view-triage） -->
 
 <div class="grid2">
   <div class="panel">
@@ -290,6 +312,51 @@
   <div class="panel sm"><h3>类型分布 <span class="tag">CATEGORIES</span></h3><div id="ch2"></div></div>
   <div class="panel sm"><h3>各区机构数 <span class="tag">DISTRICTS</span></h3><div id="ch3"></div></div>
 </div>
+</section>
+
+<!-- 多维分析视图 -->
+<section id="view-analytics" class="view">
+  <div class="akpi" id="cards2">
+    <div class="card"><div class="l">公立机构</div><div class="v" id="ak_pub">0</div><div class="s">占筛选结果比例</div></div>
+    <div class="card c2"><div class="l">三级医院</div><div class="v" id="ak_l3">0</div><div class="s">占筛选结果比例</div></div>
+    <div class="card c3"><div class="l">重点专科机构</div><div class="v" id="ak_feat">0</div><div class="s">含国家/市级重点专科</div></div>
+    <div class="card c4"><div class="l">协作网络覆盖</div><div class="v" id="ak_net">0</div><div class="s">任一市级协作网络</div></div>
+  </div>
+  <div class="agrid">
+    <div class="apanel"><h3>办别分布 <span class="tag">OWNERSHIP</span></h3><div class="achart" id="ch_own"></div></div>
+    <div class="apanel"><h3>重点专科分级 <span class="tag">FEATURE LEVEL</span></h3><div class="achart" id="ch_feat"></div></div>
+    <div class="apanel"><h3>协作网络覆盖 <span class="tag">NETWORKS</span></h3><div class="achart" id="ch_net"></div></div>
+    <div class="apanel"><h3>等级 × 办别 <span class="tag">LEVEL × OWNER</span></h3><div class="achart" id="ch_lvown"></div></div>
+    <div class="apanel"><h3>专科能力 TOP10 <span class="tag">KEY SPECIALTY</span></h3><div class="achart" id="ch_topsp"></div></div>
+    <div class="apanel"><h3>区域 × 等级 <span class="tag">DISTRICT × LEVEL</span></h3><div class="achart" id="ch_distlv"></div></div>
+    <div class="apanel"><h3>坐标精度（数据质量） <span class="tag">COORD PRECISION</span></h3><div class="achart" id="ch_coord"></div></div>
+    <div class="apanel"><h3>科室覆盖 TOP15 <span class="tag">DEPT COVERAGE</span></h3><div class="achart" id="ch_deptop"></div></div>
+  </div>
+</section>
+
+<!-- 智能导诊视图 -->
+<section id="view-triage" class="view">
+  <div class="triagebar" id="triagebar">
+    <h3>智能导诊 <span class="right">输入病情 / 疾病名称 → 推荐对应科室的医院 · 离线知识库 · 零依赖</span></h3>
+    <div class="nlqbar">
+      <div class="nlq-in">
+        <span class="nlq-badge" style="background:#a78bfa">导诊</span>
+        <input id="f_triage" placeholder="如：头痛伴呕吐 / 骨折 / 高血压复诊 / 儿童反复发烧 / 孕早期产检">
+        <button id="btn_triage" type="button">智能导诊</button>
+        <button id="btn_triage_clear" type="button" class="gray">清空</button>
+      </div>
+      <div id="triage_echo" class="ai-echo"></div>
+    </div>
+    <div class="triage-opts">
+      <select id="t_district"><option value="">全部区域</option></select>
+      <select id="t_level"><option value="">全部等级</option></select>
+      <select id="t_topn"><option value="10">Top 10</option><option value="20">Top 20</option></select>
+      <label class="t-geocbx"><input type="checkbox" id="t_use_geo"> 用我的位置排序</label>
+      <span class="t-hint" id="triage_hint"></span>
+    </div>
+    <div id="triage_result" class="triage-result"></div>
+  </div>
+</section>
 
 <div class="footer">
   <b>技术栈：</b>Spark 3.5.3 (ARM64) · MySQL 8 · Flask · ECharts · Docker Compose &nbsp;|&nbsp;
@@ -429,13 +496,22 @@ function runTriage() {
     }
     if (!j.ok) {
       const ex = (j.examples || []).map(x => '<span class="chip">' + x + '</span>').join('');
-      if (echo) { echo.className = 'ai-echo'; echo.innerHTML = '<span class="warn">' + (j.hint || '未匹配') + '</span><br>' + ex; }
+      // 若已尝试 AI 兜底仍无果，如实告知，避免用户以为系统没反应
+      const aiTry = j.llm_attempted
+        ? '<br><span style="color:#6b7a99">已尝试 AI 兜底' + (j.llm_note ? '：' + escHtml(j.llm_note) : '') + '</span>'
+        : '';
+      if (echo) { echo.className = 'ai-echo'; echo.innerHTML = '<span class="warn">' + (j.hint || '未匹配') + '</span>' + aiTry + '<br>' + ex; }
       if (res) res.innerHTML = '<div class="triage-empty">未匹配到对应科室，换更具体的症状试试</div>';
       return;
     }
     const chips = j.matched_depts.map(d =>
       '<span class="chip' + (d.emergency ? ' emg' : '') + '">' + d.dept + (d.emergency ? ' · 急诊' : '') + '</span>').join('');
-    if (echo) { echo.className = 'ai-echo'; echo.innerHTML = '病情「' + escHtml(j.query) + '」对应科室：' + chips; }
+    // 标注解析来源：AI 兜底 vs 本地知识库（答辩时可一眼说明走的是哪条链路）
+    const engineTag = (j.engine === 'llm')
+      ? '<span class="chip ai">🧠 AI 理解</span>'
+        + (j.ai_note ? '<span class="chip engine">' + escHtml(j.ai_note) + '</span>' : '')
+      : '<span class="chip engine">本地知识库</span>';
+    if (echo) { echo.className = 'ai-echo'; echo.innerHTML = engineTag + '病情「' + escHtml(j.query) + '」对应科室：' + chips; }
     if (!j.hospitals.length) { if (res) res.innerHTML = '<div class="triage-empty">暂无具备该科室的匹配机构</div>'; return; }
     if (res) res.innerHTML = j.hospitals.map(h => {
       const dchs = (h.matched_depts || []).map(d =>
@@ -480,8 +556,10 @@ function init() {
 
     bindEvents();
     initTriage();
-    initCharts();     // 必须先初始化图表实例
-    applyFilter();    // 再筛选并更新图表
+    initCharts();        // 必须先初始化图表实例
+    initAnalyticsCharts(); // 初始化多维分析图表（含隐藏视图）
+    initNav();           // 导航栏视图切换
+    applyFilter();       // 再筛选并更新图表
   } catch (e) {
     console.error('[init] 初始化失败:', e);
     setMapDiag('err', '初始化失败: ' + (e.message || e) + '<br>请打开浏览器 Console 查看详细错误');
@@ -909,6 +987,7 @@ function applyFilter() {
   renderCards();
   renderList();
   updateCharts();
+  updateAnalyticsCharts();   // 多维分析视图随筛选联动
 }
 
 // ========== 6. 统计卡 ==========
@@ -1184,6 +1263,154 @@ function updateCharts() {
   } catch (e) {
     console.error('[updateCharts] 散点更新失败:', e);
   }
+}
+
+// ========== 10.5 多维分析图表（随 7 维筛选联动）==========
+let CH_OWN, CH_FEAT, CH_NET, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD;
+
+function grp(arr, key) { const m = {}; arr.forEach(r => { const k = key(r); m[k] = (m[k]||0)+1; }); return m; }
+function pct(a, b) { return b ? (a/b*100).toFixed(1) + '%' : '0%'; }
+function setText(id, v) { const e = document.getElementById(id); if (e) e.textContent = v; }
+function lvGroup(l) { return (['三级','二级','一级','未定级'].indexOf(l) >= 0) ? l : '不适用'; }
+function trName(n, max) { max = max || 12; return n.length > max ? n.slice(0, max) + '…' : n; }
+
+function pieOpt(data, name) {
+  return {
+    tooltip:{trigger:'item', formatter:'{b}: {c} ({d}%)', backgroundColor:'#0b1530', borderColor:EDGE, textStyle:{color:INK}},
+    legend:{bottom:0, textStyle:{color:INK, fontSize:11}},
+    series:[{type:'pie', radius:['40%','68%'], center:['50%','44%'],
+      data: data.map(d => ({name:d[0], value:d[1], itemStyle:{color:d[2]}})),
+      label:{color:INK, fontSize:11}, labelLine:{lineStyle:{color:SUB}},
+      itemStyle:{borderColor:PANEL, borderWidth:2}}]
+  };
+}
+function barHOpt(pairs, colors) {
+  const cols = Array.isArray(colors) ? colors : pairs.map(() => colors);
+  return {
+    grid:{left:118, right:26, top:8, bottom:18},
+    tooltip:{trigger:'axis', axisPointer:{type:'shadow'}, backgroundColor:'#0b1530', borderColor:EDGE, textStyle:{color:INK}},
+    xAxis:{type:'value', axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:SUB, fontSize:10}},
+    yAxis:{type:'category', data:pairs.map(p => p[0]), axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:INK, fontSize:10}},
+    series:[{type:'bar', data:pairs.map((p,i) => ({value:p[1], itemStyle:{color:cols[i]||ACC}})),
+      label:{show:true, position:'right', color:INK, fontSize:10}, itemStyle:{borderRadius:[0,3,3,0]}}]
+  };
+}
+function stackOpt(cats, series) {
+  return {
+    tooltip:{trigger:'axis', axisPointer:{type:'shadow'}, backgroundColor:'#0b1530', borderColor:EDGE, textStyle:{color:INK}},
+    legend:{bottom:0, textStyle:{color:INK, fontSize:10}},
+    grid:{left:58, right:18, top:8, bottom:38},
+    xAxis:{type:'category', data:cats, axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:INK, fontSize:9, rotate: cats.length>10 ? 35 : 0}},
+    yAxis:{type:'value', axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:SUB, fontSize:10}},
+    series: series
+  };
+}
+
+function initAnalyticsCharts() {
+  const mk = id => { const el = document.getElementById(id); return el ? echarts.init(el) : null; };
+  CH_OWN = mk('ch_own'); CH_FEAT = mk('ch_feat'); CH_NET = mk('ch_net');
+  CH_LVOWN = mk('ch_lvown'); CH_TOPSP = mk('ch_topsp'); CH_DEPTOP = mk('ch_deptop');
+  CH_DISTLV = mk('ch_distlv'); CH_COORD = mk('ch_coord');
+  window.addEventListener('resize', () => {
+    [CH_OWN,CH_FEAT,CH_NET,CH_LVOWN,CH_TOPSP,CH_DEPTOP,CH_DISTLV,CH_COORD].forEach(c => c && c.resize());
+  });
+}
+
+function updateAnalyticsCharts() {
+  if (!CH_OWN) return;            // 图表尚未初始化
+  const F = FILTERED;
+  const tot = F.length || 1;
+  // KPI
+  const pub = F.filter(r => r.ownership === '公立').length;
+  const l3  = F.filter(r => r.level === '三级').length;
+  const feat1 = F.filter(r => (r.feature_level||'') === '1').length;
+  const net = F.filter(r => (r.net_pediatric==='核心'||r.net_pediatric==='成员') || r.net_stroke==='1' || r.net_neonatal==='市级' || r.net_maternal==='市级').length;
+  setText('ak_pub', pct(pub, tot));
+  setText('ak_l3', pct(l3, tot));
+  setText('ak_feat', feat1.toLocaleString());
+  setText('ak_net', net.toLocaleString());
+
+  // 1 办别分布
+  const own = grp(F, r => r.ownership || '未标注');
+  CH_OWN.setOption(pieOpt([
+    ['公立', own['公立']||0, '#5fd3c0'],
+    ['民营', own['民营']||0, '#f7b955'],
+    ['未标注', own['未标注']||0, '#8aa1c8']], '办别'));
+
+  // 2 重点专科分级（feature_level：1重点/2优势/3诊疗）
+  const fl = {L1:0, L2:0, L3:0, none:0};
+  F.forEach(r => { const v = r.feature_level;
+    if (v === '1') fl.L1++; else if (v === '2') fl.L2++; else if (v === '3') fl.L3++; else fl.none++; });
+  CH_FEAT.setOption(barHOpt([
+    ['重点专科 L1', fl.L1], ['优势科室 L2', fl.L2], ['诊疗科室 L3', fl.L3], ['无分级', fl.none]],
+    ['#ff6b6b','#f7b955','#3aa0ff','#8aa1c8']));
+
+  // 3 协作网络覆盖
+  const np = F.filter(r => r.net_pediatric === '核心').length;
+  const nm = F.filter(r => r.net_pediatric === '成员').length;
+  const ns = F.filter(r => r.net_stroke === '1').length;
+  const nn = F.filter(r => r.net_neonatal === '市级').length;
+  const mm = F.filter(r => r.net_maternal === '市级').length;
+  CH_NET.setOption(barHOpt([
+    ['儿科医联体·核心', np], ['儿科医联体·成员', nm], ['卒中中心', ns],
+    ['危重新生儿', nn], ['危重孕产妇', mm]],
+    ['#a78bfa','#6d5bd0','#ff6b6b','#5fd3c0','#3aa0ff']));
+
+  // 4 等级 × 办别 堆叠
+  const levels = ['三级','二级','一级','未定级'];
+  const owns = ['公立','民营','未标注'];
+  const lvOwn = owns.map(o => ({
+    name:o, type:'bar', stack:'t', emphasis:{focus:'series'},
+    itemStyle:{color: o==='公立' ? '#5fd3c0' : o==='民营' ? '#f7b955' : '#8aa1c8'},
+    data: levels.map(l => F.filter(r => r.level === l && (r.ownership||'未标注') === o).length)
+  }));
+  CH_LVOWN.setOption(stackOpt(levels, lvOwn));
+
+  // 5 专科能力 TOP10（key_specialty_count）
+  const top = F.filter(r => (r.key_specialty_count||0) > 0)
+    .sort((a,b) => b.key_specialty_count - a.key_specialty_count).slice(0, 10).reverse();
+  CH_TOPSP.setOption(barHOpt(
+    top.map(r => [trName(r.name, 12), r.key_specialty_count]), ['#ff6b6b']));
+
+  // 6 区域 × 等级 堆叠
+  const dists = (DATA.meta.districts || []).map(d => d.district);
+  const lvGroups = [['三级','#ff6b6b'],['二级','#f7b955'],['一级','#3aa0ff'],['未定级','#a78bfa'],['不适用','#8aa1c8']];
+  const distStack = lvGroups.map(g => ({
+    name:g[0], type:'bar', stack:'d', emphasis:{focus:'series'}, itemStyle:{color:g[1]},
+    data: dists.map(dn => F.filter(r => r.district === dn && lvGroup(r.level) === g[0]).length)
+  }));
+  CH_DISTLV.setOption(stackOpt(dists, distStack));
+
+  // 7 坐标精度（数据质量）
+  const cp = grp(F, r => r.coord_precision || 'missing');
+  CH_COORD.setOption(pieOpt([
+    ['高精度', cp['high']||0, '#5fd3c0'],
+    ['粗略', cp['rough']||0, '#f7b955'],
+    ['缺失', cp['missing']||0, '#ff6b6b']], '坐标精度'));
+
+  // 8 科室覆盖 TOP15（feature + key_depts 拼接拆分）
+  const dc = {};
+  F.forEach(r => {
+    const txt = (r.feature||'') + ';' + (r.key_depts||'');
+    txt.split(';').forEach(x => { x = x.trim(); if (x) dc[x] = (dc[x]||0) + 1; });
+  });
+  const topDepts = Object.entries(dc).sort((a,b) => b[1]-a[1]).slice(0, 15).reverse();
+  CH_DEPTOP.setOption(barHOpt(topDepts.map(p => [trName(p[0], 12), p[1]]), '#3aa0ff'));
+}
+
+function initNav() {
+  const tabs = document.querySelectorAll('.navtab');
+  const views = document.querySelectorAll('.view');
+  tabs.forEach(btn => btn.addEventListener('click', () => {
+    const v = btn.getAttribute('data-view');
+    tabs.forEach(b => b.classList.toggle('active', b === btn));
+    views.forEach(s => s.classList.toggle('active', s.id === 'view-' + v));
+    // 隐藏容器尺寸为 0，切换后需重算尺寸
+    setTimeout(() => {
+      [CH1,CH2,CH3,CH_OWN,CH_FEAT,CH_NET,CH_LVOWN,CH_TOPSP,CH_DEPTOP,CH_DISTLV,CH_COORD,MAP_CHART]
+        .forEach(c => { if (c) { try { c.resize(); } catch(e) {} } });
+    }, 40);
+  }));
 }
 
 // ========== 11. 详情弹窗 ==========

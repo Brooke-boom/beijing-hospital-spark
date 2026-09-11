@@ -1,5 +1,6 @@
 # 机密文件（严禁提交）
 data/.amap_key.txt
+data/.ai_key.txt
 *.key
 .env
 

@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
-<meta name="dashboard-version" content="v3.1-init-order-20260904">
+<html lang="zh-CN" data-page-node-id="HEHHzZcT5jg4QJNpiIhq97">
+<head data-page-node-id="TCFSsj5BP5UMfGCQrn5H88">
+<meta charset="UTF-8" data-page-node-id="DGXNdaLB9VvMd3F9nU7ayx">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" data-page-node-id="8cOviBHgmqAyYtc2fuWTvz">
+<meta http-equiv="Pragma" content="no-cache" data-page-node-id="HSV9MhbzbGr5zu3jvj3i0B">
+<meta http-equiv="Expires" content="0" data-page-node-id="JGcQ5Q65o3Qq1HPX3YvPuA">
+<meta name="dashboard-version" content="v3.1-init-order-20260904" data-page-node-id="0FHArrhb4eEPPMVPw0BSSC">
 <title>北京市医院医疗资源整合与多维筛选可视化系统 - 离线版</title>
 <script>
 /* ECharts 5.5.1 - inlined for offline use */
@@ -57,10 +57,20 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
 
 </script>
 <script>
-  /* 大模型兜底开关：默认 false（规则引擎解析，完全离线可用）。
-     如需启用：后端设 AI_LLM_ENABLED=1 及 AI_API_BASE/AI_API_KEY/AI_MODEL，再把这里改为 true。
-     规则引擎零命中时才会调用大模型，调用失败自动回退，绝不影响主流程。*/
+  /* 大模型兜底开关：默认关闭。前端规则引擎与本地疾病-科室知识库完全离线可用，
+     这是答辩的主路径；大模型只在本地零命中时兜底。
+     页面由 Flask 提供服务时，运行期自动探活 /api/ai/health，成功才开启；
+     离线单文件（file://）与在线静态版永不发起网络请求，绝不影响演示。*/
   window.__AI_LLM_ON__ = false;
+  (function () {
+    try {
+      if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+      fetch('/api/ai/health', { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) { if (j && j.llm_enabled) window.__AI_LLM_ON__ = true; })
+        .catch(function () {});
+    } catch (e) { /* 探活失败保持关闭，不影响任何主流程 */ }
+  })();
 </script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
@@ -150,7 +160,25 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
   #map_diag.err{color:#ff9b9b;border-color:#ff6b6b;background:rgba(60,20,20,0.92)}
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;padding:0 32px 18px}
   .panel.sm{height:240px}
-  #ch1,#ch2,#ch3,#ch4,#ch5{width:100%;height:100%}
+  #ch1,#ch2,#ch3,#ch4,#ch5,#ch_own,#ch_feat,#ch_net,#ch_lvown,#ch_topsp,#ch_deptop,#ch_distlv,#ch_coord{width:100%;height:100%}
+  /* 顶部导航栏（视图切换） */
+  .navbar{display:flex;align-items:center;gap:8px;padding:10px 32px;background:#0e1a36;border-bottom:1px solid #1f3a68;position:sticky;top:0;z-index:50}
+  .navtab{background:#14213d;border:1px solid #1f3a68;color:#8aa1c8;padding:8px 18px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s;display:flex;align-items:center;gap:6px}
+  .navtab:hover{color:#e8eefc;border-color:#3aa0ff}
+  .navtab.active{background:linear-gradient(90deg,#3aa0ff,#2680d8);color:#fff;border-color:#3aa0ff;box-shadow:0 0 0 3px #3aa0ff22}
+  .navspacer{flex:1}
+  .navnote{color:#8aa1c8;font-size:11px}
+  .view{display:none}
+  .view.active{display:block;animation:vf .25s ease}
+  @keyframes vf{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  /* 多维分析视图 */
+  .akpi{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:14px 32px 0}
+  .akpi .card .v{font-size:26px}
+  .agrid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;padding:14px 32px 18px}
+  .apanel{background:#14213d;border:1px solid #1f3a68;border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;height:300px;min-width:0}
+  .apanel h3{font-size:13px;color:#e8eefc;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
+  .apanel h3 .tag{color:#8aa1c8;font-size:10px;font-weight:700;letter-spacing:1px}
+  .apanel .achart{flex:1;width:100%;min-height:0}
   .footer{padding:14px 32px;color:#8aa1c8;font-size:11px;border-top:1px solid #1f3a68;text-align:center}
   .footer code{background:#1f3a68;padding:2px 6px;border-radius:3px;color:#3aa0ff}
   /* 详情弹窗 */
@@ -189,6 +217,8 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
   .ai-echo .chip{display:inline-block;background:#1f3a68;color:#a78bfa;padding:2px 8px;border-radius:10px;font-size:11px;margin:0 4px 4px 0}
   .ai-echo .warn{color:#f7b955}
   .ai-echo .hit{color:#5fd3c0}
+  .ai-echo .chip.ai{background:#1d4a44;color:#5fd3c0;border:1px solid #5fd3c055;font-weight:600}
+  .ai-echo .engine{background:#1f3a68;color:#8aa1c8;border:1px solid #2a4a7855}
   .triagebar{background:#14213d;border:1px solid #1f3a68;border-radius:8px;padding:14px 16px;margin:14px 32px 0;border-left:4px solid #a78bfa}
   .triagebar h3{font-size:13px;color:#a78bfa;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
   .triagebar h3 .right{color:#8aa1c8;font-weight:normal;font-size:11px}
@@ -209,154 +239,191 @@ var Fr={},Gr={};var Wr,Hr=function(){function t(t,e,n){var i=this;this._sleepAft
   .triage-empty{padding:24px;text-align:center;color:#8aa1c8;font-size:12px;grid-column:1/-1}
 </style>
 </head>
-<body>
-<div class="loading" id="loading"><span class="pulse"></span>正在加载数据快照（9789 家机构）…</div>
+<body data-page-node-id="fvjMdWkCRMmEonaJjMLYuU">
+<div class="loading" id="loading" data-page-node-id="acVmKsbdqIDsyxHQ8q7dpF"><span class="pulse" data-page-node-id="ng9Zud5Jpd1OdbHsPq0x5A"></span>正在加载数据快照（9789 家机构）…</div>
 
-<div class="header">
-  <div>
-    <h1>北京市医院医疗资源整合与多维筛选可视化系统</h1>
-    <div class="sub">Beijing Hospital Resource Integration &amp; Smart Filtering Dashboard</div>
+<div class="header" data-page-node-id="92y8jc3tlk94LVu8pgbV8h">
+  <div data-page-node-id="3FEeuUZOzazhyh59ScSSfG">
+    <h1 data-page-node-id="E1miRDBuYHP8KECRQQbNBT">北京市医院医疗资源整合与多维筛选可视化系统</h1>
+    <div class="sub" data-page-node-id="HAQ0BGkvrIE8REH7ywIFvU">Beijing Hospital Resource Integration &amp; Smart Filtering Dashboard</div>
   </div>
-  <div class="meta">
-    <div>数据快照 · <b id="m_total">—</b> 家机构</div>
-    <div>后端 MySQL + Spark 3.5.3 (ARM64) + Flask</div>
+  <div class="meta" data-page-node-id="ZLZuj9Bfhf4P3qFeb4f1Ea">
+    <div data-page-node-id="d8anfeDMHGSriQxUFc7fDs">数据快照 · <b id="m_total" data-page-node-id="VPRe34m39iDoksSXqzMuz6">—</b> 家机构</div>
+    <div data-page-node-id="JlDqXLAN1z2XprE6iVHF1Z">后端 MySQL + Spark 3.5.3 (ARM64) + Flask</div>
   </div>
 </div>
 
-<div class="main" id="cards">
-  <div class="card"><div class="l">CURRENT · 筛选后</div><div class="v" id="v_match">0</div><div class="s">符合当前条件</div></div>
-  <div class="card c2"><div class="l">LEVEL 3 · 三级</div><div class="v" id="v_l3">0</div><div class="s">筛选结果中的三级</div></div>
-  <div class="card c3"><div class="l">WITH COORD · 含坐标</div><div class="v" id="v_coord">0</div><div class="s">可参与距离排序</div></div>
-  <div class="card c4"><div class="l">AVG DEPT · 平均科室</div><div class="v" id="v_dept">0</div><div class="s">筛选结果平均</div></div>
+<!-- 顶部导航栏：视图切换 -->
+<nav class="navbar" id="navbar" data-page-node-id="Qcu9XTAUS9exwPAJth70BA">
+  <button class="navtab active" data-view="overview" data-page-node-id="3QXtEFE4cyCayI0g7RvO3h">📊 综合看板</button>
+  <button class="navtab" data-view="analytics" data-page-node-id="4JuC2X9RvbCq96fE7YY2Mp">📈 多维分析</button>
+  <button class="navtab" data-view="triage" data-page-node-id="oDpfcPQOjD91ZlzfSa1sa7">🩺 智能导诊</button>
+  <span class="navspacer" data-page-node-id="My0i4LNqXhnpwl77Ec4WVJ"></span>
+  <span class="navnote" data-page-node-id="J6QY7pWwvuPpqNcHoa3BJ5">7 维筛选全局联动 · 所有图表随筛选实时刷新</span>
+</nav>
+
+<!-- 综合看板视图 -->
+<section id="view-overview" class="view active" data-page-node-id="BpCHJgRE7dj0jbwhlkz7gA">
+<div class="main" id="cards" data-page-node-id="bFhbw68NsJYLjAyBmeldvj">
+  <div class="card" data-page-node-id="C3JhSzviuBXtsgmQobHtY7"><div class="l" data-page-node-id="PQMHqBysHwCHJZyiznZSER">CURRENT · 筛选后</div><div class="v" id="v_match" data-page-node-id="GiyukmBSFIGUpEsCG9SLIg">0</div><div class="s" data-page-node-id="505G6fJaIGGp1FwfN2tDkD">符合当前条件</div></div>
+  <div class="card c2" data-page-node-id="ifN0RKdFrZ8qBwdJ9OgIpU"><div class="l" data-page-node-id="CpqZzvvQaJqh9gI25la5TG">LEVEL 3 · 三级</div><div class="v" id="v_l3" data-page-node-id="He9vJ875xV5krAG6u5Loo7">0</div><div class="s" data-page-node-id="LQxihh8nNXdUPwDKChGony">筛选结果中的三级</div></div>
+  <div class="card c3" data-page-node-id="rXUocefzCTywGd0FGnJicq"><div class="l" data-page-node-id="7vSdSzsVtECAuybRCSjH2m">WITH COORD · 含坐标</div><div class="v" id="v_coord" data-page-node-id="LAkNmZjDd7xDOZxCTLfQVA">0</div><div class="s" data-page-node-id="nFvT5Exty6tab7aHbDdkAu">可参与距离排序</div></div>
+  <div class="card c4" data-page-node-id="WsDwzv6J8wJIlBSUDQkVBj"><div class="l" data-page-node-id="d0jFgTouFQ7TUzzWCMzDtj">AVG DEPT · 平均科室</div><div class="v" id="v_dept" data-page-node-id="tGuAM9fqF4LhNaxKqzJSDt">0</div><div class="s" data-page-node-id="t68mRlCAiAYQxkM4SabZ9S">筛选结果平均</div></div>
 </div>
 
-<div class="filterbar">
-  <h3>多维筛选 <span class="right">7 维筛选 · 6 种排序 · 加权评分 · Haversine 距离</span></h3>
-  <div class="nlqbar">
-    <div class="nlq-in">
-      <span class="nlq-badge">AI 说人话</span>
-      <input id="f_ai" placeholder="试试说人话：朝阳区看心脏病的三级医院，离家近">
-      <button id="btn_ai" type="button">解析</button>
-      <button id="btn_ai_clear" type="button" class="gray">清空</button>
+<div class="filterbar" data-page-node-id="aNZfSKLyOtNvNRl0AZnQtN">
+  <h3 data-page-node-id="MCQi8gAVBJDmvA7QrJ7fgN">多维筛选 <span class="right" data-page-node-id="r7bp3a8EKOxh0pO4jfA9zn">7 维筛选 · 6 种排序 · 加权评分 · Haversine 距离</span></h3>
+  <div class="nlqbar" data-page-node-id="eWT71yubO4FZY7Hy0RBhfs">
+    <div class="nlq-in" data-page-node-id="yULZBxmHJVlISrRZgnz2mO">
+      <span class="nlq-badge" data-page-node-id="QVphST3sMpYx85Jr6QS5M6">AI 说人话</span>
+      <input id="f_ai" placeholder="试试说人话：朝阳区看心脏病的三级医院，离家近" data-page-node-id="i1iHWj7PuHzQHvNJqRvKEq">
+      <button id="btn_ai" type="button" data-page-node-id="n8hu6jC5KKNXBiQsCk3x3Z">解析</button>
+      <button id="btn_ai_clear" type="button" class="gray" data-page-node-id="aSxkHB6MyAye910blOHvsq">清空</button>
     </div>
-    <div id="ai_echo" class="ai-echo"></div>
+    <div id="ai_echo" class="ai-echo" data-page-node-id="gxho1HMEBvDm1Ls6e8kfVE"></div>
   </div>
-  <div class="filters">
-    <div><label>关键词（机构名/地址）</label><input id="f_kw" placeholder="如：协和 / 海淀 / 中医"></div>
-    <div><label>科室（擅长/诊疗）</label><select id="f_dept"><option value="">全部科室</option></select></div>
-    <div><label>区域</label><select id="f_district"><option value="">全部 16 区</option></select></div>
-    <div><label>等级</label><select id="f_level"><option value="">全部等级</option></select></div>
-    <div><label>类型</label><select id="f_cat"><option value="">全部类型</option></select></div>
-    <div><label>协作网络</label><select id="f_net">
-      <option value="">全部网络</option>
-      <option value="ped_core">儿科医联体·核心医院</option>
-      <option value="ped_member">儿科医联体·成员机构</option>
-      <option value="stroke">卒中中心</option>
-      <option value="neonatal">危重新生儿救治·市级</option>
-      <option value="maternal">危重孕产妇救治·市级</option>
+  <div class="filters" data-page-node-id="oWSScVwnFL5Pm2Zrd86VMa">
+    <div data-page-node-id="YmaxeOzLlrx2PWosrIAHO5"><label data-page-node-id="RLt9s6biagLiayNMZOSdws">关键词（机构名/地址）</label><input id="f_kw" placeholder="如：协和 / 海淀 / 中医" data-page-node-id="grP9zE6VSQYEpIHSgLgkcF"></div>
+    <div data-page-node-id="M8Eqso8M2xrTbVy2RI2lBD"><label data-page-node-id="2AYpbRFHiQpM0o4ygf5bpz">科室（擅长/诊疗）</label><select id="f_dept" data-page-node-id="Ws3ggCrI2NBXLgXJA4hBAC"><option value="" data-page-node-id="PxXa4VJVmptcqAoUrt5u5a">全部科室</option></select></div>
+    <div data-page-node-id="qa4r2Odg8lRboKvPcuZyjs"><label data-page-node-id="0PdjhHA5FHuODpiAVJACgs">区域</label><select id="f_district" data-page-node-id="DFoioBgahxsWGpU9raGBY0"><option value="" data-page-node-id="2FYOrc0VU08YjeH5EXEXRq">全部 16 区</option></select></div>
+    <div data-page-node-id="DewH673EIiLkUTAf826r6F"><label data-page-node-id="XCxXH3Jom3EqTfRLX28A4a">等级</label><select id="f_level" data-page-node-id="OyVNdFRWN7bTFPapwoCSCi"><option value="" data-page-node-id="pN0vgc116Wxe4hvVJHJvHJ">全部等级</option></select></div>
+    <div data-page-node-id="5p6TLcPrVfQxsDQAN4u9Bd"><label data-page-node-id="o9chVrgPiEiD9yqUtaI2NY">类型</label><select id="f_cat" data-page-node-id="I56C6FNlBWnkvkD19C2TxT"><option value="" data-page-node-id="QJHiAI8CQJrQX338ZREOEV">全部类型</option></select></div>
+    <div data-page-node-id="7CUIfQtLuEpxYp7vs6DCK1"><label data-page-node-id="BDAYpNfN1sMV4yXTXEn5iJ">协作网络</label><select id="f_net" data-page-node-id="94nPuysCzsQ5J7y9HA6D2D">
+      <option value="" data-page-node-id="hCWfP6GGP4s6uPbzKjgwlH">全部网络</option>
+      <option value="ped_core" data-page-node-id="RmPcRQVWlrxkNsDkHdoJKK">儿科医联体·核心医院</option>
+      <option value="ped_member" data-page-node-id="kSmgkDRTniDUcEcF4iwc1L">儿科医联体·成员机构</option>
+      <option value="stroke" data-page-node-id="yng1Hhqaplm7Et5d9oR5sj">卒中中心</option>
+      <option value="neonatal" data-page-node-id="1jeAfm9XgwKHZTTMB2Fict">危重新生儿救治·市级</option>
+      <option value="maternal" data-page-node-id="JMNYuuLXCoVUhU4WejzQFL">危重孕产妇救治·市级</option>
     </select></div>
-    <div><label>距离基准</label>
-      <div style="display:flex;gap:4px;align-items:stretch">
-        <select id="f_base" style="flex:1;min-width:0">
-          <option value="tiananmen">天安门</option>
-          <option value="capital_airport">首都机场</option>
-          <option value="daxing_airport">大兴机场</option>
-          <option value="geo" id="opt_geo" disabled>📍 我的位置（未定位）</option>
+    <div data-page-node-id="QW2QkPFzJUsYszu0HwrxTI"><label data-page-node-id="P1sweXu62LO8fX4hXT3JnT">距离基准</label>
+      <div style="display:flex;gap:4px;align-items:stretch" data-page-node-id="nmbfs2DkNgby75nCaml3RI">
+        <select id="f_base" style="flex:1;min-width:0" data-page-node-id="p4OaCDglLXN3lvs7QWJyMO">
+          <option value="tiananmen" data-page-node-id="kfnAxJ4kYZQqRpphbRoJL1">天安门</option>
+          <option value="capital_airport" data-page-node-id="H1C3CSSmhq6Tj5OaF8Icv8">首都机场</option>
+          <option value="daxing_airport" data-page-node-id="bLPjoqQ32fcPhKLFQ9y32G">大兴机场</option>
+          <option value="geo" id="opt_geo" disabled data-page-node-id="7M1YttVFRDHeKPhbc0RlDO">📍 我的位置（未定位）</option>
         </select>
         <button id="btn_locate" type="button" onclick="locateMe()"
           style="padding:4px 10px;background:#1f3a68;color:#e8eefc;border:1px solid #3aa0ff;
                  border-radius:4px;cursor:pointer;font-size:12px;white-space:nowrap"
-          title="需要浏览器授权位置权限（http://localhost 协议下可用）">📍 定位</button>
+          title="需要浏览器授权位置权限（http://localhost 协议下可用）" data-page-node-id="WuFCNWoyAGAeHj7W6e3FN6">📍 定位</button>
       </div>
     </div>
-    <div><label>排序</label><select id="f_sort">
-      <option value="score">综合评分 ↓</option>
-      <option value="distance">距离 ↑</option>
-      <option value="level">等级 ↓</option>
-      <option value="depts">科室数 ↓</option>
-      <option value="name">名称 A-Z</option>
+    <div data-page-node-id="mRcsRxscIw7mQfYkTXHadR"><label data-page-node-id="kvVIyxpxoH58SatS7m0tvD">排序</label><select id="f_sort" data-page-node-id="kDvuyjr7nHSvjuI1AXIQ2g">
+      <option value="score" data-page-node-id="T4WE10t7xJc8VYJvZ44MT8">综合评分 ↓</option>
+      <option value="distance" data-page-node-id="JgQn46rUYwHffZxrMpVLmy">距离 ↑</option>
+      <option value="level" data-page-node-id="X2eUVw4pChHKx0JiNwyqBv">等级 ↓</option>
+      <option value="depts" data-page-node-id="nzlVH6OHqUZyGxOpo5LWE8">科室数 ↓</option>
+      <option value="name" data-page-node-id="xTy1kCgT58LR8ysnHQF9nl">名称 A-Z</option>
     </select></div>
   </div>
-  <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
-    <button class="btn gray" id="btn_reset">↺ 重置筛选</button>
-    <span style="color:#8aa1c8;font-size:11px;margin-left:auto">数据加载时间：<span id="m_time">—</span></span>
+  <div style="margin-top:10px;display:flex;gap:8px;align-items:center" data-page-node-id="mbsgm49dlEJbfZgYvucEFE">
+    <button class="btn gray" id="btn_reset" data-page-node-id="1EPsbqDtFDZWKmNoIKY0cH">↺ 重置筛选</button>
+    <span style="color:#8aa1c8;font-size:11px;margin-left:auto" data-page-node-id="QQgq2R0zWQeKYpLUSDVNEu">数据加载时间：<span id="m_time" data-page-node-id="DNttRYzMTquAwqEBBmG2E3">—</span></span>
   </div>
 </div>
 
-<div class="triagebar" id="triagebar">
-    <h3>智能导诊 <span class="right">输入病情 / 疾病名称 → 推荐对应科室的医院 · 离线知识库 · 零依赖</span></h3>
-    <div class="nlqbar">
-      <div class="nlq-in">
-        <span class="nlq-badge" style="background:#a78bfa">导诊</span>
-        <input id="f_triage" placeholder="如：头痛伴呕吐 / 骨折 / 高血压复诊 / 儿童反复发烧 / 孕早期产检">
-        <button id="btn_triage" type="button">智能导诊</button>
-        <button id="btn_triage_clear" type="button" class="gray">清空</button>
-      </div>
-      <div id="triage_echo" class="ai-echo"></div>
-    </div>
-    <div class="triage-opts">
-      <select id="t_district"><option value="">全部区域</option></select>
-      <select id="t_level"><option value="">全部等级</option></select>
-      <select id="t_topn"><option value="10">Top 10</option><option value="20">Top 20</option></select>
-      <label class="t-geocbx"><input type="checkbox" id="t_use_geo"> 用我的位置排序</label>
-      <span class="t-hint" id="triage_hint"></span>
-    </div>
-    <div id="triage_result" class="triage-result"></div>
-  </div>
+<!-- 智能导诊已移至独立视图（view-triage） -->
 
-<div class="grid2">
-  <div class="panel">
-    <h3>机构列表 <span class="tag" id="listTag">LIST · 共 0 家</span></h3>
-    <div class="listwrap">
-      <div class="listhead">
-        <div>点击行查看详情</div>
-        <div class="pager">
-          <button id="pg_prev">‹ 上一页</button>
-          <span id="pg_info">— / —</span>
-          <button id="pg_next">下一页 ›</button>
-          <select id="pg_size" style="background:#1f3a68;color:#e8eefc;border:none;padding:2px 4px;border-radius:3px;font-size:11px">
-            <option value="10">10/页</option>
-            <option value="20" selected>20/页</option>
-            <option value="50">50/页</option>
+<div class="grid2" data-page-node-id="7QsEmoC1BdxsIae2BsfEXV">
+  <div class="panel" data-page-node-id="43GvuErMppn3nfiLyHcKDd">
+    <h3 data-page-node-id="abdyPdujvgVjPOETc7Ratf">机构列表 <span class="tag" id="listTag" data-page-node-id="bbr7vyvvMq4mhNPSjFcXql">LIST · 共 0 家</span></h3>
+    <div class="listwrap" data-page-node-id="GrncqzOz59Pf6FBlL32aBz">
+      <div class="listhead" data-page-node-id="AY5AxBfE7qj0rOTo2QnNHJ">
+        <div data-page-node-id="q5WvsTxSic3KQ36Lliyt2M">点击行查看详情</div>
+        <div class="pager" data-page-node-id="8z91vDwNw1FrjF69PfMhDN">
+          <button id="pg_prev" data-page-node-id="A8MmjU6naWlisBnVcWok1A">‹ 上一页</button>
+          <span id="pg_info" data-page-node-id="DtN426Or5xyFeIOiUU5RlY">— / —</span>
+          <button id="pg_next" data-page-node-id="5AO23yBK6tfovIWYJYvrAq">下一页 ›</button>
+          <select id="pg_size" style="background:#1f3a68;color:#e8eefc;border:none;padding:2px 4px;border-radius:3px;font-size:11px" data-page-node-id="LCEUc18RvDIhbvvr4w50aT">
+            <option value="10" data-page-node-id="YBsVQbgCtKlAxPdklJe66g">10/页</option>
+            <option value="20" selected data-page-node-id="sBp1odfe89oLZObEDRrAdJ">20/页</option>
+            <option value="50" data-page-node-id="Xf6UNrN7PJLjTFUq2BLelT">50/页</option>
           </select>
         </div>
       </div>
-      <div class="list" id="list"></div>
+      <div class="list" id="list" data-page-node-id="QpMNnxEUF3Y3ZcFhFtWLV9"></div>
     </div>
   </div>
-  <div class="panel mapwrap">
-    <h3>北京地图散点 <span class="tag">MAP · 16 区 · 散点 + 热力</span></h3>
-    <div id="map">
-      <div id="map_diag">⏳ 等待地图初始化…<br><span style="color:#8aa1c8">若 5 秒后仍空白，请按 Cmd+Shift+R 硬刷新</span></div>
+  <div class="panel mapwrap" data-page-node-id="FZPxQ5JR5hyXiwKW6z7b4u">
+    <h3 data-page-node-id="PgbLkZEheB8AOyOFlfwm5f">北京地图散点 <span class="tag" data-page-node-id="ATRsWQWFwOvMxjyLSbM74l">MAP · 16 区 · 散点 + 热力</span></h3>
+    <div id="map" data-page-node-id="cd4XdMt7iflS48lxvRKOvc">
+      <div id="map_diag" data-page-node-id="GdG6zBXafKkrFEumgoEOZA">⏳ 等待地图初始化…<br data-page-node-id="tjAra0qIdQoTYZxh0Qh4vo"><span style="color:#8aa1c8" data-page-node-id="aaRijgZ8hlUctsFxgw0FO4">若 5 秒后仍空白，请按 Cmd+Shift+R 硬刷新</span></div>
     </div>
-    <div class="maplg"><span>低</span><i></i><span>高</span></div>
+    <div class="maplg" data-page-node-id="gqAHXUYJqhki0RwgS1SssY"><span data-page-node-id="tA8QHMnBxWkZCKIHMer27K">低</span><i data-page-node-id="LZkselGLNNpjzm9IB55MDM"></i><span data-page-node-id="4Ef8KsYHCayZhShNlGS5Q6">高</span></div>
   </div>
 </div>
 
-<div class="grid3">
-  <div class="panel sm"><h3>等级分布 <span class="tag">LEVELS</span></h3><div id="ch1"></div></div>
-  <div class="panel sm"><h3>类型分布 <span class="tag">CATEGORIES</span></h3><div id="ch2"></div></div>
-  <div class="panel sm"><h3>各区机构数 <span class="tag">DISTRICTS</span></h3><div id="ch3"></div></div>
+<div class="grid3" data-page-node-id="p85UtzJ3fLtb3hnvWsk1tG">
+  <div class="panel sm" data-page-node-id="fO1Jxlgkvoq4SmiRDDcTZE"><h3 data-page-node-id="Bl1V8LW50nAgBkio8Ff99p">等级分布 <span class="tag" data-page-node-id="zeNYkiAb9Lv2WkFETCykCm">LEVELS</span></h3><div id="ch1" data-page-node-id="258cKWNO0nJfSiLDK8hAYm"></div></div>
+  <div class="panel sm" data-page-node-id="AuFzq0Q73ekl8P0msO9YPe"><h3 data-page-node-id="RZpezLbGDMcCuccBoEkRLv">类型分布 <span class="tag" data-page-node-id="TfIHbxH6ZaOQJHMwnh6R1u">CATEGORIES</span></h3><div id="ch2" data-page-node-id="LWdYdHO5YQlpjTrRZtMzTt"></div></div>
+  <div class="panel sm" data-page-node-id="lS59cVmoOiXf3wd5pIEoAI"><h3 data-page-node-id="U0f2rmoDcpJtnHlOeAqAh5">各区机构数 <span class="tag" data-page-node-id="G3nXSrfYoy2BCM99a2am0m">DISTRICTS</span></h3><div id="ch3" data-page-node-id="sdPeFzwFwk0u8R25RJfDLv"></div></div>
 </div>
+</section>
 
-<div class="footer">
-  <b>技术栈：</b>Spark 3.5.3 (ARM64) · MySQL 8 · Flask · ECharts · Docker Compose &nbsp;|&nbsp;
-  <b>数仓分层：</b>ODS → DWD → DWS → ADS (5+3+4+4 张表) &nbsp;|&nbsp;
-  <b>筛选主表：</b><code>ads_inst_search</code> 9,789 行 &nbsp;|&nbsp;
-  <b>治理列：</b>公立/民营归属 · 类别细分 · 擅长科室三级分级
-</div>
+<!-- 多维分析视图 -->
+<section id="view-analytics" class="view" data-page-node-id="hUaH4I94kBWlGXbDwXUnzH">
+  <div class="akpi" id="cards2" data-page-node-id="qnPDxWuzuESxQcoAipzAYQ">
+    <div class="card" data-page-node-id="Dyae6ZpcgGQY82D5gXblSS"><div class="l" data-page-node-id="2Yyirs8EAZOul4iLfHrWOB">公立机构</div><div class="v" id="ak_pub" data-page-node-id="MhVUDYjF1QE3rDQOOARJ1R">0</div><div class="s" data-page-node-id="LONTYPELocAblJZsXOQFxz">占筛选结果比例</div></div>
+    <div class="card c2" data-page-node-id="lMS8M3qdHXbvhJLTQkf06w"><div class="l" data-page-node-id="HHFlhSzrjFivXqw5pj2FbC">三级医院</div><div class="v" id="ak_l3" data-page-node-id="cOUchQhjlPFgwVRW9SfYmt">0</div><div class="s" data-page-node-id="PGUsdQPxwbqbfPBLZejfVm">占筛选结果比例</div></div>
+    <div class="card c3" data-page-node-id="wAU9lTJ0QvUx9BTSuaTI6v"><div class="l" data-page-node-id="Guws7BIrFpA747ZV7Un8fI">重点专科机构</div><div class="v" id="ak_feat" data-page-node-id="mzXSx4R05IUUfBBwBMEeSA">0</div><div class="s" data-page-node-id="cQZLuiILSJx3gxMy3mooHC">含国家/市级重点专科</div></div>
+    <div class="card c4" data-page-node-id="1Up2nXPlzX6aNYvU9DKtoc"><div class="l" data-page-node-id="BphLLGDVCwCdp7aMy669b2">协作网络覆盖</div><div class="v" id="ak_net" data-page-node-id="RMytLM9wuAjqqj802WeVLl">0</div><div class="s" data-page-node-id="rPzxrzLLXSrAYmYcGMPVF3">任一市级协作网络</div></div>
+  </div>
+  <div class="agrid" data-page-node-id="HEzNdECnFVnbeWJDN8r3yt">
+    <div class="apanel" data-page-node-id="vVoGWrFwRgSLJfXsZDxw6B"><h3 data-page-node-id="IxwAfH0UsGA1JgO2AnAgqR">办别分布 <span class="tag" data-page-node-id="PP0b5bYKELbzlHoW2VW0mK">OWNERSHIP</span></h3><div class="achart" id="ch_own" data-page-node-id="bOTsDgOkFSeWiqsq03xhDV"></div></div>
+    <div class="apanel" data-page-node-id="PStQPqGn4ymZNeUJIF6xtH"><h3 data-page-node-id="nQyCg3Z1KKJuMIz7Kf1QOm">重点专科分级 <span class="tag" data-page-node-id="STf0QQ48srtEQEj0C8JbNd">FEATURE LEVEL</span></h3><div class="achart" id="ch_feat" data-page-node-id="AwCkuEgOtFejHhgP4mXzas"></div></div>
+    <div class="apanel" data-page-node-id="bxTao1OcmPOGOkChiKGVMd"><h3 data-page-node-id="V4jbP8aiYrCjAsAtHz8vwd">协作网络覆盖 <span class="tag" data-page-node-id="axgoCIxR4a9ESoIi96NMfo">NETWORKS</span></h3><div class="achart" id="ch_net" data-page-node-id="524YhaMyo47uo6RjP96krk"></div></div>
+    <div class="apanel" data-page-node-id="nZ5AQKu177eHyynUpYSDTt"><h3 data-page-node-id="viizVHPSSnwpy5tiowbpoz">等级 × 办别 <span class="tag" data-page-node-id="AXQN9LvwW8BmsvqPKb6Qbn">LEVEL × OWNER</span></h3><div class="achart" id="ch_lvown" data-page-node-id="Ao1TbwSPZoevDtDRUxSvP8"></div></div>
+    <div class="apanel" data-page-node-id="mb78dqkuguqD2yErtFp96f"><h3 data-page-node-id="4dRb2uIKGC0CygX0TyzFDI">专科能力 TOP10 <span class="tag" data-page-node-id="0vIhSWCBo2cAFZqzlm73HN">KEY SPECIALTY</span></h3><div class="achart" id="ch_topsp" data-page-node-id="FHCV5joKushlSJm2evEOu1"></div></div>
+    <div class="apanel" data-page-node-id="mNNJCQD1GEncL2NCpHfqLt"><h3 data-page-node-id="DlshHbqDvq5D9AEuEHZdXB">区域 × 等级 <span class="tag" data-page-node-id="7ZH3tKyV1BmB8qboKgxoRD">DISTRICT × LEVEL</span></h3><div class="achart" id="ch_distlv" data-page-node-id="QKBJwG7rvWjBZvcfUrstnn"></div></div>
+    <div class="apanel" data-page-node-id="iMIrbf7J1sK6EDxIOFGgYK"><h3 data-page-node-id="SvsIW9SnN2ttd3lqB2wokk">坐标精度（数据质量） <span class="tag" data-page-node-id="4EIFBqZ1pwhTpIcvcK8BYG">COORD PRECISION</span></h3><div class="achart" id="ch_coord" data-page-node-id="yMCMqMnVfUovKfFCHPlFDl"></div></div>
+    <div class="apanel" data-page-node-id="Dof1j9USCftRzSHsYRcWJp"><h3 data-page-node-id="Wpz01uClmMnCUvyB5UUsVO">科室覆盖 TOP15 <span class="tag" data-page-node-id="ZfW6kAhF2KMvMqI0viroxl">DEPT COVERAGE</span></h3><div class="achart" id="ch_deptop" data-page-node-id="gSY5LqC07fyIF9coH4YbOJ"></div></div>
+  </div>
+</section>
 
-<div class="modal" id="modal">
-  <div class="box">
-    <div class="hd">
-      <h2 id="m_title">机构详情</h2>
-      <button class="close" onclick="closeModal()">×</button>
+<!-- 智能导诊视图 -->
+<section id="view-triage" class="view" data-page-node-id="P2S5sdkVCQFBEW55BEHoDW">
+  <div class="triagebar" id="triagebar" data-page-node-id="VfI07fqtAf7WEdt2jFg7RY">
+    <h3 data-page-node-id="h3pLZifIdk9Sxynv9BJS4r">智能导诊 <span class="right" data-page-node-id="TTHrxLX3J4RE74no5P93u0">输入病情 / 疾病名称 → 推荐对应科室的医院 · 离线知识库 · 零依赖</span></h3>
+    <div class="nlqbar" data-page-node-id="MEudtzhjt3wQ8FBA4gY9kO">
+      <div class="nlq-in" data-page-node-id="WSBdB2mZefV074L9xUhseo">
+        <span class="nlq-badge" style="background:#a78bfa" data-page-node-id="kB6kMgeSlCAA1YJeolEFsq">导诊</span>
+        <input id="f_triage" placeholder="如：头痛伴呕吐 / 骨折 / 高血压复诊 / 儿童反复发烧 / 孕早期产检" data-page-node-id="pepRPoy5DEawSPoRNzhJ6a">
+        <button id="btn_triage" type="button" data-page-node-id="F6ZTTaG3ysY5CumrH9ry50">智能导诊</button>
+        <button id="btn_triage_clear" type="button" class="gray" data-page-node-id="cDwdXVveTAZ63GpdtFh4wj">清空</button>
+      </div>
+      <div id="triage_echo" class="ai-echo" data-page-node-id="M8sfIaQjo7omidWnIK0i0s"></div>
     </div>
-    <div class="info" id="m_info"></div>
-    <h4>关键科室分布</h4>
-    <div id="modalChart"></div>
-    <h4>擅长科室（权威优先分级：重点专科 &gt; 优势科室 &gt; 诊疗科室）</h4>
-    <div class="depts" id="m_depts"></div>
+    <div class="triage-opts" data-page-node-id="HbcoDQN8RT51kiX1EDLCrz">
+      <select id="t_district" data-page-node-id="B3N1qkKY2Lg8qnV9YTDAEE"><option value="" data-page-node-id="W58V6GGljmStymUd4AfOV4">全部区域</option></select>
+      <select id="t_level" data-page-node-id="FLirHoMLXdhWpefwJ8ME1o"><option value="" data-page-node-id="bRBcy0VUlJQWuNFo0zSUPO">全部等级</option></select>
+      <select id="t_topn" data-page-node-id="P7IB2vPmcFIiLKDU2rI97S"><option value="10" data-page-node-id="qnwnON69XSmBgKyacDjZkB">Top 10</option><option value="20" data-page-node-id="LZQ3ZrC8tNPXT5tLyD1GZj">Top 20</option></select>
+      <label class="t-geocbx" data-page-node-id="TgA1sO22ONxLG49MaycuWI"><input type="checkbox" id="t_use_geo" data-page-node-id="OAoSJiKaOuIf85RwYmNcKI"> 用我的位置排序</label>
+      <span class="t-hint" id="triage_hint" data-page-node-id="I24DzREcejawwzveJ12Bud"></span>
+    </div>
+    <div id="triage_result" class="triage-result" data-page-node-id="8KfBRPM5gqBIYV1o2B6PAv"></div>
+  </div>
+</section>
+
+<div class="footer" data-page-node-id="AkBC9c6A4GTeOO9w7EHbjM">
+  <b data-page-node-id="4Wh2iUe6qRPm1yztNAQJDk">技术栈：</b>Spark 3.5.3 (ARM64) · MySQL 8 · Flask · ECharts · Docker Compose &nbsp;|&nbsp;
+  <b data-page-node-id="6BW9vTqhO4IsHyfGhBg6WX">数仓分层：</b>ODS → DWD → DWS → ADS (5+3+4+4 张表) &nbsp;|&nbsp;
+  <b data-page-node-id="TUG0DD8VzCqBCGzPFFHRUe">筛选主表：</b><code data-page-node-id="NGE7IIkjlTjPfHukGJbKyG">ads_inst_search</code> 9,789 行 &nbsp;|&nbsp;
+  <b data-page-node-id="5AHchUCL5xwzOQa1Z3Eoyz">治理列：</b>公立/民营归属 · 类别细分 · 擅长科室三级分级
+</div>
+
+<div class="modal" id="modal" data-page-node-id="pdp2UJ7qY8h3VAkq265ul7">
+  <div class="box" data-page-node-id="NLGe6WDoMe0ExZJ4u21ek1">
+    <div class="hd" data-page-node-id="XNf4XjDQKQSuHOH2FG2jL3">
+      <h2 id="m_title" data-page-node-id="mqzIZqsZkHTHssnVDYNwbS">机构详情</h2>
+      <button class="close" onclick="closeModal()" data-page-node-id="jLCGY7rz3ER4Bf5GlOzLNV">×</button>
+    </div>
+    <div class="info" id="m_info" data-page-node-id="2CE7IB5FcwfYOxt8D7A6kw"></div>
+    <h4 data-page-node-id="FfPFPQghURFy0nQUr3giXl">关键科室分布</h4>
+    <div id="modalChart" data-page-node-id="FM0spMtjM5m9qgMBe6tpDh"></div>
+    <h4 data-page-node-id="dB6parZRbOuV7Q8DCVoKJf">擅长科室（权威优先分级：重点专科 &gt; 优势科室 &gt; 诊疗科室）</h4>
+    <div class="depts" id="m_depts" data-page-node-id="4jC5ghpFfEEqdSK0YwAQyy"></div>
   </div>
 </div>
 
@@ -477,13 +544,22 @@ function runTriage() {
     }
     if (!j.ok) {
       const ex = (j.examples || []).map(x => '<span class="chip">' + x + '</span>').join('');
-      if (echo) { echo.className = 'ai-echo'; echo.innerHTML = '<span class="warn">' + (j.hint || '未匹配') + '</span><br>' + ex; }
+      // 若已尝试 AI 兜底仍无果，如实告知，避免用户以为系统没反应
+      const aiTry = j.llm_attempted
+        ? '<br><span style="color:#6b7a99">已尝试 AI 兜底' + (j.llm_note ? '：' + escHtml(j.llm_note) : '') + '</span>'
+        : '';
+      if (echo) { echo.className = 'ai-echo'; echo.innerHTML = '<span class="warn">' + (j.hint || '未匹配') + '</span>' + aiTry + '<br>' + ex; }
       if (res) res.innerHTML = '<div class="triage-empty">未匹配到对应科室，换更具体的症状试试</div>';
       return;
     }
     const chips = j.matched_depts.map(d =>
       '<span class="chip' + (d.emergency ? ' emg' : '') + '">' + d.dept + (d.emergency ? ' · 急诊' : '') + '</span>').join('');
-    if (echo) { echo.className = 'ai-echo'; echo.innerHTML = '病情「' + escHtml(j.query) + '」对应科室：' + chips; }
+    // 标注解析来源：AI 兜底 vs 本地知识库（答辩时可一眼说明走的是哪条链路）
+    const engineTag = (j.engine === 'llm')
+      ? '<span class="chip ai">🧠 AI 理解</span>'
+        + (j.ai_note ? '<span class="chip engine">' + escHtml(j.ai_note) + '</span>' : '')
+      : '<span class="chip engine">本地知识库</span>';
+    if (echo) { echo.className = 'ai-echo'; echo.innerHTML = engineTag + '病情「' + escHtml(j.query) + '」对应科室：' + chips; }
     if (!j.hospitals.length) { if (res) res.innerHTML = '<div class="triage-empty">暂无具备该科室的匹配机构</div>'; return; }
     if (res) res.innerHTML = j.hospitals.map(h => {
       const dchs = (h.matched_depts || []).map(d =>
@@ -528,8 +604,10 @@ function init() {
 
     bindEvents();
     initTriage();
-    initCharts();     // 必须先初始化图表实例
-    applyFilter();    // 再筛选并更新图表
+    initCharts();        // 必须先初始化图表实例
+    initAnalyticsCharts(); // 初始化多维分析图表（含隐藏视图）
+    initNav();           // 导航栏视图切换
+    applyFilter();       // 再筛选并更新图表
   } catch (e) {
     console.error('[init] 初始化失败:', e);
     setMapDiag('err', '初始化失败: ' + (e.message || e) + '<br>请打开浏览器 Console 查看详细错误');
@@ -957,6 +1035,7 @@ function applyFilter() {
   renderCards();
   renderList();
   updateCharts();
+  updateAnalyticsCharts();   // 多维分析视图随筛选联动
 }
 
 // ========== 6. 统计卡 ==========
@@ -1232,6 +1311,154 @@ function updateCharts() {
   } catch (e) {
     console.error('[updateCharts] 散点更新失败:', e);
   }
+}
+
+// ========== 10.5 多维分析图表（随 7 维筛选联动）==========
+let CH_OWN, CH_FEAT, CH_NET, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD;
+
+function grp(arr, key) { const m = {}; arr.forEach(r => { const k = key(r); m[k] = (m[k]||0)+1; }); return m; }
+function pct(a, b) { return b ? (a/b*100).toFixed(1) + '%' : '0%'; }
+function setText(id, v) { const e = document.getElementById(id); if (e) e.textContent = v; }
+function lvGroup(l) { return (['三级','二级','一级','未定级'].indexOf(l) >= 0) ? l : '不适用'; }
+function trName(n, max) { max = max || 12; return n.length > max ? n.slice(0, max) + '…' : n; }
+
+function pieOpt(data, name) {
+  return {
+    tooltip:{trigger:'item', formatter:'{b}: {c} ({d}%)', backgroundColor:'#0b1530', borderColor:EDGE, textStyle:{color:INK}},
+    legend:{bottom:0, textStyle:{color:INK, fontSize:11}},
+    series:[{type:'pie', radius:['40%','68%'], center:['50%','44%'],
+      data: data.map(d => ({name:d[0], value:d[1], itemStyle:{color:d[2]}})),
+      label:{color:INK, fontSize:11}, labelLine:{lineStyle:{color:SUB}},
+      itemStyle:{borderColor:PANEL, borderWidth:2}}]
+  };
+}
+function barHOpt(pairs, colors) {
+  const cols = Array.isArray(colors) ? colors : pairs.map(() => colors);
+  return {
+    grid:{left:118, right:26, top:8, bottom:18},
+    tooltip:{trigger:'axis', axisPointer:{type:'shadow'}, backgroundColor:'#0b1530', borderColor:EDGE, textStyle:{color:INK}},
+    xAxis:{type:'value', axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:SUB, fontSize:10}},
+    yAxis:{type:'category', data:pairs.map(p => p[0]), axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:INK, fontSize:10}},
+    series:[{type:'bar', data:pairs.map((p,i) => ({value:p[1], itemStyle:{color:cols[i]||ACC}})),
+      label:{show:true, position:'right', color:INK, fontSize:10}, itemStyle:{borderRadius:[0,3,3,0]}}]
+  };
+}
+function stackOpt(cats, series) {
+  return {
+    tooltip:{trigger:'axis', axisPointer:{type:'shadow'}, backgroundColor:'#0b1530', borderColor:EDGE, textStyle:{color:INK}},
+    legend:{bottom:0, textStyle:{color:INK, fontSize:10}},
+    grid:{left:58, right:18, top:8, bottom:38},
+    xAxis:{type:'category', data:cats, axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:INK, fontSize:9, rotate: cats.length>10 ? 35 : 0}},
+    yAxis:{type:'value', axisLine:{lineStyle:{color:EDGE}}, axisLabel:{color:SUB, fontSize:10}},
+    series: series
+  };
+}
+
+function initAnalyticsCharts() {
+  const mk = id => { const el = document.getElementById(id); return el ? echarts.init(el) : null; };
+  CH_OWN = mk('ch_own'); CH_FEAT = mk('ch_feat'); CH_NET = mk('ch_net');
+  CH_LVOWN = mk('ch_lvown'); CH_TOPSP = mk('ch_topsp'); CH_DEPTOP = mk('ch_deptop');
+  CH_DISTLV = mk('ch_distlv'); CH_COORD = mk('ch_coord');
+  window.addEventListener('resize', () => {
+    [CH_OWN,CH_FEAT,CH_NET,CH_LVOWN,CH_TOPSP,CH_DEPTOP,CH_DISTLV,CH_COORD].forEach(c => c && c.resize());
+  });
+}
+
+function updateAnalyticsCharts() {
+  if (!CH_OWN) return;            // 图表尚未初始化
+  const F = FILTERED;
+  const tot = F.length || 1;
+  // KPI
+  const pub = F.filter(r => r.ownership === '公立').length;
+  const l3  = F.filter(r => r.level === '三级').length;
+  const feat1 = F.filter(r => (r.feature_level||'') === '1').length;
+  const net = F.filter(r => (r.net_pediatric==='核心'||r.net_pediatric==='成员') || r.net_stroke==='1' || r.net_neonatal==='市级' || r.net_maternal==='市级').length;
+  setText('ak_pub', pct(pub, tot));
+  setText('ak_l3', pct(l3, tot));
+  setText('ak_feat', feat1.toLocaleString());
+  setText('ak_net', net.toLocaleString());
+
+  // 1 办别分布
+  const own = grp(F, r => r.ownership || '未标注');
+  CH_OWN.setOption(pieOpt([
+    ['公立', own['公立']||0, '#5fd3c0'],
+    ['民营', own['民营']||0, '#f7b955'],
+    ['未标注', own['未标注']||0, '#8aa1c8']], '办别'));
+
+  // 2 重点专科分级（feature_level：1重点/2优势/3诊疗）
+  const fl = {L1:0, L2:0, L3:0, none:0};
+  F.forEach(r => { const v = r.feature_level;
+    if (v === '1') fl.L1++; else if (v === '2') fl.L2++; else if (v === '3') fl.L3++; else fl.none++; });
+  CH_FEAT.setOption(barHOpt([
+    ['重点专科 L1', fl.L1], ['优势科室 L2', fl.L2], ['诊疗科室 L3', fl.L3], ['无分级', fl.none]],
+    ['#ff6b6b','#f7b955','#3aa0ff','#8aa1c8']));
+
+  // 3 协作网络覆盖
+  const np = F.filter(r => r.net_pediatric === '核心').length;
+  const nm = F.filter(r => r.net_pediatric === '成员').length;
+  const ns = F.filter(r => r.net_stroke === '1').length;
+  const nn = F.filter(r => r.net_neonatal === '市级').length;
+  const mm = F.filter(r => r.net_maternal === '市级').length;
+  CH_NET.setOption(barHOpt([
+    ['儿科医联体·核心', np], ['儿科医联体·成员', nm], ['卒中中心', ns],
+    ['危重新生儿', nn], ['危重孕产妇', mm]],
+    ['#a78bfa','#6d5bd0','#ff6b6b','#5fd3c0','#3aa0ff']));
+
+  // 4 等级 × 办别 堆叠
+  const levels = ['三级','二级','一级','未定级'];
+  const owns = ['公立','民营','未标注'];
+  const lvOwn = owns.map(o => ({
+    name:o, type:'bar', stack:'t', emphasis:{focus:'series'},
+    itemStyle:{color: o==='公立' ? '#5fd3c0' : o==='民营' ? '#f7b955' : '#8aa1c8'},
+    data: levels.map(l => F.filter(r => r.level === l && (r.ownership||'未标注') === o).length)
+  }));
+  CH_LVOWN.setOption(stackOpt(levels, lvOwn));
+
+  // 5 专科能力 TOP10（key_specialty_count）
+  const top = F.filter(r => (r.key_specialty_count||0) > 0)
+    .sort((a,b) => b.key_specialty_count - a.key_specialty_count).slice(0, 10).reverse();
+  CH_TOPSP.setOption(barHOpt(
+    top.map(r => [trName(r.name, 12), r.key_specialty_count]), ['#ff6b6b']));
+
+  // 6 区域 × 等级 堆叠
+  const dists = (DATA.meta.districts || []).map(d => d.district);
+  const lvGroups = [['三级','#ff6b6b'],['二级','#f7b955'],['一级','#3aa0ff'],['未定级','#a78bfa'],['不适用','#8aa1c8']];
+  const distStack = lvGroups.map(g => ({
+    name:g[0], type:'bar', stack:'d', emphasis:{focus:'series'}, itemStyle:{color:g[1]},
+    data: dists.map(dn => F.filter(r => r.district === dn && lvGroup(r.level) === g[0]).length)
+  }));
+  CH_DISTLV.setOption(stackOpt(dists, distStack));
+
+  // 7 坐标精度（数据质量）
+  const cp = grp(F, r => r.coord_precision || 'missing');
+  CH_COORD.setOption(pieOpt([
+    ['高精度', cp['high']||0, '#5fd3c0'],
+    ['粗略', cp['rough']||0, '#f7b955'],
+    ['缺失', cp['missing']||0, '#ff6b6b']], '坐标精度'));
+
+  // 8 科室覆盖 TOP15（feature + key_depts 拼接拆分）
+  const dc = {};
+  F.forEach(r => {
+    const txt = (r.feature||'') + ';' + (r.key_depts||'');
+    txt.split(';').forEach(x => { x = x.trim(); if (x) dc[x] = (dc[x]||0) + 1; });
+  });
+  const topDepts = Object.entries(dc).sort((a,b) => b[1]-a[1]).slice(0, 15).reverse();
+  CH_DEPTOP.setOption(barHOpt(topDepts.map(p => [trName(p[0], 12), p[1]]), '#3aa0ff'));
+}
+
+function initNav() {
+  const tabs = document.querySelectorAll('.navtab');
+  const views = document.querySelectorAll('.view');
+  tabs.forEach(btn => btn.addEventListener('click', () => {
+    const v = btn.getAttribute('data-view');
+    tabs.forEach(b => b.classList.toggle('active', b === btn));
+    views.forEach(s => s.classList.toggle('active', s.id === 'view-' + v));
+    // 隐藏容器尺寸为 0，切换后需重算尺寸
+    setTimeout(() => {
+      [CH1,CH2,CH3,CH_OWN,CH_FEAT,CH_NET,CH_LVOWN,CH_TOPSP,CH_DEPTOP,CH_DISTLV,CH_COORD,MAP_CHART]
+        .forEach(c => { if (c) { try { c.resize(); } catch(e) {} } });
+    }, 40);
+  }));
 }
 
 // ========== 11. 详情弹窗 ==========
