@@ -141,6 +141,24 @@
   .ai-echo .chip{display:inline-block;background:#1f3a68;color:#a78bfa;padding:2px 8px;border-radius:10px;font-size:11px;margin:0 4px 4px 0}
   .ai-echo .warn{color:#f7b955}
   .ai-echo .hit{color:#5fd3c0}
+  .triagebar{background:#14213d;border:1px solid #1f3a68;border-radius:8px;padding:14px 16px;margin:14px 32px 0;border-left:4px solid #a78bfa}
+  .triagebar h3{font-size:13px;color:#a78bfa;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+  .triagebar h3 .right{color:#8aa1c8;font-weight:normal;font-size:11px}
+  .triage-opts{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
+  .triage-opts select{background:#0b1530;border:1px solid #1f3a68;color:#e8eefc;padding:6px 9px;border-radius:5px;font-size:12px;outline:none}
+  .triage-opts .t-geocbx{color:#8aa1c8;font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer}
+  .triage-opts .t-hint{color:#f7b955;font-size:11px;margin-left:auto}
+  .triage-result{margin-top:12px;display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .trow{background:#0b1530;border:1px solid #1f3a68;border-radius:6px;padding:10px 12px;cursor:pointer;transition:border .15s,background .15s}
+  .trow:hover{border-color:#a78bfa;background:#0e1a36}
+  .trow .tn{font-size:14px;font-weight:600;color:#e8eefc}
+  .trow .tm{color:#8aa1c8;font-size:11px;margin:3px 0}
+  .trow .tr{color:#5fd3c0;font-size:11px;margin:2px 0}
+  .trow .tscore{height:4px;background:#1f3a68;border-radius:2px;margin-top:6px;overflow:hidden}
+  .trow .tscore i{display:block;height:100%;background:linear-gradient(90deg,#3aa0ff,#a78bfa)}
+  .trow .tchip{display:inline-block;background:#1f3a68;color:#a78bfa;padding:1px 7px;border-radius:9px;font-size:10px;margin:0 3px 3px 0}
+  .trow .tchip.emg{background:#5a1d1d;color:#f7b955}
+  .triage-empty{padding:24px;text-align:center;color:#8aa1c8;font-size:12px;grid-column:1/-1}
 </style>
 </head>
 <body>
@@ -216,6 +234,27 @@
     <span style="color:#8aa1c8;font-size:11px;margin-left:auto">数据加载时间：<span id="m_time">—</span></span>
   </div>
 </div>
+
+<div class="triagebar" id="triagebar">
+    <h3>智能导诊 <span class="right">输入病情 / 疾病名称 → 推荐对应科室的医院 · 离线知识库 · 零依赖</span></h3>
+    <div class="nlqbar">
+      <div class="nlq-in">
+        <span class="nlq-badge" style="background:#a78bfa">导诊</span>
+        <input id="f_triage" placeholder="如：头痛伴呕吐 / 骨折 / 高血压复诊 / 儿童反复发烧 / 孕早期产检">
+        <button id="btn_triage" type="button">智能导诊</button>
+        <button id="btn_triage_clear" type="button" class="gray">清空</button>
+      </div>
+      <div id="triage_echo" class="ai-echo"></div>
+    </div>
+    <div class="triage-opts">
+      <select id="t_district"><option value="">全部区域</option></select>
+      <select id="t_level"><option value="">全部等级</option></select>
+      <select id="t_topn"><option value="10">Top 10</option><option value="20">Top 20</option></select>
+      <label class="t-geocbx"><input type="checkbox" id="t_use_geo"> 用我的位置排序</label>
+      <span class="t-hint" id="triage_hint"></span>
+    </div>
+    <div id="triage_result" class="triage-result"></div>
+  </div>
 
 <div class="grid2">
   <div class="panel">

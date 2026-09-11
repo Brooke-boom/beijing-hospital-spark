@@ -64,6 +64,81 @@ function showLoadError(e) {
 }
 
 // ========== 2. 初始化 ==========
+// ============== 智能导诊（疾病/症状 → 科室 → 医院）==============
+function initTriage() {
+  if (DATA.meta && DATA.meta.districts) fillSelect('t_district', DATA.meta.districts.map(d => d.district), '全部区域');
+  if (DATA.meta && DATA.meta.levels) fillSelect('t_level', DATA.meta.levels.map(d => d.level), '全部等级');
+  const input = document.getElementById('f_triage');
+  if (input) input.addEventListener('keydown', e => { if (e.key === 'Enter') runTriage(); });
+  const btn = document.getElementById('btn_triage');
+  if (btn) btn.addEventListener('click', runTriage);
+  const clr = document.getElementById('btn_triage_clear');
+  if (clr) clr.addEventListener('click', clearTriage);
+  // file:// 协议无法调用后端接口，给出提示
+  if (location.protocol === 'file:') {
+    const h = document.getElementById('triage_hint');
+    if (h) h.textContent = '⚠️ 智能导诊需本地服务：请运行 bash web/start.sh 后访问 http://localhost:5001';
+  }
+}
+
+function runTriage() {
+  const q = (document.getElementById('f_triage').value || '').trim();
+  const echo = document.getElementById('triage_echo');
+  const res = document.getElementById('triage_result');
+  const hint = document.getElementById('triage_hint');
+  if (location.protocol === 'file:') {
+    if (hint) hint.textContent = '⚠️ 智能导诊需本地服务：请运行 bash web/start.sh 后访问 http://localhost:5001';
+    if (res) res.innerHTML = '<div class="triage-empty">当前为离线打开模式，智能导诊需本地 Flask 服务支持</div>';
+    return;
+  }
+  if (!q) { if (echo) { echo.className = 'ai-echo'; echo.innerHTML = '<span class="warn">请输入病情或疾病名称</span>'; } return; }
+  const district = (document.getElementById('t_district').value || '');
+  const level = (document.getElementById('t_level').value || '');
+  const topn = (document.getElementById('t_topn').value || '10');
+  let url = '/api/triage?q=' + encodeURIComponent(q) + '&top_n=' + topn;
+  if (district) url += '&district=' + encodeURIComponent(district);
+  if (level) url += '&level=' + encodeURIComponent(level);
+  const useGeo = document.getElementById('t_use_geo') && document.getElementById('t_use_geo').checked;
+  if (useGeo && BASE_POINTS.geo && BASE_POINTS.geo.lng != null) {
+    url += '&lng=' + BASE_POINTS.geo.lng + '&lat=' + BASE_POINTS.geo.lat;
+  }
+  if (res) res.innerHTML = '<div class="triage-empty">导诊中…</div>';
+  fetch(url).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j) { if (res) res.innerHTML = '<div class="triage-empty">服务异常，请确认 Flask 已启动（bash web/start.sh）</div>'; return; }
+    if (!j.ok) {
+      const ex = (j.examples || []).map(x => '<span class="chip">' + x + '</span>').join('');
+      if (echo) { echo.className = 'ai-echo'; echo.innerHTML = '<span class="warn">' + (j.hint || '未匹配') + '</span><br>' + ex; }
+      if (res) res.innerHTML = '<div class="triage-empty">未匹配到对应科室，换更具体的症状试试</div>';
+      return;
+    }
+    const chips = j.matched_depts.map(d =>
+      '<span class="chip' + (d.emergency ? ' emg' : '') + '">' + d.dept + (d.emergency ? ' · 急诊' : '') + '</span>').join('');
+    if (echo) { echo.className = 'ai-echo'; echo.innerHTML = '病情「' + escHtml(j.query) + '」对应科室：' + chips; }
+    if (!j.hospitals.length) { if (res) res.innerHTML = '<div class="triage-empty">暂无具备该科室的匹配机构</div>'; return; }
+    if (res) res.innerHTML = j.hospitals.map(h => {
+      const dchs = (h.matched_depts || []).map(d =>
+        '<span class="tchip' + (j.matched_depts.find(x => x.dept === d && x.emergency) ? ' emg' : '') + '">' + d + '</span>').join('');
+      const sc = Math.round((h.score || 0) * 100);
+      const dist = h.distance_km == null ? '—' : h.distance_km.toFixed(1) + ' km';
+      return '<div class="trow" data-id="' + h.id + '">'
+        + '<div class="tn">' + escHtml(h.name) + (h.is_key_specialty ? ' <span class="tchip">重点专科</span>' : '') + '</div>'
+        + '<div class="tm">' + levelBadge(h.level) + ' ' + escHtml(h.district) + ' · 距您 ' + dist + '</div>'
+        + '<div class="tm">' + dchs + '</div>'
+        + '<div class="tr">' + escHtml(h.reason) + '</div>'
+        + '<div class="tscore"><i style="width:' + sc + '%"></i></div>'
+        + '</div>';
+    }).join('');
+    Array.prototype.forEach.call(res.querySelectorAll('.trow'), el =>
+      el.addEventListener('click', () => showDetail(el.getAttribute('data-id'))));
+  }).catch(() => { if (res) res.innerHTML = '<div class="triage-empty">网络异常，请确认 Flask 已启动</div>'; });
+}
+
+function clearTriage() {
+  const input = document.getElementById('f_triage'); if (input) input.value = '';
+  const echo = document.getElementById('triage_echo'); if (echo) { echo.className = 'ai-echo'; echo.innerHTML = ''; }
+  const res = document.getElementById('triage_result'); if (res) res.innerHTML = '';
+}
+
 function init() {
   try {
     document.getElementById('loading').classList.add('hide');
@@ -78,6 +153,7 @@ function init() {
     fillSelect('f_dept',      DATA.meta.depts.map(d => d.dept_name), '全部科室');
 
     bindEvents();
+    initTriage();
     initCharts();     // 必须先初始化图表实例
     applyFilter();    // 再筛选并更新图表
   } catch (e) {

@@ -56,6 +56,10 @@ docker exec spark-master /opt/spark/bin/spark-submit \
 # 4. 重建查询索引（ETL 以 overwrite 模式写表会 DROP+CREATE，索引会丢失，此步必做）
 python etl/create_indexes.py
 
+# 4.5 加载智能导诊知识库维度（首跑或更新疾病词典后执行）
+python etl/build_disease_dept_map.py     # 生成 data/processed/disease_dept_map.csv
+python etl/load_disease_dept.py          # 写入 MySQL 维度表 dim_disease_dept
+
 # 5. 重新生成快照与离线大屏
 bash web/build_spa.sh
 
@@ -83,8 +87,11 @@ bash web/start.sh
 | `GET /api/overview/districts` / `levels` / `depts` | 区域/等级/科室覆盖概览 |
 | `GET /api/specialty` | 重点专科医院列表 |
 | `GET /api/meta/filters` | 筛选项可选值 |
+| `GET /api/triage?q=<病情/疾病>` | **智能导诊**：输入病情或疾病名称，本地知识库匹配科室 → 联表筛选具备该科室的医院 → 加权评分排出 Top N |
 
 距离计算采用 Haversine 公式（SQL 内实现）；综合评分 = 0.5×等级 + 0.3×距离 + 0.2×科室数（归一化加权）。床位数因源数据覆盖率仅 1.5% 且取值疑似估算，已从展示与评分中移除，权重由等级维度承接。
+
+**智能导诊（疾病/症状 → 科室 → 医院）**：基于本地知识库 `dim_disease_dept`（238 条常见病/症状 → 29 个标准科室的映射，覆盖 31 条急诊条目），输入自然语言病情（如"头痛""胸痛""儿童发烧"）即匹配对应科室，再联 `dwd_dept_relation_clean` 筛出具备该科室的医院，复用综合评分排出 Top N 并标注急诊优先。全程**离线零依赖**，不依赖大模型，断网可跑；维度表缺失时回退到 `data/processed/disease_dept_map.csv`。
 
 **在线演示**：仓库内 `web/dashboard_offline.html` 为零依赖单文件离线大屏（数据快照内联，约 6.6MB），可直接打开浏览完整可视化界面，无需启动任何服务。也可访问 GitHub Pages 在线版。
 
@@ -115,5 +122,6 @@ bash web/start.sh
 - [x] feature 字段反向补全（17 家 / +78 条，ads_specialty_hospital 418 → 496 条，两套专科口径自洽）
 - [x] 市/区级临床重点专科联网增强（**77 家医院 / 283 条**，新增 municipal_specialty 字段并在详情浮层展示；中医"十四五"首批 74 项 + 第二批 107 项全部抓齐）
 - [x] 三层专科口径自洽（feature 擅长分级 → national_specialty 国家级 → municipal_specialty 市/区级，50 家 municipal_only 补足先前无国家级认定的三级医院）
+- [x] **智能导诊模块**（疾病/症状 → 科室 → 医院，本地知识库 238 条 / 29 科室 / 31 急诊条目，`dim_disease_dept` 维度表 + `/api/triage` 接口 + 大屏「智能导诊」面板，离线零依赖）
 
 > **数据可信度**（2026-09-10 联网核实）：以北京市医保 A 类定点医疗机构名单（2026-08-08，58 项）为基准交叉验证，本系统**覆盖率 100%、等级标注正确率 100%**；主表 9,789 家与官方全量口径的差额主要为基层机构（村卫生室/社区卫生服务站）覆盖度差异，属统计口径不同而非数据错误，详见 `docs/数据联网核实报告.md`。当前等级分布：三级 212 / 二级 212 / 一级 833 / 不适用 0 / 未定级 30。

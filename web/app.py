@@ -383,6 +383,179 @@ def api_ai_parse():
         return jsonify({"ok": False, "reason": "llm_error", "detail": str(e)})
 
 
+# ============== 智能导诊（疾病/症状 → 科室 → 医院）==============
+import csv as _csv
+
+
+def load_triage_map():
+    """从 dim_disease_dept 维度表加载导诊词典；表不存在时回退到本地 CSV。
+
+    注意：每次请求实时读取，不使用模块级缓存——避免「改库后不重启就失效」的
+    隐性 bug（演示/答辩时新增症状词后立即生效，无需重启服务）。
+    """
+    rows = []
+    try:
+        db = get_db()
+        with db.cursor() as cur:
+            cur.execute(
+                "SELECT keyword, dept_name, weight, is_emergency "
+                "FROM dim_disease_dept")
+            rows = [(r["keyword"], r["dept_name"], float(r["weight"]),
+                     int(r["is_emergency"])) for r in cur.fetchall()]
+    except Exception:
+        rows = []
+    if not rows:
+        csv_path = os.path.join(os.path.dirname(__file__), "..",
+                                "data", "processed", "disease_dept_map.csv")
+        if os.path.exists(csv_path):
+            with open(csv_path, encoding="utf-8") as f:
+                for r in _csv.DictReader(f):
+                    rows.append((r["keyword"], r["dept_name"],
+                                 float(r["weight"]), int(r["is_emergency"])))
+    return rows
+
+
+def haversine(lng1, lat1, lng2, lat2):
+    """两点间距离（km）"""
+    rad = 3.141592653589793 / 180.0
+    dlat = (lat2 - lat1) * rad
+    dlng = (lng2 - lng1) * rad
+    a = (math.sin(dlat / 2) ** 2 +
+         math.cos(lat1 * rad) * math.cos(lat2 * rad) * math.sin(dlng / 2) ** 2)
+    return 2 * 6371.0 * math.asin(min(1.0, math.sqrt(a)))
+
+
+@app.route("/api/triage")
+def api_triage():
+    """智能导诊：输入病情/疾病文本，推荐具备对应科室的医院。
+
+    参数：q(必填), district(可选), level(可选: 一级/二级/三级),
+          top_n(默认10), lng/lat(用户坐标，用于距离排序)
+    """
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        return jsonify({"ok": False, "reason": "empty"})
+    district = (request.args.get("district") or "").strip()
+    level = (request.args.get("level") or "").strip()
+    try:
+        top_n = max(1, min(50, int(request.args.get("top_n", 10))))
+    except ValueError:
+        top_n = 10
+    try:
+        ulng = float(request.args.get("lng", DEFAULT_LNG))
+        ulat = float(request.args.get("lat", DEFAULT_LAT))
+    except ValueError:
+        ulng, ulat = DEFAULT_LNG, DEFAULT_LAT
+
+    # 1) 文本 → 命中科室
+    pairs = load_triage_map()
+    matched = {}        # dept_name -> (weight, is_emergency)
+    for kw, dept, w, emg in pairs:
+        if kw and kw in q:
+            old = matched.get(dept)
+            if old is None or w > old[0]:
+                matched[dept] = (w, emg)
+    for kw, dept, w, emg in pairs:      # 直接输入科室名也能命中
+        if dept in q and dept not in matched:
+            matched[dept] = (w, emg)
+
+    if not matched:
+        return jsonify({
+            "ok": False, "reason": "no_match",
+            "hint": "未匹配到对应科室，可尝试更具体的症状或疾病名",
+            "examples": ["头痛", "骨折", "高血压", "咳嗽", "儿童发烧", "孕检", "牙痛"],
+        })
+
+    dept_list = list(matched.keys())
+    placeholders = ",".join(["%s"] * len(dept_list))
+
+    # 2) 科室 → 医院（join 联表），聚合该医院命中的科室
+    sql = (
+        "SELECT s.id, "
+        "ANY_VALUE(s.name) AS name, ANY_VALUE(s.district) AS district, "
+        "ANY_VALUE(s.level) AS level, ANY_VALUE(s.level_norm) AS level_norm, "
+        "ANY_VALUE(s.addr) AS addr, ANY_VALUE(s.phone) AS phone, "
+        "ANY_VALUE(s.lng) AS lng, ANY_VALUE(s.lat) AS lat, "
+        "ANY_VALUE(s.key_specialty_count) AS key_specialty_count, "
+        "GROUP_CONCAT(d.dept_name) AS matched_depts, "
+        "MAX(d.is_key_specialty='1') AS has_key "
+        "FROM ads_inst_search s "
+        "JOIN dwd_dept_relation_clean d ON s.id = d.hospital_id "
+        "WHERE d.dept_name IN (" + placeholders + ")"
+    )
+    args = list(dept_list)
+    if district:
+        sql += " AND s.district=%s"
+        args.append(district)
+    if level:
+        sql += " AND s.level_norm=%s"
+        args.append(level)
+    sql += " GROUP BY s.id"
+
+    db = get_db()
+    results = []
+    with db.cursor() as cur:
+        cur.execute(sql, args)
+        for r in cur.fetchall():
+            try:
+                dlng = float(r["lng"]) if r["lng"] is not None else None
+                dlat = float(r["lat"]) if r["lat"] is not None else None
+            except (TypeError, ValueError):
+                dlng = dlat = None
+            dist = haversine(ulng, ulat, dlng, dlat) if (dlng and dlat) else None
+            md = set((r["matched_depts"] or "").split(","))
+            hit = [d for d in dept_list if d in md]
+            hit_w = sum(matched[d][0] for d in hit)
+            total_w = sum(matched[d][0] for d in dept_list)
+            frac = min(1.0, hit_w / total_w) if total_w else 0.0
+            lvl = LEVEL_SCORE.get(r["level_norm"], 0.5)
+            level_c = 0.5 * (lvl / 3.0)
+            dist_c = 0.3 * (1.0 / (1.0 + (dist or 999) / 5.0)) if dist is not None else 0.0
+            dept_c = 0.2 * frac
+            score = level_c + dist_c + dept_c
+            if r["has_key"] in (1, "1", True):
+                score = min(1.0, score + 0.05)
+            results.append({
+                "id": r["id"], "name": r["name"], "district": r["district"],
+                "level": r["level"], "addr": r["addr"], "phone": r["phone"],
+                "distance_km": round(dist, 1) if dist is not None else None,
+                "matched_depts": hit,
+                "is_key_specialty": bool(r["has_key"] in (1, "1", True)),
+                "score": round(score, 4),
+                "score_break": {
+                    "level": round(level_c, 3), "distance": round(dist_c, 3),
+                    "dept": round(dept_c, 3),
+                },
+                "reason": _triage_reason(hit, r["level"], dist, r["has_key"]),
+            })
+
+    # 急诊优先：命中科室含急诊的排前
+    results.sort(key=lambda x: (not any(matched[d][1] for d in x["matched_depts"]),
+                                -x["score"]))
+    results = results[:top_n]
+    return jsonify({
+        "ok": True,
+        "query": q,
+        "matched_depts": [
+            {"dept": d, "weight": matched[d][0], "emergency": bool(matched[d][1])}
+            for d in dept_list
+        ],
+        "count": len(results),
+        "hospitals": results,
+    })
+
+
+def _triage_reason(hit_depts, level, dist, has_key):
+    parts = ["命中科室：" + "、".join(hit_depts)]
+    if level:
+        parts.append(level)
+    if dist is not None:
+        parts.append("距您约 %.1f km" % dist)
+    if has_key in (1, "1", True):
+        parts.append("含重点专科")
+    return "；".join(parts)
+
+
 if __name__ == "__main__":
     # macOS 端口 5000 常被 AirPlay Receiver 占用，默认使用 5001
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=False, threaded=True)
