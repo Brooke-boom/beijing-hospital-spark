@@ -103,8 +103,14 @@ function runTriage() {
     url += '&lng=' + BASE_POINTS.geo.lng + '&lat=' + BASE_POINTS.geo.lat;
   }
   if (res) res.innerHTML = '<div class="triage-empty">导诊中…</div>';
+  const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
   fetch(url).then(r => r.ok ? r.json() : null).then(j => {
-    if (!j) { if (res) res.innerHTML = '<div class="triage-empty">服务异常，请确认 Flask 已启动（bash web/start.sh）</div>'; return; }
+    if (!j) {
+      if (res) res.innerHTML = isLocal
+        ? '<div class="triage-empty">服务异常，请确认 Flask 已启动（bash web/start.sh）</div>'
+        : '<div class="triage-empty">当前为在线静态版，不含后端服务。请在本地运行 <code>bash web/start.sh</code> 后访问 http://localhost:5001 体验智能导诊。</div>';
+      return;
+    }
     if (!j.ok) {
       const ex = (j.examples || []).map(x => '<span class="chip">' + x + '</span>').join('');
       if (echo) { echo.className = 'ai-echo'; echo.innerHTML = '<span class="warn">' + (j.hint || '未匹配') + '</span><br>' + ex; }
@@ -130,7 +136,11 @@ function runTriage() {
     }).join('');
     Array.prototype.forEach.call(res.querySelectorAll('.trow'), el =>
       el.addEventListener('click', () => showDetail(el.getAttribute('data-id'))));
-  }).catch(() => { if (res) res.innerHTML = '<div class="triage-empty">网络异常，请确认 Flask 已启动</div>'; });
+  }).catch(() => {
+    if (res) res.innerHTML = isLocal
+      ? '<div class="triage-empty">网络异常，请确认 Flask 已启动</div>'
+      : '<div class="triage-empty">当前为在线静态版，不含后端服务。本地运行 <code>bash web/start.sh</code> 后访问 http://localhost:5001 即可体验。</div>';
+  });
 }
 
 function clearTriage() {
