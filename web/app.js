@@ -6,9 +6,9 @@
 'use strict';
 
 // ---------- 设计令牌（与 dashboard.html 的 CSS 变量保持一致） ----------
-const BG = '#070c18', PANEL = '#0f1a30', PANEL2 = '#14213a', EDGE = 'rgba(122,158,224,.18)';
-const INK = '#eaf0fc', SUB = '#a7b7d6', DIM = '#6d7fa4', FAINT = '#4b5a78';
-const ACC = '#4c9aff', ACC2 = '#38e0c0', WARN = '#ffb547', CRIT = '#ff6b81', VIO = '#a78bfa', PINK = '#f472b6';
+const BG = '#0a0b0d', PANEL = '#131419', PANEL2 = '#171922', EDGE = 'rgba(255,255,255,.08)';
+const INK = '#ededee', SUB = '#a0a2aa', DIM = '#73757e', FAINT = '#4c4e57';
+const ACC = '#6b8cff', ACC2 = '#46c08a', WARN = '#e0a23b', CRIT = '#e0697e', VIO = '#9a8cf0', PINK = '#e69ab5';
 
 const BASE_POINTS = {
   tiananmen:       { name: '天安门',   lng: 116.397, lat: 39.909 },
@@ -18,7 +18,7 @@ const BASE_POINTS = {
 };
 const LEVEL_RANK = { '三级': 4, '二级': 3, '一级': 2, '未定级': 1 };
 // 等级配色：全局唯一口径，禁止靠数组下标隐式配色（排序一变颜色就错位，把「一级」染成红色）
-const LV_COLOR = { '三级': '#ff6b81', '二级': '#ffb547', '一级': '#4c9aff', '未定级': '#a78bfa', '不适用': '#6d7fa4' };
+const LV_COLOR = { '三级': '#e0697e', '二级': '#e0a23b', '一级': '#6b8cff', '未定级': '#9a8cf0', '不适用': '#73757e' };
 const W_LEVEL = 0.5, W_DIST = 0.3, W_DEPT = 0.2;
 const DASHBOARD_VERSION = 'v4.0-ui-refresh-20260911';
 const GUAhAO_114 = 'https://www.114yygh.com/';
@@ -74,13 +74,13 @@ function track(ev, k1, k2, n) {
 
 // ECharts 统一主题片段
 const AXIS = {
-  axisLine: { lineStyle: { color: 'rgba(122,158,224,.26)' } },
+  axisLine: { lineStyle: { color: 'rgba(255,255,255,.14)' } },
   axisTick: { show: false },
-  axisLabel: { color: '#8fa2c4', fontSize: 10 },
-  splitLine: { lineStyle: { color: 'rgba(122,158,224,.09)' } },
+  axisLabel: { color: '#8b8d96', fontSize: 10 },
+  splitLine: { lineStyle: { color: 'rgba(255,255,255,.06)' } },
 };
 const TIP = {
-  backgroundColor: 'rgba(9,15,30,.96)', borderColor: 'rgba(122,158,224,.32)', borderWidth: 1,
+  backgroundColor: 'rgba(19,20,25,.96)', borderColor: 'rgba(255,255,255,.14)', borderWidth: 1,
   textStyle: { color: INK, fontSize: 11.5 }, extraCssText: 'border-radius:9px;box-shadow:0 10px 30px -10px rgba(0,0,0,.8)',
 };
 const LEGEND = { textStyle: { color: SUB, fontSize: 10.5 }, itemWidth: 10, itemHeight: 10, itemGap: 12 };
@@ -105,7 +105,7 @@ function loadData() {
 function showLoadError(e) {
   const el = $('loading'); if (!el) return;
   el.classList.remove('hide');
-  el.style.background = 'linear-gradient(90deg,#ff6b81,#ffb547)';
+  el.style.background = '#e0697e';
   el.innerHTML = '❌ 数据加载失败：' + esc(e && e.message ? e.message : e) +
     ' &nbsp;·&nbsp; 请硬刷新（Mac <b>Cmd+Shift+R</b> / Win <b>Ctrl+F5</b>）' +
     '；或改用离线单文件 <code>web/dashboard_offline.html</code>';
@@ -628,13 +628,13 @@ function initCharts() {
       tooltip: Object.assign({ trigger: 'item' }, TIP),
       geo: {
         map: 'beijing', roam: true, zoom: 1, layoutCenter: ['50%', '50%'], layoutSize: '96%', aspectScale: 0.9,
-        label: { show: true, color: '#9fb2d4', fontSize: 10 },
-        itemStyle: { borderColor: 'rgba(122,158,224,.34)', borderWidth: 1, areaColor: '#101d36' },
-        emphasis: { label: { color: '#fff' }, itemStyle: { areaColor: '#2a4a80' } },
-        select: { itemStyle: { areaColor: '#2a4a80' }, label: { color: '#fff' } },
+        label: { show: true, color: '#8b94ad', fontSize: 10 },
+        itemStyle: { borderColor: 'rgba(255,255,255,.14)', borderWidth: 1, areaColor: '#171922' },
+        emphasis: { label: { color: '#fff' }, itemStyle: { areaColor: '#2a3550' } },
+        select: { itemStyle: { areaColor: '#2a3550' }, label: { color: '#fff' } },
       },
       visualMap: { min: 0, max: 1300, show: false,
-        inRange: { color: ['#0b1730', '#1c3358', '#2a63a8', '#4c9aff', '#38e0c0'] } },
+        inRange: { color: ['#171922', '#2a3550', '#4a5680', '#6b8cff', '#9a8cf0'] } },
       series: [{
         name: '机构数', type: 'map', geoIndex: 0,
         data: DATA.overviews.districts.map(d => ({ name: d.district, value: d.inst_count })),
@@ -672,7 +672,7 @@ function updateCharts() {
     series: [{
       type: 'pie', radius: ['46%', '70%'], center: ['50%', '43%'],
       data: Object.entries(lvCount).map(x => ({ name: x[0], value: x[1], itemStyle: { color: LV_COLOR[x[0]] || DIM } })),
-      label: { color: INK, fontSize: 11, formatter: '{b}\n{c}' }, labelLine: { lineStyle: { color: 'rgba(122,158,224,.4)' } },
+      label: { color: INK, fontSize: 11, formatter: '{b}\n{c}' }, labelLine: { lineStyle: { color: 'rgba(255,255,255,.18)' } },
       itemStyle: { borderColor: PANEL, borderWidth: 2.5 },
     }],
   });
@@ -687,7 +687,7 @@ function updateCharts() {
     yAxis: Object.assign({ type: 'category', data: catS.map(c => c[0]).reverse() }, AXIS),
     series: [{
       type: 'bar', data: catS.map(c => c[1]).reverse(),
-      itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#2f7ae0' }, { offset: 1, color: ACC2 }]), borderRadius: [0, 4, 4, 0] },
+      itemStyle: { color: ACC2, borderRadius: [0, 4, 4, 0] },
       label: { show: true, position: 'right', color: INK, fontSize: 10 }, barMaxWidth: 15,
     }],
   });
@@ -699,11 +699,11 @@ function updateCharts() {
     tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, TIP),
     grid: { left: 46, right: 16, top: 14, bottom: 52 },
     xAxis: Object.assign({ type: 'category', data: dS.map(c => c[0]) }, AXIS,
-      { axisLabel: { color: '#8fa2c4', fontSize: 9.5, rotate: 38, interval: 0 } }),
+      { axisLabel: { color: '#8b8d96', fontSize: 9.5, rotate: 38, interval: 0 } }),
     yAxis: Object.assign({ type: 'value' }, AXIS),
     series: [{
       type: 'bar', data: dS.map(c => c[1]),
-      itemStyle: { color: new echarts.graphic.LinearGradient(0, 1, 0, 0, [{ offset: 0, color: '#2f7ae0' }, { offset: 1, color: ACC }]), borderRadius: [4, 4, 0, 0] },
+      itemStyle: { color: ACC, borderRadius: [4, 4, 0, 0] },
       label: { show: true, position: 'top', color: INK, fontSize: 9.5 },
     }],
   });
@@ -719,7 +719,7 @@ function updateCharts() {
           data: points.map(r => ({ name: r.name, value: [r.lng, r.lat, r.level || '其他'] })),
           symbolSize: v => v[2] === '三级' ? 6.5 : v[2] === '二级' ? 4.5 : 2.6,
           rippleEffect: { period: 4, scale: 2.6, brushType: 'stroke' },
-          itemStyle: { color: v => v[2] === '三级' ? CRIT : v[2] === '二级' ? WARN : ACC2, shadowBlur: 8, shadowColor: 'rgba(76,154,255,.8)' },
+          itemStyle: { color: v => v[2] === '三级' ? CRIT : v[2] === '二级' ? WARN : ACC2 },
           showEffectOn: 'render',
         },
       ],
@@ -740,7 +740,7 @@ function pieOpt(data) {
     series: [{
       type: 'pie', radius: ['42%', '70%'], center: ['50%', '44%'],
       data: data.map(d => ({ name: d[0], value: d[1], itemStyle: { color: d[2] } })),
-      label: { color: INK, fontSize: 11 }, labelLine: { lineStyle: { color: 'rgba(122,158,224,.4)' } },
+      label: { color: INK, fontSize: 11 }, labelLine: { lineStyle: { color: 'rgba(255,255,255,.18)' } },
       itemStyle: { borderColor: PANEL, borderWidth: 2.5 },
     }],
   };
@@ -765,7 +765,7 @@ function stackOpt(cats, series) {
     legend: Object.assign({ bottom: 0 }, LEGEND),
     grid: { left: 50, right: 16, top: 8, bottom: 40 },
     xAxis: Object.assign({ type: 'category', data: cats }, AXIS,
-      { axisLabel: { color: '#8fa2c4', fontSize: 9, rotate: cats.length > 10 ? 38 : 0, interval: 0 } }),
+      { axisLabel: { color: '#8b8d96', fontSize: 9, rotate: cats.length > 10 ? 38 : 0, interval: 0 } }),
     yAxis: Object.assign({ type: 'value' }, AXIS),
     series: series.map(s => Object.assign({ barMaxWidth: 26 }, s)),
   };
@@ -1605,7 +1605,7 @@ function renderAdmin() {
         tooltip: Object.assign({ trigger: 'axis' }, TIP),
         grid: { left: 42, right: 18, top: 14, bottom: 34 },
         xAxis: Object.assign({ type: 'category', data: daily.map(x => String(x.d).slice(5)) }, AXIS,
-          { axisLabel: { color: '#8fa2c4', fontSize: 9.5, rotate: 30 } }),
+          { axisLabel: { color: '#8b8d96', fontSize: 9.5, rotate: 30 } }),
         yAxis: Object.assign({ type: 'value' }, AXIS),
         series: [{
           type: 'line', smooth: true, data: daily.map(x => x.n), symbolSize: 6,
