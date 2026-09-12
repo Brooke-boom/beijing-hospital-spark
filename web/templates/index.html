@@ -496,7 +496,7 @@ body.has-pick{padding-bottom:84px}
 .pi svg{width:15px;height:15px;color:#fff}
 .who svg{width:16px;height:16px;vertical-align:-3px;margin-right:3px}
 .btn svg{margin-right:5px;vertical-align:-3px}
-#toast .ic{width:14px;height:14px;vertical-align:-3px;margin-right:4px}
+#toast 
 </style>
 </head>
 <body>
@@ -504,7 +504,7 @@ body.has-pick{padding-bottom:84px}
 
 <header class="topbar">
   <div class="brand">
-    <div class="mark"><svg class="ic" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" style="color:var(--acc)">M4 21V6l8-3 8 3v15M9 21v-4h6v4M12 8v5M9.5 10.5h5</svg></div>
+    <div class="mark"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V6l8-3 8 3v15M9 21v-4h6v4M12 8v5M9.5 10.5h5"/></svg></div>
     <div style="min-width:0">
       <h1>北京市医院医疗资源整合与多维筛选可视化系统</h1>
       <div class="sub">Beijing Hospital Resource Integration &amp; Multi-dimensional Filtering</div>
@@ -518,11 +518,11 @@ body.has-pick{padding-bottom:84px}
 </header>
 
 <nav class="navbar" id="navbar">
-  <button class="navtab active" data-view="overview"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">M4 4h7v7H4zM11 4h9v4h-9zM11 10h9v10h-9zM4 13h7v7H4z</svg></span>综合看板</button>
-  <button class="navtab" data-view="analytics"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">M4 20V10M9 20V4M14 20v-7M19 20v-12</svg></span>多维分析</button>
-  <button class="navtab" data-view="triage"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">M3 12h4l2-6 4 12 2-6h6</svg></span>智能导诊</button>
-  <button class="navtab" data-view="admin"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">M3 4h18v12H3zM3 16l3 4h12l3-4M9 20h6</svg></span>运营后台</button>
-  <button class="navtab" data-view="about"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">M12 3a9 9 0 100 18 9 9 0 000-18zM12 10v6M12 7.5h.01</svg></span>关于</button>
+  <button class="navtab active" data-view="overview"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h7v7H4zM11 4h9v4h-9zM11 10h9v10h-9zM4 13h7v7H4z"/></svg></span>综合看板</button>
+  <button class="navtab" data-view="analytics"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-12"/></svg></span>多维分析</button>
+  <button class="navtab" data-view="triage"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg></span>智能导诊</button>
+  <button class="navtab" data-view="admin"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v12H3zM3 16l3 4h12l3-4M9 20h6"/></svg></span>运营后台</button>
+  <button class="navtab" data-view="about"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 10v6M12 7.5h.01"/></svg></span>关于</button>
   <span class="navspacer"></span>
   <span class="navnote">7 维筛选全局联动 · 勾选 2–3 家可横向对比</span>
 </nav>
@@ -576,7 +576,7 @@ body.has-pick{padding-bottom:84px}
             <option value="daxing_airport">大兴机场</option>
             <option value="geo" id="opt_geo" disabled>我的位置（未定位）</option>
           </select>
-          <button class="btn sm" id="btn_locate" type="button" onclick="locateMe()" title="需浏览器授权位置权限（http://localhost 下可用）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">M12 21s7-6.5 7-12a7 7 0 10-14 0c0 5.5 7 12 7 12zM12 9a3 3 0 100 6 3 3 0 000-6z</svg> 定位</button>
+          <button class="btn sm" id="btn_locate" type="button" onclick="locateMe()" title="需浏览器授权位置权限（http://localhost 下可用）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.5 7-12a7 7 0 10-14 0c0 5.5 7 12 7 12zM12 9a3 3 0 100 6 3 3 0 000-6z"/></svg> 定位</button>
         </div>
       </div>
       <div class="field"><label>排序方式</label><select id="f_sort">
@@ -590,7 +590,7 @@ body.has-pick{padding-bottom:84px}
 
     <div class="actline">
       <button class="btn ghost sm" id="btn_reset">↺ 重置筛选</button>
-      <button class="btn ghost sm" id="btn_clear_pick"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">M6 6l12 12M18 6L6 18</svg> 清空已选</button>
+      <button class="btn ghost sm" id="btn_clear_pick"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg> 清空已选</button>
       <span class="r">数据加载时间：<span id="m_time2">—</span></span>
     </div>
   </div>
@@ -655,7 +655,7 @@ body.has-pick{padding-bottom:84px}
   <div class="triage-shell">
     <div class="chat">
       <div class="chat-hd">
-        <div class="av"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">M3 12h4l2-6 4 12 2-6h6</svg></div>
+        <div class="av"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg></div>
         <div>
           <div class="t">智能导诊助手</div>
           <div class="s">描述病情 → 追问澄清 → 推荐医院并给出可解释理由</div>
@@ -851,7 +851,7 @@ body.has-pick{padding-bottom:84px}
   <div class="dw-ft">
     <button class="btn pri sm" id="dw_pick">＋ 加入对比</button>
     <button class="btn ghost sm" id="dw_copy">复制名称</button>
-    <button class="btn vio sm" id="dw_ai"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">M9 9h6v6H9zM4 10v4M20 10v4M10 4h4M10 20h4M6.5 7.5L4 9M17.5 7.5L20 9M6.5 16.5L4 15M17.5 16.5L20 15</svg> AI 就医提示</button>
+    <button class="btn vio sm" id="dw_ai"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 9h6v6H9zM4 10v4M20 10v4M10 4h4M10 20h4M6.5 7.5L4 9M17.5 7.5L20 9M6.5 16.5L4 15M17.5 16.5L20 15"/></svg> AI 就医提示</button>
     <span style="margin-left:auto;color:var(--ink-4);font-size:10.5px" id="dw_ft_note"></span>
   </div>
 </aside>
@@ -899,7 +899,7 @@ const ICONS = {
 function svgIcon(name) {
   var p = ICONS[name];
   if (!p) return '';
-  return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>';
+  return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + p + '"/></svg>';
 }
 
 
