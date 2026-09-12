@@ -145,7 +145,7 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .navtab.active{background:var(--panel-2);color:var(--ink);border-color:var(--line-2)}
 .navtab.active::after{content:'';position:absolute;left:12px;right:12px;bottom:-9px;height:2px;
   background:var(--acc);border-radius:2px}
-.navtab .ico{font-size:14px;line-height:1}
+.navtab .ico{font-size:14px;line-height:1;color:var(--ink-2)} .navtab:hover .ico{color:var(--ink)} .navtab.active .ico{color:var(--ink)}
 .navspacer{flex:1}
 .navnote{color:var(--ink-4);font-size:11px;white-space:nowrap;padding-right:4px}
 
@@ -966,6 +966,7 @@ const GUAhAO_114 = 'https://www.114yygh.com/';
 
 // ---------- 全局状态 ----------
 let DATA = null;
+let DIST_LEVEL = {};
 let FILTERED = [];
 let PAGE = 1, PAGE_SIZE = 20;
 const PICKED = new Set();                 // 对比已选机构 id（最多 3）
@@ -1561,12 +1562,13 @@ function initCharts() {
 
     MAP_CHART = echarts.init(mapDiv, null, { renderer: 'canvas' });
     echarts.registerMap('beijing', DATA.geojson);
+    DIST_LEVEL = computeDistLevel();
     const reg = echarts.getMap && echarts.getMap('beijing');
     if (!reg || !reg.geoJson) throw new Error('registerMap("beijing") 失败');
 
     MAP_CHART.setOption({
       backgroundColor: 'transparent', textStyle: { color: INK },
-      tooltip: Object.assign({ trigger: 'item' }, TIP),
+      tooltip: Object.assign({ trigger: 'item', formatter: mapTipFmt }, TIP),
       geo: {
         map: 'beijing', roam: true, zoom: 1, layoutCenter: ['50%', '50%'], layoutSize: '96%', aspectScale: 0.9,
         label: { show: true, color: '#8b94ad', fontSize: 10 },
@@ -1583,6 +1585,7 @@ function initCharts() {
     });
     MAP_CHART.resize();
     MAP_CHART.on('click', p => {
+      if (p.seriesType === 'effectScatter' && p.data && p.data.instId != null) { openDrawer(p.data.instId); return; }
       if (p.name) { $('f_district').value = p.name; PAGE = 1; track('filter_district', p.name, 'map'); applyFilter(); }
     });
 
@@ -1657,11 +1660,12 @@ function updateCharts() {
         { type: 'map', geoIndex: 0 },
         {
           type: 'effectScatter', coordinateSystem: 'geo', zlevel: 2,
-          data: points.map(r => ({ name: r.name, value: [r.lng, r.lat, r.level || '其他'] })),
-          symbolSize: v => v[2] === '三级' ? 6.5 : v[2] === '二级' ? 4.5 : 2.6,
-          rippleEffect: { period: 4, scale: 2.6, brushType: 'stroke' },
-          itemStyle: { color: v => v[2] === '三级' ? CRIT : v[2] === '二级' ? WARN : ACC2 },
+          data: points.map(r => ({ name: r.name, value: [r.lng, r.lat, r.level || '其他'], instId: r.id, inst: r })),
+          symbolSize: v => v[2] === '三级' ? 7 : v[2] === '二级' ? 5 : 3,
+          rippleEffect: { period: 4, scale: 2.8, brushType: 'stroke' },
+          itemStyle: { color: v => v[2] === '三级' ? CRIT : v[2] === '二级' ? WARN : ACC2, cursor: 'pointer' },
           showEffectOn: 'render',
+          tooltip: Object.assign({ trigger: 'item', formatter: scatterTipFmt }, TIP),
         },
       ],
     });
@@ -1673,6 +1677,39 @@ function updateCharts() {
 // ============================================================================
 function grp(arr, key) { const m = {}; arr.forEach(r => { const k = key(r); m[k] = (m[k] || 0) + 1; }); return m; }
 function lvGroup(l) { return ['三级', '二级', '一级', '未定级'].indexOf(l) >= 0 ? l : '不适用'; }
+
+function computeDistLevel() {
+  const m = {};
+  (DATA.institutions || []).forEach(r => {
+    const dk = r.district || '未知';
+    if (!m[dk]) m[dk] = { '三级':0, '二级':0, '一级':0, '未定级':0, '不适用':0 };
+    m[dk][lvGroup(r.level)]++;
+  });
+  return m;
+}
+
+function mapTipFmt(p) {
+  if (p.seriesType === 'effectScatter') return scatterTipFmt(p);
+  const dl = DIST_LEVEL[p.name]; const total = p.value || 0;
+  let s = '<b style="font-size:13px">' + esc(p.name) + '</b><br/>机构总数：<b style="color:#6b8cff">' + total + '</b> 家';
+  if (dl) s += '<div style="margin-top:4px;font-size:12px;color:#a0a2aa">' +
+    '三级 ' + dl['三级'] + ' · 二级 ' + dl['二级'] + ' · 一级 ' + dl['一级'] + '<br/>' +
+    '未定级 ' + dl['未定级'] + ' · 不适用 ' + dl['不适用'] + '</div>';
+  s += '<div style="margin-top:5px;font-size:11px;color:#73757e">点击该区可直接筛选</div>';
+  return s;
+}
+
+function scatterTipFmt(p) {
+  const r = p.data && p.data.inst; if (!r) return esc(p.name || '');
+  const lvl = (r.level === '不适用医院分级') ? '不分级' : (r.level || '—');
+  return '<div style="max-width:250px">' +
+    '<b style="font-size:13px">' + esc(r.name) + '</b>' +
+    '<div style="color:#a0a2aa;margin:3px 0 6px;font-size:12px">' + esc(r.district) + ' · ' + esc(lvl) + '</div>' +
+    (r.addr ? '<div style="font-size:12px;color:#c9cbd2;line-height:1.4">' + esc(r.addr) + '</div>' : '') +
+    '<div style="font-size:12px;color:#c9cbd2;margin-top:3px">科室 ' + num(r.dept_count) + ' 个 · 重点专科 ' + num(r.key_specialty_count) + ' 项</div>' +
+    '<div style="font-size:11px;color:#6b8cff;margin-top:6px">点击查看机构详情 →</div>' +
+    '</div>';
+}
 
 function pieOpt(data) {
   return {
