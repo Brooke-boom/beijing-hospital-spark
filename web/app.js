@@ -10,6 +10,38 @@ const BG = '#0a0b0d', PANEL = '#131419', PANEL2 = '#171922', EDGE = 'rgba(255,25
 const INK = '#ededee', SUB = '#a0a2aa', DIM = '#73757e', FAINT = '#4c4e57';
 const ACC = '#6b8cff', ACC2 = '#46c08a', WARN = '#e0a23b', CRIT = '#e0697e', VIO = '#9a8cf0', PINK = '#e69ab5';
 
+const ICONS = {
+  'overview': 'M4 4h7v7H4zM11 4h9v4h-9zM11 10h9v10h-9zM4 13h7v7H4z',
+  'analytics': 'M4 20V10M9 20V4M14 20v-7M19 20v-12',
+  'triage': 'M3 12h4l2-6 4 12 2-6h6',
+  'admin': 'M3 4h18v12H3zM3 16l3 4h12l3-4M9 20h6',
+  'about': 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 10v6M12 7.5h.01',
+  'hospital': 'M4 21V6l8-3 8 3v15M9 21v-4h6v4M12 8v5M9.5 10.5h5',
+  'location': 'M12 21s7-6.5 7-12a7 7 0 10-14 0c0 5.5 7 12 7 12zM12 9a3 3 0 100 6 3 3 0 000-6z',
+  'brain': 'M9 9h6v6H9zM4 10v4M20 10v4M10 4h4M10 20h4M6.5 7.5L4 9M17.5 7.5L20 9M6.5 16.5L4 15M17.5 16.5L20 15',
+  'phone': 'M5 4h3l2 5-2 1a11 11 0 005 5l1-2 5 2v3a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z',
+  'compass': 'M12 3a9 9 0 100 18 9 9 0 000-18zM15.5 8.5l-2 5-5 2 2-5z',
+  'clipboard': 'M9 4h6v2H9zM6 6h12v14H6z',
+  'metro': 'M7 4h10a3 3 0 013 3v8a3 3 0 01-3 3H7a3 3 0 01-3-3V7a3 3 0 013-3zM7 14h10M9 17l-2 3M15 17l2 3M9 11h.01M15 11h.01',
+  'parking': 'M6 4h8a4 4 0 010 8H9v8H6zM9.5 7.5H13a2.5 2.5 0 010 5H9.5',
+  'bus': 'M5 5h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2zM5 11h14M8 17v2M16 17v2M8.5 14h.01M15.5 14h.01',
+  'warn': 'M12 3l9 16H3zM12 9v5M12 16.5h.01',
+  'err': 'M12 3a9 9 0 100 18 9 9 0 000-18zM9 9l6 6M15 9l-6 6',
+  'ok': 'M12 3a9 9 0 100 18 9 9 0 000-18zM8.5 12l2.5 2.5 4.5-5',
+  'close': 'M6 6l12 12M18 6L6 18',
+  'gov': 'M3 21h18M4 21V10l8-5 8 5v11M9 21v-6h6v6M12 5v-2',
+  'folder': 'M3 6h6l2 2h10v11H3z',
+  'map': 'M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14',
+  'user': 'M12 12a4 4 0 100-8 4 4 0 000 8zM5 21a7 7 0 0114 0',
+  'flask': 'M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3M7.5 15h9'
+};
+function svgIcon(name) {
+  var p = ICONS[name];
+  if (!p) return '';
+  return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>';
+}
+
+
 const BASE_POINTS = {
   tiananmen:       { name: '天安门',   lng: 116.397, lat: 39.909 },
   capital_airport: { name: '首都机场', lng: 116.609, lat: 40.080 },
@@ -106,7 +138,7 @@ function showLoadError(e) {
   const el = $('loading'); if (!el) return;
   el.classList.remove('hide');
   el.style.background = '#e0697e';
-  el.innerHTML = '❌ 数据加载失败：' + esc(e && e.message ? e.message : e) +
+  el.innerHTML = svgIcon('err') + ' 数据加载失败：' + esc(e && e.message ? e.message : e) +
     ' &nbsp;·&nbsp; 请硬刷新（Mac <b>Cmd+Shift+R</b> / Win <b>Ctrl+F5</b>）' +
     '；或改用离线单文件 <code>web/dashboard_offline.html</code>';
 }
@@ -141,7 +173,7 @@ function init() {
     loadAbout();
   } catch (e) {
     console.error('[init] 失败:', e);
-    setMapDiag('err', '❌ 初始化失败：' + esc(e.message || e) + '<br>请打开浏览器 Console 查看详情');
+    setMapDiag('err', svgIcon('err') + ' 初始化失败：' + esc(e.message || e) + '<br>请打开浏览器 Console 查看详情');
   }
 }
 
@@ -233,8 +265,8 @@ function resetFilter() {
 // ============================================================================
 function locateMe() {
   const btn = $('btn_locate');
-  if (!navigator.geolocation) { toast('⚠️ 当前浏览器不支持定位 API'); return; }
-  if (!ENV.http) { toast('⚠️ 需通过 http://localhost:5001 打开才能授权定位（file:// 被浏览器禁止）', 5200); return; }
+  if (!navigator.geolocation) { toast(svgIcon('warn') + ' 当前浏览器不支持定位 API'); return; }
+  if (!ENV.http) { toast(svgIcon('warn') + ' 需通过 http://localhost:5001 打开才能授权定位（file:// 被浏览器禁止）', 5200); return; }
   const old = btn.textContent;
   btn.disabled = true; btn.textContent = '⏳ 定位中…';
   navigator.geolocation.getCurrentPosition(
@@ -243,19 +275,19 @@ function locateMe() {
       const acc = Math.round(pos.coords.accuracy);
       BASE_POINTS.geo.lng = lng; BASE_POINTS.geo.lat = lat;
       BASE_POINTS.geo.name = '我的位置(±' + acc + 'm)';
-      const opt = $('opt_geo'); opt.disabled = false; opt.textContent = '📍 ' + BASE_POINTS.geo.name;
+      const opt = $('opt_geo'); opt.disabled = false; opt.textContent = '已定位 · ' + BASE_POINTS.geo.name;
       $('f_base').value = 'geo';
-      btn.textContent = '✅ 已定位';
-      setTimeout(() => { btn.textContent = '📍 重新定位'; btn.disabled = false; }, 1300);
+      btn.textContent = '已定位';
+      setTimeout(() => { btn.textContent = '重新定位'; btn.disabled = false; }, 1300);
       $('f_sort').value = 'distance';
       applyFilter();
-      toast('📍 已定位 ' + lng + ', ' + lat + '（±' + acc + 'm） · 已按距离升序排序', 5200);
+      toast(svgIcon('location') + ' 已定位 ' + lng + ', ' + lat + '（±' + acc + 'm） · 已按距离升序排序', 5200);
       track('locate', null, null, acc);
     },
     err => {
       btn.textContent = old; btn.disabled = false;
       const m = { 1: '用户拒绝授权', 2: '位置不可用', 3: '请求超时' }[err.code] || err.message;
-      toast('⚠️ 定位失败：' + m + ' —— 请确认浏览器允许位置权限', 5200);
+      toast(svgIcon('warn') + ' 定位失败：' + m + ' —— 请确认浏览器允许位置权限', 5200);
     },
     { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
   );
@@ -410,7 +442,7 @@ function commitNLQ(r, raw) {
   if (echo) {
     echo.style.display = 'block';
     echo.innerHTML = chips.length === 0
-      ? '<span style="color:' + WARN + '">⚠ 没识别出筛选条件。</span>可以试试：<b>朝阳区看心脏病的三级医院</b> / <b>海淀区儿科诊所</b> / <b>离家最近的二甲医院</b>'
+      ? '<span style="color:' + WARN + '">' + svgIcon('warn') + ' 没识别出筛选条件。</span>可以试试：<b>朝阳区看心脏病的三级医院</b> / <b>海淀区儿科诊所</b> / <b>离家最近的二甲医院</b>'
       : '<b style="color:' + INK + '">我理解为</b> <span style="color:' + DIM + '">' + tip + '</span><br>' +
         chips.map(c => '<span class="chip">' + esc(c) + '</span>').join('') +
         '<br><span style="color:' + FAINT + '">解析结果已填入下方筛选项，可直接手工修改纠错。</span>';
@@ -575,14 +607,14 @@ function renderList() {
   }
   const baseKey = $('f_base').value;
   const baseNow = BASE_POINTS[baseKey] || BASE_POINTS.tiananmen;
-  const distLabel = (baseKey === 'geo' && (baseNow.lng == null || baseNow.lat == null)) ? '⚠️ 请先点定位' : ('距' + baseNow.name);
+  const distLabel = (baseKey === 'geo' && (baseNow.lng == null || baseNow.lat == null)) ? svgIcon('warn') + ' 请先点定位' : ('距' + baseNow.name);
 
   box.innerHTML = page.map(r => {
     const dist = r._dist == null ? '—' : r._dist.toFixed(1) + ' km';
     const on = PICKED.has(String(r.id));
     const ksc = r.key_specialty_count || 0;
     return '<div class="row' + (on ? ' sel' : '') + '" data-id="' + esc(r.id) + '">' +
-      '<div class="pick" data-pick="' + esc(r.id) + '" title="加入对比（最多 ' + PICK_MAX + ' 家）">✓</div>' +
+      '<div class="pick" data-pick="' + esc(r.id) + '" title="加入对比（最多 ' + PICK_MAX + ' 家）">' + svgIcon('ok') + '</div>' +
       '<div class="body">' +
         '<div class="name">' + kwMark(r.name) + '</div>' +
         '<div class="meta">' + levelBadge(r.level) + catBadge(r.category) + ownBadge(r.ownership) +
@@ -648,11 +680,11 @@ function initCharts() {
     CH1 = echarts.init($('ch1')); CH2 = echarts.init($('ch2')); CH3 = echarts.init($('ch3'));
     window.addEventListener('resize', () => resizeAll());
 
-    setMapDiag('', '✅ 地图就绪 · ' + (DATA.geojson.features || []).length + ' 个行政区 · 点击区名可直接筛选');
+    setMapDiag('', svgIcon('ok') + ' 地图就绪 · ' + (DATA.geojson.features || []).length + ' 个行政区 · 点击区名可直接筛选');
     setTimeout(() => { const el = $('map_diag'); if (el) el.style.opacity = '.25'; }, 5200);
   } catch (e) {
     console.error('[initCharts]', e);
-    setMapDiag('err', '❌ 地图初始化失败<br><b>' + esc(e.message || e) + '</b><br>请按 Cmd+Shift+R 硬刷新');
+    setMapDiag('err', svgIcon('err') + ' 地图初始化失败<br><b>' + esc(e.message || e) + '</b><br>请按 Cmd+Shift+R 硬刷新');
   }
 }
 
@@ -863,13 +895,13 @@ function initDrawer() {
   $('dw_copy').addEventListener('click', () => {
     if (!DW_CUR) return;
     const name = DW_CUR.name || '';
-    if (navigator.clipboard) navigator.clipboard.writeText(name).then(() => toast('✅ 已复制机构名称：' + esc(name)), () => toast('⚠️ 复制失败'));
+    if (navigator.clipboard) navigator.clipboard.writeText(name).then(() => toast(svgIcon('ok') + ' 已复制机构名称：' + esc(name)), () => toast(svgIcon('warn') + ' 复制失败'));
     else toast('机构名称：' + esc(name));
   });
   $('dw_pick').addEventListener('click', () => {
     if (!DW_CUR) return;
     togglePick(String(DW_CUR.id));
-    $('dw_pick').textContent = PICKED.has(String(DW_CUR.id)) ? '✓ 已加入对比' : '＋ 加入对比';
+    $('dw_pick').innerHTML = PICKED.has(String(DW_CUR.id)) ? svgIcon('ok') + ' 已加入对比' : '＋ 加入对比';
   });
   $('dw_ai').addEventListener('click', () => runAIAdvice());
 }
@@ -890,7 +922,7 @@ function openDrawer(id) {
   paintDrawerLocal(local);
   $('drawer').classList.add('show');
   $('scrim').classList.add('show');
-  $('dw_pick').textContent = PICKED.has(String(local.id)) ? '✓ 已加入对比' : '＋ 加入对比';
+  $('dw_pick').innerHTML = PICKED.has(String(local.id)) ? svgIcon('ok') + ' 已加入对比' : '＋ 加入对比';
   $('dw_ai').style.display = (window.__AI_LLM_ON__ && ENV.api) ? '' : 'none';
   $('dw_ft_note').textContent = ENV.api ? '' : '离线模式 · 周边配套与 AI 提示需本地服务';
 
@@ -935,13 +967,13 @@ function paintDrawerLocal(r) {
 // 离线模式的「就诊与挂号」面板：只用快照数据，不依赖任何接口
 function contactLocalHTML(r) {
   const items = [];
-  items.push(linkCard('🏛️', '北京市预约挂号统一平台（114）', '官方统一平台 · 打开后按机构名检索', GUAhAO_114, false));
-  items.push(linkCard('📞', '电话预约挂号 010-114', '24 小时人工坐席', 'tel:010-114', false));
-  if (r.phone) items.push(linkCard('☎️', '机构电话 ' + r.phone, '预约 / 咨询（以医院公布为准）', 'tel:' + r.phone, false));
-  else items.push(linkCard('☎️', '机构电话未收录', '公开数据中无联系电话', '', true));
+  items.push(linkCard(svgIcon('gov'), '北京市预约挂号统一平台（114）', '官方统一平台 · 打开后按机构名检索', GUAhAO_114, false));
+  items.push(linkCard(svgIcon('phone'), '电话预约挂号 010-114', '24 小时人工坐席', 'tel:010-114', false));
+  if (r.phone) items.push(linkCard(svgIcon('phone'), '机构电话 ' + r.phone, '预约 / 咨询（以医院公布为准）', 'tel:' + r.phone, false));
+  else items.push(linkCard(svgIcon('phone'), '机构电话未收录', '公开数据中无联系电话', '', true));
   const nav = navLink(r);
-  if (nav) items.push(linkCard('🧭', '高德地图导航', '一键导航到该机构', nav, false));
-  else items.push(linkCard('🧭', '暂无坐标', '缺少经纬度，无法导航', '', true));
+  if (nav) items.push(linkCard(svgIcon('compass'), '高德地图导航', '一键导航到该机构', nav, false));
+  else items.push(linkCard(svgIcon('compass'), '暂无坐标', '缺少经纬度，无法导航', '', true));
   return '<div class="linklist">' + items.join('') + '</div>' +
     '<div class="blk"><h4><span class="bar"></span>联系方式 <span class="r">来源：数据快照</span></h4>' +
       '<div class="infogrid">' +
@@ -1018,7 +1050,7 @@ function aroundPlaceholder(r) {
   return '<div class="notice">周边配套（最近地铁站 / 停车场 / 公交站）通过高德开放平台实时查询，' +
     '需要本地 Flask 服务支持。<br>当前为离线模式，你仍可查看地址并使用导航。</div>' +
     '<div class="blk"><h4><span class="bar"></span>地址与导航</h4>' +
-    '<div class="poilist"><div class="poi"><div class="pi" style="background:rgba(76,154,255,.14)">📍</div>' +
+    '<div class="poilist"><div class="poi"><div class="pi" style="background:rgba(76,154,255,.14)">' + svgIcon('location') + '</div>' +
     '<div class="pb"><div class="pn">' + esc(r.addr || (r.district + '（详细地址未收录）')) + '</div>' +
     '<div class="ps">' + esc(r.district) + ' · ' + (r.lng != null ? (r.lng + ', ' + r.lat) : '无坐标') + '</div></div>' +
     (link ? '<a class="btn ghost sm" href="' + link + '" target="_blank" rel="noopener">导航</a>' : '') +
@@ -1048,7 +1080,7 @@ function mockStatus(r) {
 function statusHTML(st) {
   const heat = [0, 1, 2, 3, 4].map(i => '<i class="' + (i <= st.level_index ? 'on' : '') + '"></i>').join('');
   return '<div class="statusbox">' +
-    '<div class="sh"><span class="simtag">🧪 演示模拟</span>' +
+    '<div class="sh"><span class="simtag">' + svgIcon('flask') + ' 演示模拟</span>' +
     '<span style="font-size:15px;font-weight:800;color:' + WARN + '">当前挂号排队：' + esc(st.level) + '</span>' +
     '<span style="color:' + SUB + ';font-size:12px">预计等候约 ' + st.wait_min + ' 分钟</span></div>' +
     '<div class="heats">' + heat + '</div>' +
@@ -1071,12 +1103,12 @@ function paintDrawerFull(d) {
 
   // 就诊与挂号
   const items = [];
-  items.push(linkCard('🏛️', '北京市预约挂号统一平台（114）', '官方唯一统一平台 · 打开后按机构名检索', L.guahao_114, false));
-  items.push(linkCard('📞', '电话预约挂号 010-114', '24 小时人工坐席（按语音提示操作）', 'tel:010-114', false));
-  if (L.hospital_tel_link) items.push(linkCard('☎️', '机构电话 ' + L.hospital_phone, '预约 / 咨询（以医院公布为准）', L.hospital_tel_link, false));
-  else items.push(linkCard('☎️', '机构电话未收录', '该机构在公开数据中无联系电话', '', true));
-  if (L.amap_nav) items.push(linkCard('🧭', '高德地图导航', '一键导航到该机构', L.amap_nav, false));
-  else items.push(linkCard('🧭', '暂无坐标', '该机构缺少经纬度，无法导航', '', true));
+  items.push(linkCard(svgIcon('gov'), '北京市预约挂号统一平台（114）', '官方唯一统一平台 · 打开后按机构名检索', L.guahao_114, false));
+  items.push(linkCard(svgIcon('phone'), '电话预约挂号 010-114', '24 小时人工坐席（按语音提示操作）', 'tel:010-114', false));
+  if (L.hospital_tel_link) items.push(linkCard(svgIcon('phone'), '机构电话 ' + L.hospital_phone, '预约 / 咨询（以医院公布为准）', L.hospital_tel_link, false));
+  else items.push(linkCard(svgIcon('phone'), '机构电话未收录', '该机构在公开数据中无联系电话', '', true));
+  if (L.amap_nav) items.push(linkCard(svgIcon('compass'), '高德地图导航', '一键导航到该机构', L.amap_nav, false));
+  else items.push(linkCard(svgIcon('compass'), '暂无坐标', '该机构缺少经纬度，无法导航', '', true));
 
   $('pane-contact').innerHTML =
     '<div class="linklist">' + items.join('') + '</div>' +
@@ -1094,12 +1126,12 @@ function paintDrawerFull(d) {
       '不伪造深链（伪造会得到死链）。点击「复制名称」后到 114 平台粘贴检索即可。' +
     '</div>';
   $('pane-contact').innerHTML += '<div class="blk"><h4><span class="bar"></span>快捷操作</h4>' +
-    '<div class="linklist">' + linkCard('📋', '复制机构名称', '到 114 平台粘贴检索', '#copy', false) + '</div></div>';
+    '<div class="linklist">' + linkCard(svgIcon('clipboard'), '复制机构名称', '到 114 平台粘贴检索', '#copy', false) + '</div></div>';
   const cp = $('pane-contact').querySelector('a[href="#copy"]');
   if (cp) cp.addEventListener('click', e => {
     e.preventDefault();
     const n = L.hospital_name || (DW_CUR && DW_CUR.name) || '';
-    if (navigator.clipboard) navigator.clipboard.writeText(n).then(() => toast('✅ 已复制：' + esc(n)), () => toast('复制失败'));
+    if (navigator.clipboard) navigator.clipboard.writeText(n).then(() => toast(svgIcon('ok') + ' 已复制：' + esc(n)), () => toast('复制失败'));
   });
 
   // 周边配套
@@ -1110,12 +1142,12 @@ function paintDrawerFull(d) {
   } else if (!d.around_online) {
     near = '<div class="notice">高德接口暂时不可用（网络或额度问题），已保留地址与导航入口。</div>';
   }
-  near += poiBlock('🚇', '最近地铁站', a.metro, 'rgba(76,154,255,.16)') +
-          poiBlock('🅿️', '附近停车场', a.parking, 'rgba(255,181,71,.16)') +
-          poiBlock('🚌', '附近公交站', a.bus, 'rgba(56,224,192,.16)');
+  near += poiBlock(svgIcon('metro'), '最近地铁站', a.metro, 'rgba(76,154,255,.16)') +
+          poiBlock(svgIcon('parking'), '附近停车场', a.parking, 'rgba(255,181,71,.16)') +
+          poiBlock(svgIcon('bus'), '附近公交站', a.bus, 'rgba(56,224,192,.16)');
   if (!a.metro && !a.parking && !a.bus) {
     near += '<div class="blk"><h4><span class="bar"></span>地址与导航</h4><div class="poilist">' +
-      '<div class="poi"><div class="pi" style="background:rgba(76,154,255,.14)">📍</div><div class="pb">' +
+      '<div class="poi"><div class="pi" style="background:rgba(76,154,255,.14)">' + svgIcon('location') + '</div>' + '<div class="pb">' +
       '<div class="pn">' + esc(c.addr || '未收录详细地址') + '</div>' +
       '<div class="ps">' + esc(c.lng != null ? (c.lng + ', ' + c.lat) : '无坐标') + '</div></div>' +
       (L.amap_nav ? '<a class="btn ghost sm" href="' + L.amap_nav + '" target="_blank" rel="noopener">导航</a>' : '') +
@@ -1169,22 +1201,22 @@ function runAIAdvice() {
   const pane = $('pane-ov');
   if (!wrap.parentElement) pane.appendChild(wrap);
   wrap.classList.add('show');
-  wrap.innerHTML = '<div class="who">🧠 AI 就医提示 <span class="chip eng">仅基于本页真实字段生成 · 禁止编造</span></div>' +
+  wrap.innerHTML = '<div class="who">' + svgIcon('brain') + ' AI 就医提示 <span class="chip eng">仅基于本页真实字段生成 · 禁止编造</span></div>' +
     '<div class="typing"><i></i><i></i><i></i> 正在生成…</div>';
   btn.disabled = true;
   fetch('/api/ai/advice?id=' + encodeURIComponent(DW_CUR.id))
     .then(r => r.ok ? r.json() : null)
     .then(j => {
       if (j && j.ok) {
-        wrap.innerHTML = '<div class="who">🧠 AI 就医提示 <span class="chip eng">' + esc(j.model || 'Agnes') + ' · 仅基于真实字段</span></div>' +
+        wrap.innerHTML = '<div class="who">' + svgIcon('brain') + ' AI 就医提示 <span class="chip eng">' + esc(j.model || 'Agnes') + ' · 仅基于真实字段</span></div>' +
           '<div>' + esc(j.advice) + '</div>' +
           '<div style="color:' + FAINT + ';font-size:10.5px;margin-top:9px">约束：不允许输出医生姓名、职称、出诊时间、号源数量与任何未经核实的具体数字。</div>';
       } else {
-        wrap.innerHTML = '<div class="who">🧠 AI 就医提示</div><div style="color:' + WARN + '">' +
+        wrap.innerHTML = '<div class="who">' + svgIcon('brain') + ' AI 就医提示</div><div style="color:' + WARN + '">' +
           esc((j && (j.hint || j.detail)) || '生成失败，请稍后重试') + '</div>';
       }
     })
-    .catch(() => { wrap.innerHTML = '<div class="who">🧠 AI 就医提示</div><div style="color:' + WARN + '">网络异常，生成失败</div>'; })
+    .catch(() => { wrap.innerHTML = '<div class="who">' + svgIcon('brain') + ' AI 就医提示</div><div style="color:' + WARN + '">网络异常，生成失败</div>'; })
     .then(() => { btn.disabled = false; });
 }
 
@@ -1204,18 +1236,18 @@ function togglePick(id) {
   id = String(id);
   if (PICKED.has(id)) PICKED.delete(id);
   else {
-    if (PICKED.size >= PICK_MAX) { toast('⚠️ 最多同时对比 ' + PICK_MAX + ' 家机构，请先移除已选项'); return; }
+    if (PICKED.size >= PICK_MAX) { toast(svgIcon('warn') + ' 最多同时对比 ' + PICK_MAX + ' 家机构，请先移除已选项'); return; }
     PICKED.add(id);
   }
   renderPickBar();
   // 只更新受影响的那一行，避免整表重绘导致滚动位置跳动
   const row = document.querySelector('.row[data-id="' + id + '"]');
   if (row) row.classList.toggle('sel', PICKED.has(id));
-  if (DW_CUR && String(DW_CUR.id) === id) $('dw_pick').textContent = PICKED.has(id) ? '✓ 已加入对比' : '＋ 加入对比';
+  if (DW_CUR && String(DW_CUR.id) === id) $('dw_pick').innerHTML = PICKED.has(id) ? svgIcon('ok') + ' 已加入对比' : '＋ 加入对比';
 }
 function clearPicks() {
   PICKED.clear(); renderPickBar(); renderList();
-  if (DW_CUR) $('dw_pick').textContent = '＋ 加入对比';
+  if (DW_CUR) $('dw_pick').innerHTML = '＋ 加入对比';
 }
 // 注意：对比浮条上的「×」用事件委托处理（renderPickBar 会重建浮条内容）
 function renderPickBar() {
@@ -1234,7 +1266,7 @@ function renderPickBar() {
 }
 
 function openCompare() {
-  if (PICKED.size < 2) { toast('⚠️ 至少选择 2 家机构才能对比'); return; }
+  if (PICKED.size < 2) { toast(svgIcon('warn') + ' 至少选择 2 家机构才能对比'); return; }
   const ids = Array.from(PICKED).join(',');
   track('compare', ids, null, PICKED.size);
   $('cmp_sub').textContent = '共 ' + PICKED.size + ' 家机构 · 逐项横向对比';
@@ -1361,7 +1393,7 @@ function initTriageChat() {
   $('t_send').addEventListener('click', sendTriage);
   $('btn_triage_clear').addEventListener('click', resetTriage);
   if (!ENV.http) {
-    $('triage_hint').innerHTML = '⚠️ 智能导诊需要本地服务：请运行 <code style="color:' + ACC + '">bash web/start.sh</code> 后访问 http://localhost:5001';
+    $('triage_hint').innerHTML = svgIcon('warn') + ' 智能导诊需要本地服务：请运行 <code style="color:' + ACC + '">bash web/start.sh</code> 后访问 http://localhost:5001';
   }
   resetTriage();
 }
@@ -1382,14 +1414,14 @@ function resetTriage() {
 function setEngineTag(engine) {
   const el = $('eng_tag');
   if (!el) return;
-  if (engine === 'llm') { el.textContent = '🧠 AI 兜底'; el.className = 'chip ai'; }
+  if (engine === 'llm') { el.textContent = 'AI 兜底'; el.className = 'chip ai'; }
   else { el.textContent = '本地知识库'; el.className = 'chip eng'; }
 }
 
 function addUser(text) {
   const d = document.createElement('div');
   d.className = 'msg me';
-  d.innerHTML = '<div class="av2">👤</div><div class="bub">' + esc(text) + '</div>';
+  d.innerHTML = '<div class="av2">' + svgIcon('user') + '</div>' + '<div class="bub">' + esc(text) + '</div>';
   $('chat_body').appendChild(d);
   scrollChat();
 }
@@ -1405,7 +1437,7 @@ function addBot(html, quick, extras) {
     q += '<div class="chips">' + extras.map(x =>
       '<span class="chip pick acc" data-extra="' + esc(x) + '">＋ ' + esc(x) + '</span>').join('') + '</div>';
   }
-  d.innerHTML = '<div class="av2">🩺</div><div class="bub">' + html + q + '</div>';
+  d.innerHTML = '<div class="av2">' + svgIcon('triage') + '</div>' + '<div class="bub">' + html + q + '</div>';
   $('chat_body').appendChild(d);
   Array.prototype.forEach.call(d.querySelectorAll('[data-q]'), c =>
     c.addEventListener('click', () => { $('t_in').value = c.getAttribute('data-q'); sendTriage(); }));
@@ -1417,7 +1449,7 @@ function addBot(html, quick, extras) {
 function addTyping() {
   const d = document.createElement('div');
   d.className = 'msg'; d.id = 'typing';
-  d.innerHTML = '<div class="av2">🩺</div><div class="bub"><span class="typing"><i></i><i></i><i></i></span> 正在分析…</div>';
+  d.innerHTML = '<div class="av2">' + svgIcon('triage') + '</div>' + '<div class="bub"><span class="typing"><i></i><i></i><i></i></span> 正在分析…</div>';
   $('chat_body').appendChild(d);
   scrollChat();
   return d;
@@ -1430,7 +1462,7 @@ function sendTriage() {
   $('t_in').value = '';
   if (!ENV.http) {
     addUser(q);
-    addBot('⚠️ 当前为离线打开模式（file://），智能导诊需要本地 Flask 服务支持。' +
+    addBot(svgIcon('warn') + ' 当前为离线打开模式（file://），智能导诊需要本地 Flask 服务支持。' +
       '请运行 <code>bash web/start.sh</code> 后访问 <b>http://localhost:5001</b>。');
     return;
   }
@@ -1462,7 +1494,7 @@ function requestTriage() {
 
   fetch(url).then(r => r.ok ? r.json() : null).then(j => {
     typing.remove();
-    if (!j) { addBot('⚠️ 服务异常，请确认 Flask 已启动（<code>bash web/start.sh</code>）。'); return; }
+    if (!j) { addBot(svgIcon('warn') + ' 服务异常，请确认 Flask 已启动（<code>bash web/start.sh</code>）。'); return; }
     setEngineTag(j.engine);
     if (!j.ok) {
       const ex = (j.examples || []).map(x => esc(x));
@@ -1475,7 +1507,7 @@ function requestTriage() {
       '<span class="chip' + (x.emergency ? ' emg' : '') + (j.engine === 'llm' ? ' ai' : '') + '">' +
       esc(x.dept) + (x.emergency ? ' · 急诊' : '') + '</span>').join('');
     let html = '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:7px">' +
-      (j.engine === 'llm' ? '<span class="chip ai">🧠 AI 理解</span>' : '<span class="chip eng">本地知识库</span>') +
+      (j.engine === 'llm' ? '<span class="chip ai">' + svgIcon('brain') + ' AI 理解</span>' : '<span class="chip eng">本地知识库</span>') +
       '<span style="color:' + DIM + ';font-size:11px">病情「' + esc(j.query) + '」对应科室</span></div>' + chips;
     if (j.engine === 'llm' && j.ai_note) html += '<div class="hint">AI 依据：' + esc(j.ai_note) + '</div>';
     if (j.extra) html += '<div class="hint">已结合补充信息：' + esc(j.extra) + '</div>';
@@ -1489,7 +1521,7 @@ function requestTriage() {
     const emg = j.matched_depts.some(x => x.emergency);
     if (emg) {
       html += '<div style="margin-top:9px;padding:9px 12px;border-radius:10px;background:rgba(255,107,129,.12);border:1px solid rgba(255,107,129,.36);color:#ffa4b3;font-size:12px">' +
-        '⚠️ 涉及急诊科室：如出现胸痛、意识不清、大出血、呼吸困难等急危症状，请<b>立即拨打 120 或直接前往最近医院急诊</b>，不要依赖线上筛选。</div>';
+        svgIcon('warn') + ' 涉及急诊科室：如出现胸痛、意识不清、大出血、呼吸困难等急危症状，请<b>立即拨打 120 或直接前往最近医院急诊</b>，不要依赖线上筛选。</div>';
     }
     html += '<div style="margin-top:10px;color:' + DIM + ';font-size:11.5px">按 <b>等级 0.5 / 距离 0.3 / 科室匹配 0.2</b> 加权评分排序，为你推荐以下 ' + j.hospitals.length + ' 家：</div>';
     html += j.hospitals.map(h => recCard(h, j)).join('');
@@ -1503,7 +1535,7 @@ function requestTriage() {
     }
   }).catch(() => {
     typing.remove();
-    addBot('⚠️ 网络异常，请确认 Flask 已启动（<code>bash web/start.sh</code>）。');
+    addBot(svgIcon('warn') + ' 网络异常，请确认 Flask 已启动（<code>bash web/start.sh</code>）。');
   });
 }
 
@@ -1547,7 +1579,7 @@ document.addEventListener('click', e => {
   if (pk) {
     const id = pk.getAttribute('data-pick2');
     togglePick(id);
-    toast(PICKED.has(String(id)) ? '✅ 已加入对比' : '已移出对比');
+    toast(PICKED.has(String(id)) ? svgIcon('ok') + ' 已加入对比' : '已移出对比');
     return;
   }
   // 点击推荐卡片空白处也打开详情
@@ -1745,10 +1777,10 @@ const PIPELINE = [
   { step: 7, name: '服务与可视化', tool: 'Flask + ECharts + Docker Compose', desc: 'Flask 提供筛选 / 排序 / 详情 / 对比 / 导诊 / 埋点接口，ECharts 渲染地图与多维图表，并导出零依赖离线单文件。' },
 ];
 const SOURCES = [
-  { icon: '🏛️', name: '北京市卫生健康委员会', url: 'https://wjw.beijing.gov.cn/', desc: '医疗机构名录、重点专科公示名单、协作网络名单' },
-  { icon: '📞', name: '北京市预约挂号统一平台（114）', url: GUAhAO_114, desc: '预约挂号官方入口，仅做链接跳转，不抓取号源与排班数据' },
-  { icon: '🗂️', name: '北京市政务数据资源网', url: 'https://data.beijing.gov.cn/', desc: '医疗机构基础信息开放数据' },
-  { icon: '🗺️', name: '高德开放平台', url: 'https://lbs.amap.com/', desc: '地理编码补全与周边配套（地铁站 / 停车场 / 公交站）POI 查询' },
+  { icon: svgIcon('gov'), name: '北京市卫生健康委员会', url: 'https://wjw.beijing.gov.cn/', desc: '医疗机构名录、重点专科公示名单、协作网络名单' },
+  { icon: svgIcon('phone'), name: '北京市预约挂号统一平台（114）', url: GUAhAO_114, desc: '预约挂号官方入口，仅做链接跳转，不抓取号源与排班数据' },
+  { icon: svgIcon('folder'), name: '北京市政务数据资源网', url: 'https://data.beijing.gov.cn/', desc: '医疗机构基础信息开放数据' },
+  { icon: svgIcon('map'), name: '高德开放平台', url: 'https://lbs.amap.com/', desc: '地理编码补全与周边配套（地铁站 / 停车场 / 公交站）POI 查询' },
 ];
 const UPDATES = [
   { date: '2026-09-11', desc: '新增机构详情抽屉（联系方式 / 挂号入口 / 重点专科 / 周边配套 / 实时状态）、机构横向对比、智能导诊多轮对话、运营后台与关于页；前端视觉体系重构。' },
