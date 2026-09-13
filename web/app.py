@@ -15,8 +15,11 @@
   浏览器访问 http://127.0.0.1:5000
 """
 
+import difflib
+import hashlib
 import math
 import os
+import re
 
 import pymysql
 from flask import Flask, g, jsonify, render_template, request, make_response
@@ -536,6 +539,57 @@ def api_ai_parse():
         return jsonify({"ok": False, "reason": "llm_error", "detail": str(e)[:200]})
 
 
+SUMMARY_PROMPT = (
+    "你是北京市医疗资源检索系统的结果摘要助手。请依据给定的结构化事实，"
+    "用 2~3 句中文写一段面向普通患者的总结。硬性要求：\n"
+    "① 只能使用事实中出现的信息，数字必须准确保留，绝不编造医院名、距离或排名；\n"
+    "② 语言客观平实，不夸大、不营销，不使用 Markdown 与列表；\n"
+    "③ 点出最推荐的一家并说明理由（等级 / 距离 / 重点专科 / 科室匹配）；\n"
+    "④ 事实中若含急诊提示，最后一句必须提醒急危症状立即拨打 120。\n"
+    "只输出总结正文。事实(JSON)："
+)
+
+
+@app.route("/api/ai/summary")
+def api_ai_summary():
+    """生成式总结：把结构化筛选结果写成一段自然语言。
+
+    三级降级：LLM 润色 → 命中缓存 → 调用方回传的本地模板（local）。
+    离线单文件永不调用本接口，本地模板保证无网络也一定有总结可看。
+    """
+    facts = (request.args.get("facts") or "").strip()[:4000]
+    local = (request.args.get("local") or "").strip()[:1200]
+    if not facts:
+        return jsonify({"ok": False, "reason": "empty", "summary": local})
+    if not (AI_LLM_ENABLED and AI_API_KEY):
+        return jsonify({"ok": True, "engine": "local", "summary": local})
+    ck = AI_MODEL + "|summary|" + hashlib.sha1(facts.encode("utf-8")).hexdigest()[:24]
+    if ck in _LLM_CACHE:
+        return jsonify({"ok": True, "engine": "llm", "model": AI_MODEL,
+                        "summary": _LLM_CACHE[ck], "cached": True})
+    cached = _ai_cache_get(ck)
+    if cached is not None:
+        _LLM_CACHE[ck] = cached
+        return jsonify({"ok": True, "engine": "llm", "model": AI_MODEL,
+                        "summary": cached, "cached": True})
+    try:
+        txt = (_llm_chat([{"role": "user", "content": SUMMARY_PROMPT + facts}],
+                         temperature=0.3) or "").strip()
+        if not txt:
+            raise ValueError("模型返回空")
+        if len(_LLM_CACHE) >= _LLM_CACHE_MAX:
+            _LLM_CACHE.clear()
+        _LLM_CACHE[ck] = txt
+        _ai_cache_put(ck, "summary", txt)
+        return jsonify({"ok": True, "engine": "llm", "model": AI_MODEL, "summary": txt})
+    except LLMRateLimited:
+        return jsonify({"ok": True, "engine": "local", "summary": local,
+                        "note": "Agnes 免费额度限流（约 1 次/30 秒），已用本地模板生成"})
+    except Exception as e:  # 兜底绝不影响主流程
+        return jsonify({"ok": True, "engine": "local", "summary": local,
+                        "note": "大模型不可用，已用本地模板生成：" + str(e)[:80]})
+
+
 @app.route("/api/ai/warm")
 def api_ai_warm():
     """预热大模型缓存：演示/答辩前跑一次，把常用问法固化到缓存，现场零等待。
@@ -658,6 +712,87 @@ def _llm_map_dept(q, whitelist, timeout=None):
     return picked, str(out.get("reason") or "")
 
 
+# ---------- 意图纠错 & 歧义澄清（"AI 说话"的深度：先纠正，再反问） ----------
+# 北京 17 个行政区/功能区（用于区名错别字纠正；写死比查库更稳且离线可用）
+BJ_DISTRICTS = ["东城区", "西城区", "朝阳区", "丰台区", "石景山区", "海淀区",
+                "门头沟区", "房山区", "通州区", "顺义区", "昌平区", "大兴区",
+                "怀柔区", "平谷区", "密云区", "延庆区", "经济技术开发区"]
+
+# 口语科室别名 → 标准科室名（知识库按标准名落库，别名不归一化就会零命中）
+DEPT_ALIAS = {
+    "心内科": "心血管内科", "心脏内科": "心血管内科", "心血管科": "心血管内科",
+    "呼吸科": "呼吸内科", "消化科": "消化内科", "神经科": "神经内科",
+    "肾脏内科": "肾内科", "内分泌": "内分泌科", "血液科": "血液内科",
+    "普外": "普通外科", "胸外科": "心胸外科", "心脏外科": "心胸外科",
+    "泌尿科": "泌尿外科", "痔瘘科": "肛肠外科", "妇科": "妇产科", "产科": "妇产科",
+    "小儿科": "儿科", "耳鼻喉科": "耳鼻咽喉科", "耳鼻喉": "耳鼻咽喉科",
+    "口腔": "口腔科", "皮肤": "皮肤科", "精神科": "精神心理科",
+    "心理科": "精神心理科", "传染科": "感染科", "重症监护": "重症医学科",
+    "ICU": "重症医学科", "康复科": "康复医学科",
+}
+
+# 疾病 → 多个可能科室（同义不同科）：命中即反问，展示 NLP 的歧义消解能力
+CLARIFY_MAP = [
+    {"kw": ["心脏病", "心脏"], "q": "心脏问题分内科和外科两条路，您想看哪一类？",
+     "opts": [{"label": "心血管内科（药物 / 介入治疗）", "dept": "心血管内科"},
+              {"label": "心胸外科（外科手术）", "dept": "心胸外科"}]},
+    {"kw": ["头痛", "头疼"], "q": "头痛在内科和外科都能看，您更接近哪一种？",
+     "opts": [{"label": "神经内科（偏头痛 / 供血不足）", "dept": "神经内科"},
+              {"label": "神经外科（外伤 / 颅内肿物）", "dept": "神经外科"}]},
+    {"kw": ["腹痛", "肚子疼"], "q": "腹痛可能是内科也可能是外科问题，您想先查哪一科？",
+     "opts": [{"label": "消化内科（胃痛 / 腹泻）", "dept": "消化内科"},
+              {"label": "普通外科（急腹症 / 阑尾）", "dept": "普通外科"}]},
+    {"kw": ["甲状腺"], "q": "甲状腺问题分功能性与结节手术，您是哪一种？",
+     "opts": [{"label": "内分泌科（甲亢 / 甲减）", "dept": "内分泌科"},
+              {"label": "普通外科（结节 / 手术）", "dept": "普通外科"}]},
+    {"kw": ["便血", "血便"], "q": "便血可能来自消化道也可能来自肛周，您想先查哪一科？",
+     "opts": [{"label": "消化内科（胃肠 / 内镜）", "dept": "消化内科"},
+              {"label": "肛肠外科（痔 / 肛裂）", "dept": "肛肠外科"}]},
+    {"kw": ["头晕", "眩晕"], "q": "头晕在神经和耳部都很常见，您想先看哪一科？",
+     "opts": [{"label": "神经内科（脑血管 / 供血不足）", "dept": "神经内科"},
+              {"label": "耳鼻咽喉科（耳石症 / 前庭）", "dept": "耳鼻咽喉科"}]},
+]
+
+
+def _norm_depts(text):
+    """口语科室别名归一化为标准科室名（长别名先替换，避免「心脏外科」被「外科」截胡）。"""
+    for alias in sorted(DEPT_ALIAS, key=len, reverse=True):
+        if alias in text:
+            text = text.replace(alias, DEPT_ALIAS[alias])
+    return text
+
+
+def _correct_district(q):
+    """区名错别字纠正：返回 {"from","to"} 或 None。
+
+    只对「以区结尾的 2~4 字片段」做模糊匹配，避免把普通词误判成区名。
+    """
+    for cand in re.findall(r"[\u4e00-\u9fa5]{2,4}区", q):
+        if cand in BJ_DISTRICTS:
+            continue
+        hit = difflib.get_close_matches(cand, BJ_DISTRICTS, n=1, cutoff=0.6)
+        if hit:
+            return {"from": cand, "to": hit[0]}
+    return None
+
+
+def _clarify_for(q, matched, extra):
+    """歧义澄清：症状对应多个科室且用户尚未明确时，反问一句（多轮对话的核心）。"""
+    for spec in CLARIFY_MAP:
+        if not any(k in q for k in spec["kw"]):
+            continue
+        depts = [o["dept"] for o in spec["opts"]]
+        if any(d in q for d in depts):                 # 用户已明确科室，无需追问
+            continue
+        if any(d in (extra or "") for d in depts):     # 本轮已确认过，不再重复追问
+            continue
+        if not any(d in matched for d in depts):       # 没命中任何相关科室则不追问
+            continue
+        return {"question": spec["q"],
+                "options": [{"label": o["label"], "dept": o["dept"]} for o in spec["opts"]]}
+    return None
+
+
 @app.route("/api/triage")
 def api_triage():
     """智能导诊：输入病情/疾病文本，推荐具备对应科室的医院。
@@ -671,8 +806,21 @@ def api_triage():
     # 多轮对话：extra 为前几轮已确认的补充信息（如"伴发热""3天""老年人"），
     # 只参与科室匹配，不改变对外回显的 query（保持对话可追溯）。
     extra = (request.args.get("extra") or "").strip()
-    match_text = q + (" " + extra if extra else "")
+    # 意图纠错①：区名错别字（如"朝杨区"→"朝阳区"）
+    correction = _correct_district(q)
+    q_norm = q.replace(correction["from"], correction["to"]) if correction else q
+    # 意图纠错②：口语科室别名归一化（如"心内科"→"心血管内科"）
+    match_text = _norm_depts(q_norm + (" " + extra if extra else ""))
     district = (request.args.get("district") or "").strip()
+    if not district:
+        # 区名从自然语言里直接抽取（"朝阳区看心脏病"→区=朝阳区）；
+        # 抽不到时再用纠错结果兜底（"朝杨区"→朝阳区）。用户无需再手动选区。
+        for _dz in BJ_DISTRICTS:
+            if _dz in q_norm:
+                district = _dz
+                break
+        if not district and correction:
+            district = correction["to"]
     level = (request.args.get("level") or "").strip()
     try:
         top_n = max(1, min(50, int(request.args.get("top_n", 10))))
@@ -804,9 +952,15 @@ def api_triage():
     results.sort(key=lambda x: (not any(matched[d][1] for d in x["matched_depts"]),
                                 -x["score"]))
     results = results[:top_n]
+    # 歧义澄清：命中多个可能科室 → 反问一句（前端渲染为可点选项，点击后作为 extra 收窄）
+    # nocl=1：用户选择"不限科室，都看看"，本轮不再反问（前端澄清气泡的跳过按钮）
+    clarify = None if request.args.get("nocl") == "1" else _clarify_for(q_norm, matched, extra)
     return jsonify({
         "ok": True,
         "query": q,
+        "query_norm": q_norm,
+        "correction": correction,
+        "clarify": clarify,
         "extra": extra,
         "engine": engine,
         "model": AI_MODEL if engine == "llm" else None,

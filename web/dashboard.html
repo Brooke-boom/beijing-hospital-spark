@@ -497,6 +497,80 @@ body.has-pick{padding-bottom:84px}
 .who svg{width:16px;height:16px;vertical-align:-3px;margin-right:3px}
 .btn svg{margin-right:5px;vertical-align:-3px}
 #toast 
+
+/* ============================ 多维筛选区增强 ============================ */
+.filterbox .fh .ftag{margin-left:2px;background:rgba(107,140,255,.13);color:var(--acc);
+  border:1px solid rgba(107,140,255,.3);font-size:11px;font-weight:650;padding:3px 10px;border-radius:20px;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.fglabel{grid-column:1/-1;display:flex;align-items:center;gap:7px;color:var(--ink-3);font-size:11px;
+  font-weight:650;letter-spacing:.03em;margin:2px 0 -2px}
+.fglabel i{width:3px;height:11px;border-radius:2px;background:var(--ink-4);display:block;flex:0 0 auto}
+.fglabel:after{content:'';flex:1;height:1px;background:var(--line)}
+.presetbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:12px}
+.presetbar .plabel{color:var(--ink-4);font-size:11px;white-space:nowrap}
+.preset{background:var(--panel-2);border:1px solid var(--line);color:var(--ink-2);font-size:11.5px;
+  padding:4px 11px;border-radius:20px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:5px}
+.preset:hover{background:var(--panel-3);color:var(--ink);border-color:rgba(107,140,255,.34)}
+.preset.on{background:rgba(107,140,255,.14);border-color:rgba(107,140,255,.44);color:var(--acc)}
+.fltchips{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:11px}
+.fltchips:empty{display:none}
+.fltchips .fl{color:var(--ink-4);font-size:11px;white-space:nowrap}
+.fchip{display:inline-flex;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--line);
+  color:var(--ink-2);font-size:11.5px;padding:3px 4px 3px 10px;border-radius:7px}
+.fchip em{color:var(--ink-4);font-style:normal;font-size:10.5px}
+.fchip b{color:var(--ink);font-weight:600}
+.fchip i{cursor:pointer;color:var(--ink-4);font-style:normal;font-size:13px;line-height:1;padding:0 4px;border-radius:4px}
+.fchip i:hover{color:var(--crit);background:rgba(224,105,126,.14)}
+.quickbar{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.quickbar .qb{background:none;border:1px dashed var(--line-2);color:var(--ink-3);font-size:11px;
+  padding:3px 9px;border-radius:20px;cursor:pointer;transition:.15s;font-family:inherit}
+.quickbar .qb:hover{color:var(--acc);border-color:rgba(107,140,255,.42);border-style:solid}
+
+/* ============================ 语音输入 ============================ */
+.iconbtn{padding:6px 9px!important;position:relative;line-height:0}
+.iconbtn.off{opacity:.4;cursor:not-allowed}
+.iconbtn.rec{color:var(--crit);border-color:rgba(224,105,126,.5)!important;background:rgba(224,105,126,.1)}
+.iconbtn.rec:after{content:'';position:absolute;inset:-4px;border-radius:10px;border:1px solid rgba(224,105,126,.5);
+  animation:vpulse 1.2s ease-out infinite;pointer-events:none}
+@keyframes vpulse{0%{opacity:.85;transform:scale(.94)}100%{opacity:0;transform:scale(1.14)}}
+input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(224,105,126,.16)!important}
+
+/* ============================ 收藏 ============================ */
+.rowstar{background:none;border:0;cursor:pointer;color:var(--ink-4);padding:4px;line-height:0;flex:0 0 auto;transition:.15s}
+.rowstar:hover{color:var(--warn)}
+.rowstar.on{color:var(--warn)}
+.rowstar.on svg{fill:var(--warn)}
+.listhead .lh-l{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.favbtn{background:var(--panel-2);border:1px solid var(--line);color:var(--ink-2);font-size:11px;
+  padding:4px 10px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:.15s}
+.favbtn:hover{background:var(--panel-3);color:var(--ink)}
+.favbtn b{color:var(--warn);font-variant-numeric:tabular-nums}
+.favbtn.on{color:var(--warn);border-color:rgba(224,162,59,.4);background:rgba(224,162,59,.1)}
+.favlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;padding:2px}
+.favcard{background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-m);padding:12px 13px;
+  display:flex;flex-direction:column;gap:7px}
+.favcard .fn{font-size:13px;font-weight:650;color:var(--ink);line-height:1.35}
+.favcard .fm{display:flex;gap:6px;flex-wrap:wrap;align-items:center;color:var(--ink-3);font-size:11px}
+.favcard .fa{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto}
+.favempty{color:var(--ink-3);font-size:12.5px;padding:28px 10px;text-align:center;line-height:1.9}
+.favempty svg{width:26px;height:26px;color:var(--ink-4);display:block;margin:0 auto 8px}
+
+.chip.clo{background:rgba(154,140,240,.14);color:#bdb2f6;border-color:rgba(154,140,240,.32);font-weight:600}
+.chip.pick.off{opacity:.34;pointer-events:none}
+/* ============================ 生成式总结 ============================ */
+.aibox{margin-top:10px;padding:12px 15px;border-radius:var(--r-m);background:var(--panel-2);
+  border:1px solid rgba(154,140,240,.26);position:relative}
+.aibox:before{content:'';position:absolute;left:0;top:11px;bottom:11px;width:2px;border-radius:2px;background:var(--vio)}
+.aibox .ah{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+.aibox .ah .lb{font-size:11px;font-weight:700;color:var(--vio);letter-spacing:.03em;display:inline-flex;align-items:center;gap:5px}
+.aibox .ah .lb svg{width:12px;height:12px}
+.aibox .ah .st{margin-left:auto;font-size:10.5px;color:var(--ink-4)}
+.aibox .tx{font-size:12.5px;line-height:1.85;color:var(--ink-2)}
+.aibox .tx b{color:var(--ink)}
+.aibox .caret{display:inline-block;width:6px;height:13px;background:var(--vio);vertical-align:-2px;
+  animation:blink 1s steps(1) infinite;margin-left:2px}
+@keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}
+.aibox.ovsum{margin:0 0 10px}
 </style>
 </head>
 <body>
@@ -541,7 +615,8 @@ body.has-pick{padding-bottom:84px}
   <div class="filterbox">
     <div class="fh">
       <span class="bar"></span><span class="t">多维筛选</span>
-      <span class="r">7 维筛选 · 6 种排序 · 加权评分 · Haversine 球面距离</span>
+      <span class="ftag" id="flt_count">—</span>
+      <span class="r" id="flt_meta">7 维筛选 · 6 种排序 · 加权评分 · Haversine 球面距离</span>
     </div>
 
     <div class="nlqbar">
@@ -549,12 +624,16 @@ body.has-pick{padding-bottom:84px}
         <span class="nlq-badge">AI 说人话</span>
         <input id="f_ai" type="text" placeholder="试试直接说：朝阳区看心脏病的三级医院，离家近一点的">
         <button class="btn vio sm" id="btn_ai" type="button">解析</button>
+        <button class="btn ghost sm iconbtn" id="btn_voice_ai" type="button"
+          title="语音输入：点一下说出需求（需在 http://localhost:5001 下使用）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11a7 7 0 0014 0M12 18v3M8.5 21h7"/></svg></button>
         <button class="btn ghost sm" id="btn_ai_clear" type="button">清空</button>
       </div>
+      <div class="quickbar" id="ai_quick"></div>
       <div id="ai_echo" class="ai-echo" style="margin-top:9px;font-size:11.5px;color:var(--ink-3);line-height:1.8;display:none"></div>
     </div>
 
     <div class="filters">
+      <div class="fglabel"><i></i>机构属性</div>
       <div class="field"><label>关键词（机构名 / 地址）</label><input id="f_kw" type="text" placeholder="如：协和 / 海淀 / 中医"></div>
       <div class="field"><label>科室（擅长 / 诊疗）</label><select id="f_dept"><option value="">全部科室</option></select></div>
       <div class="field"><label>区域</label><select id="f_district"><option value="">全部 16 区</option></select></div>
@@ -568,6 +647,7 @@ body.has-pick{padding-bottom:84px}
         <option value="neonatal">危重新生儿救治 · 市级</option>
         <option value="maternal">危重孕产妇救治 · 市级</option>
       </select></div>
+      <div class="fglabel"><i></i>位置与排序</div>
       <div class="field"><label>距离基准点</label>
         <div class="rangebox">
           <select id="f_base">
@@ -588,6 +668,18 @@ body.has-pick{padding-bottom:84px}
       </select></div>
     </div>
 
+    <div class="presetbar" id="presetbar">
+      <span class="plabel">常用筛选</span>
+      <button class="preset" data-preset="l3">三级医院</button>
+      <button class="preset" data-preset="l2">二级医院</button>
+      <button class="preset" data-preset="l1">基层（一级）</button>
+      <button class="preset" data-preset="near3">离我最近的三级</button>
+      <button class="preset" data-preset="net">卒中中心</button>
+      <button class="preset" data-preset="depttop">科室覆盖最全</button>
+    </div>
+
+    <div class="fltchips" id="flt_chips"></div>
+
     <div class="actline">
       <button class="btn ghost sm" id="btn_reset">↺ 重置筛选</button>
       <button class="btn ghost sm" id="btn_clear_pick"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg> 清空已选</button>
@@ -599,7 +691,11 @@ body.has-pick{padding-bottom:84px}
     <div class="panel">
       <h3>机构列表 <span class="tag" id="listTag">LIST · 共 0 家</span></h3>
       <div class="listhead">
-        <div>点击行查看详情 · 点左侧方块加入对比</div>
+        <div class="lh-l">
+          <span>点行看详情 · <b style="color:var(--warn)">★</b> 收藏 · 左侧方块加入对比</span>
+          <button class="favbtn" id="btn_favs" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6l2.62 5.31 5.86.86-4.24 4.13 1 5.84L12 17.02l-5.24 2.72 1-5.84L3.52 9.77l5.86-.86z"/></svg> 收藏夹 <b id="fav_n">0</b></button>
+          <button class="favbtn" id="btn_ov_sum" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 9h6v6H9zM4 10v4M20 10v4M10 4h4M10 20h4M6.5 7.5L4 9M17.5 7.5L20 9M6.5 16.5L4 15M17.5 16.5L20 15"/></svg> AI 总结当前结果</button>
+        </div>
         <div class="pager">
           <button id="pg_prev">‹ 上一页</button>
           <span class="pg" id="pg_info">— / —</span>
@@ -611,6 +707,7 @@ body.has-pick{padding-bottom:84px}
           </select>
         </div>
       </div>
+      <div class="aibox ovsum" id="ov_sum" style="display:none"></div>
       <div class="list" id="list"></div>
     </div>
     <div class="panel mapwrap">
@@ -670,6 +767,8 @@ body.has-pick{padding-bottom:84px}
         <div class="chips" id="t_quick" style="margin-bottom:9px"></div>
         <div class="line">
           <input id="t_in" type="text" placeholder="如：反复胸痛两天 / 孩子发烧咳嗽 / 摔了一跤膝盖疼">
+          <button class="btn ghost sm iconbtn" id="btn_voice_t" type="button"
+            title="语音输入：点一下说出病情（需在 http://localhost:5001 下使用）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11a7 7 0 0014 0M12 18v3M8.5 21h7"/></svg></button>
           <button class="btn vio" id="t_send">发送</button>
         </div>
         <div class="hint" style="color:var(--ink-4);font-size:10.5px;margin-top:8px" id="triage_hint">
@@ -826,6 +925,28 @@ body.has-pick{padding-bottom:84px}
   </div>
 </div>
 
+
+<!-- 收藏夹 -->
+<div class="cmpwrap" id="favwrap">
+  <div class="cmpbox" style="max-width:780px">
+    <div class="ch">
+      <div>
+        <h2>我的收藏清单</h2>
+        <div style="color:var(--ink-4);font-size:11px;margin-top:3px" id="fav_sub">—</div>
+      </div>
+      <div class="r">
+        <button class="btn ghost sm" id="fav_all_cmp">全部加入对比</button>
+        <button class="btn ghost sm" id="fav_clear">清空收藏</button>
+        <button class="btn ghost sm" id="fav_close">关闭</button>
+      </div>
+    </div>
+    <div class="cb"><div class="favlist" id="fav_list"></div></div>
+    <div class="cmpfoot">
+      <span class="legend"><span>收藏保存在浏览器本地（localStorage），刷新不丢失，可随时加入对比或打开详情</span></span>
+    </div>
+  </div>
+</div>
+
 <!-- 详情抽屉 -->
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer">
@@ -850,6 +971,7 @@ body.has-pick{padding-bottom:84px}
   </div>
   <div class="dw-ft">
     <button class="btn pri sm" id="dw_pick">＋ 加入对比</button>
+    <button class="btn ghost sm" id="dw_fav"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6l2.62 5.31 5.86.86-4.24 4.13 1 5.84L12 17.02l-5.24 2.72 1-5.84L3.52 9.77l5.86-.86z"/></svg> 收藏</button>
     <button class="btn ghost sm" id="dw_copy">复制名称</button>
     <button class="btn vio sm" id="dw_ai"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 9h6v6H9zM4 10v4M20 10v4M10 4h4M10 20h4M6.5 7.5L4 9M17.5 7.5L20 9M6.5 16.5L4 15M17.5 16.5L20 15"/></svg> AI 就医提示</button>
     <span style="margin-left:auto;color:var(--ink-4);font-size:10.5px" id="dw_ft_note"></span>
