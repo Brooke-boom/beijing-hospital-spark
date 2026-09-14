@@ -256,7 +256,7 @@ const FLT_FIELDS = [
   ['f_kw', '关键词'], ['f_dept', '科室'], ['f_district', '区域'], ['f_level', '等级'],
   ['f_cat', '类型'], ['f_net', '协作网络'], ['f_base', '距离基准点'],
 ];
-const FLT_DEFAULT = { f_base: 'tiananmen', f_sort: 'score' };
+const FLT_DEFAULT = { f_base: '天安门', f_sort: 'score' };
 const NET_LABEL = {
   ped_core: '儿科医联体·核心', ped_member: '儿科医联体·成员', stroke: '卒中中心',
   neonatal: '危重新生儿·市级', maternal: '危重孕产妇·市级',
@@ -311,7 +311,7 @@ function syncPresetUI() {
 // 预设是"一键切换"而非叠加：先清空筛选类字段，再套用，避免越点越乱
 function applyPreset(key) {
   const spec = PRESETS[key]; if (!spec) return;
-  if (key === 'near3' && $('f_base').value === 'geo' &&
+  if (key === 'near3' && BASE_NOW === BASE_POINTS.geo &&
       (BASE_POINTS.geo.lng == null || BASE_POINTS.geo.lat == null)) locateMe();
   ['f_level', 'f_cat', 'f_dept', 'f_district', 'f_net'].forEach(k => { const e = $(k); if (e) e.value = ''; });
   const s = $('f_sort'); if (s) s.value = 'score';
@@ -322,13 +322,17 @@ function applyPreset(key) {
 }
 
 const NLQ_EXAMPLES = [
-  '朝阳区看心脏病的三级医院', '海淀区离我最近的儿科', '延庆区有哪些医院',
-  '想找科室最全的三级医院', '西城区口腔科',
+  ['朝阳·心脏病·三级', '朝阳区看心脏病的三级医院'],
+  ['海淀·儿科·最近', '海淀区离我最近的儿科'],
+  ['延庆区医院', '延庆区有哪些医院'],
+  ['科室最全的三级', '想找科室最全的三级医院'],
+  ['西城·口腔科', '西城区口腔科'],
 ];
 function initAiQuick() {
   const bar = $('ai_quick'); if (!bar) return;
-  bar.innerHTML = NLQ_EXAMPLES.map(x =>
-    '<button class="qb" data-nlq="' + esc(x) + '">' + esc(x) + '</button>').join('');
+  bar.innerHTML = NLQ_EXAMPLES.map(function(p){
+    return '<button class="qb" data-nlq="' + esc(p[1]) + '" title="' + esc(p[1]) + '">' + esc(p[0]) + '</button>';
+  }).join('');
   Array.prototype.forEach.call(bar.querySelectorAll('[data-nlq]'), b =>
     b.addEventListener('click', () => {
       $('f_ai').value = b.getAttribute('data-nlq');
@@ -455,8 +459,7 @@ function localSummary(rows, meta) {
   return p.join('');
 }
 function currentScopeMeta() {
-  const baseKey = $('f_base').value;
-  const base = BASE_POINTS[baseKey] || BASE_POINTS.tiananmen;
+  const base = curBase();
   return {
     district: $('f_district').value || '', level: $('f_level').value || '',
     depts: $('f_dept').value ? [$('f_dept').value] : [],
@@ -591,6 +594,7 @@ function init() {
     initVoice('btn_voice_t', 't_in', sendTriage);
     initOverSummary();
     initAIState();
+    initBase();
     applyFilter();
     loadAbout();
   } catch (e) {
@@ -632,7 +636,7 @@ function fillSelect(id, opts, firstLabel) {
 // ============================================================================
 let _kwT;
 function bindEvents() {
-  ['f_district', 'f_level', 'f_cat', 'f_dept', 'f_net', 'f_base', 'f_sort'].forEach(id => {
+  ['f_district', 'f_level', 'f_cat', 'f_dept', 'f_net', 'f_sort'].forEach(id => {
     const el = $(id); if (!el) return;
     el.addEventListener('input', () => { PAGE = 1; applyFilter(); });
     el.addEventListener('change', () => {
@@ -664,9 +668,12 @@ function bindEvents() {
   $('pg_next').addEventListener('click', () => { if (PAGE * PAGE_SIZE < FILTERED.length) { PAGE++; renderList(); } });
   $('pg_size').addEventListener('change', e => { PAGE_SIZE = +e.target.value; PAGE = 1; renderList(); });
 
-  $('f_base').addEventListener('change', e => {
-    if (e.target.value === 'geo' && (BASE_POINTS.geo.lng == null || BASE_POINTS.geo.lat == null)) locateMe();
-  });
+  // 距离基准输入框：回车 / 失焦 / 选下拉项时解析为坐标
+  const fb = $('f_base');
+  if (fb) {
+    fb.addEventListener('change', () => resolveBase(fb.value));
+    fb.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); resolveBase(fb.value); } });
+  }
 
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
@@ -679,7 +686,7 @@ function bindEvents() {
 function resetFilter() {
   $('f_kw').value = ''; $('f_district').value = ''; $('f_level').value = '';
   $('f_cat').value = ''; $('f_dept').value = ''; $('f_net').value = '';
-  $('f_base').value = 'tiananmen'; $('f_sort').value = 'score';
+  BASE_NOW = BASE_POINTS.tiananmen; $('f_base').value = '天安门'; $('f_sort').value = 'score';
   PAGE = 1; applyFilter();
 }
 
@@ -698,8 +705,7 @@ function locateMe() {
       const acc = Math.round(pos.coords.accuracy);
       BASE_POINTS.geo.lng = lng; BASE_POINTS.geo.lat = lat;
       BASE_POINTS.geo.name = '我的位置(±' + acc + 'm)';
-      const opt = $('opt_geo'); opt.disabled = false; opt.textContent = '已定位 · ' + BASE_POINTS.geo.name;
-      $('f_base').value = 'geo';
+      setBase(BASE_POINTS.geo, true);
       btn.textContent = '已定位';
       setTimeout(() => { btn.textContent = '重新定位'; btn.disabled = false; }, 1300);
       $('f_sort').value = 'distance';
@@ -714,6 +720,83 @@ function locateMe() {
     },
     { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
   );
+}
+
+// ============================================================================
+//  4.5 距离基准：内置地标 / 我的定位 / 自定义输入（地标 / 区名 / 机构名 / 地址）
+//      解析完全在前端离线完成：区中心 = 区内机构坐标均值；机构 = 名称/地址匹配
+// ============================================================================
+let BASE_NOW = null;   // 当前生效基准点（必含 lng/lat；未生效时 curBase 回退天安门）
+const BASE_STORE_KEY = 'bjyy_base_v1';
+
+function curBase() {
+  if (BASE_NOW && BASE_NOW.lng != null && BASE_NOW.lat != null) return BASE_NOW;
+  return BASE_POINTS.tiananmen;
+}
+function setBase(p, silent) {
+  BASE_NOW = p;
+  const input = $('f_base');
+  if (input) input.value = p.name;
+  try { localStorage.setItem(BASE_STORE_KEY, JSON.stringify({ name: p.name, lng: p.lng, lat: p.lat })); } catch (e) { }
+  if (!silent) {
+    const s = $('f_sort');
+    if (s && s.value !== 'distance') s.value = 'distance';
+    PAGE = 1; applyFilter();
+  }
+}
+function initBase() {
+  try {
+    const p = JSON.parse(localStorage.getItem(BASE_STORE_KEY) || 'null');
+    if (p && p.name && p.lng != null && p.lat != null) {
+      BASE_NOW = p;
+      const i = $('f_base'); if (i) i.value = p.name;
+    }
+  } catch (e) { }
+}
+function resolveBase(q) {
+  q = (q || '').trim();
+  const input = $('f_base');
+  const cur = BASE_NOW || BASE_POINTS.tiananmen;
+  const revert = () => { if (input) input.value = cur.name; };
+  if (!q || q === cur.name) { revert(); return; }
+  // 1) 内置地标
+  for (const k in BASE_POINTS) {
+    if (k !== 'geo' && BASE_POINTS[k].name === q) { setBase(BASE_POINTS[k]); return; }
+  }
+  // 2) 我的位置
+  if (q.indexOf('我的位置') === 0) {
+    if (BASE_POINTS.geo.lng == null) { toast(svgIcon('warn') + ' 还没有定位 —— 请先点右侧「定位」按钮', 4200); revert(); }
+    else setBase(BASE_POINTS.geo);
+    return;
+  }
+  if (!DATA || !DATA.institutions || !DATA.institutions.length) { revert(); return; }
+  const ok = r => r.lng != null && r.lat != null;
+  // 3) 区名 → 区内机构坐标均值（区中心）
+  const pts = DATA.institutions.filter(r => ok(r) && r.district === q);
+  if (pts.length >= 3) {
+    const lng = pts.reduce((s, r) => s + r.lng, 0) / pts.length;
+    const lat = pts.reduce((s, r) => s + r.lat, 0) / pts.length;
+    setBase({ name: q + '(区中心)', lng: +lng.toFixed(4), lat: +lat.toFixed(4) });
+    toast(svgIcon('location') + ' 距离基准：' + q + ' 区中心（区内 ' + pts.length.toLocaleString() + ' 家机构坐标均值）', 5200);
+    track('base_custom', q);
+    return;
+  }
+  // 4) 机构名 / 地址关键词 → 取等级最高的一家
+  const ql = q.toLowerCase();
+  let hits = DATA.institutions.filter(r => ok(r) && r.name === q);
+  if (!hits.length) hits = DATA.institutions.filter(r => ok(r) && r.name.toLowerCase().indexOf(ql) === 0);
+  if (!hits.length) hits = DATA.institutions.filter(r => ok(r) && r.name.toLowerCase().indexOf(ql) >= 0);
+  if (!hits.length) hits = DATA.institutions.filter(r => ok(r) && (r.addr || '').toLowerCase().indexOf(ql) >= 0);
+  if (hits.length) {
+    hits.sort((a, b) => (LEVEL_RANK[b.level] || 0) - (LEVEL_RANK[a.level] || 0));
+    const r = hits[0];
+    setBase({ name: r.name, lng: r.lng, lat: r.lat });
+    toast(svgIcon('location') + ' 距离基准：' + r.name + '（' + (r.district || '') + '）· 已按距离升序', 5200);
+    track('base_custom', r.name);
+    return;
+  }
+  toast(svgIcon('warn') + ' 没找到「' + trunc(q, 16) + '」—— 可输入 地标名 / 区名 / 机构名 / 地址关键词', 5200);
+  revert();
 }
 
 // ============================================================================
@@ -893,9 +976,7 @@ function applyFilter() {
   const kw = ($('f_kw').value || '').trim().toLowerCase();
   const district = $('f_district').value, level = $('f_level').value, cat = $('f_cat').value;
   const dept = $('f_dept').value, net = $('f_net').value, sort = $('f_sort').value;
-  const baseKey = $('f_base').value;
-  if (!BASE_POINTS[baseKey]) $('f_base').value = 'tiananmen';
-  let base = BASE_POINTS[$('f_base').value] || BASE_POINTS.tiananmen;
+  let base = curBase();
   // 防御：选了「我的位置」但尚未定位成功（lng 为空）时回退到天安门，
   // 否则 haversine 会算出 NaN，导致距离列与排序全部失效。
   if (base.lng == null || base.lat == null) base = BASE_POINTS.tiananmen;
@@ -1030,9 +1111,8 @@ function renderList() {
     box.innerHTML = '<div class="empty">没有符合条件的机构，试试放宽筛选条件</div>';
     return;
   }
-  const baseKey = $('f_base').value;
-  const baseNow = BASE_POINTS[baseKey] || BASE_POINTS.tiananmen;
-  const distLabel = (baseKey === 'geo' && (baseNow.lng == null || baseNow.lat == null)) ? svgIcon('warn') + ' 请先点定位' : ('距' + baseNow.name);
+  const baseNow = curBase();
+  const distLabel = '距' + baseNow.name;
 
   box.innerHTML = page.map(r => {
     const dist = r._dist == null ? '—' : r._dist.toFixed(1) + ' km';
@@ -1170,7 +1250,12 @@ function applyTheme(name) {
   } catch (e) { }
   setTimeout(resizeAll, 40);
 }
-function toggleTheme() { applyTheme(currentTheme() === 'light' ? 'dark' : 'light'); }
+function toggleTheme() {
+  const h = document.documentElement;
+  h.classList.add('theming');
+  applyTheme(currentTheme() === 'light' ? 'dark' : 'light');
+  setTimeout(() => h.classList.remove('theming'), 450);
+}
 function initTheme() {
   const b = $('btn_theme');
   if (b) b.addEventListener('click', toggleTheme);
@@ -1483,7 +1568,7 @@ function paintDrawerLocal(r) {
   $('dw_meta').innerHTML = levelBadge(r.level) + catBadge(r.category) + ownBadge(r.ownership) +
     '<span class="chip">' + esc(r.district) + '</span>' +
     (r.category_sub && r.category_sub !== '未细分' ? '<span class="chip">' + esc(r.category_sub) + '</span>' : '');
-  const base = BASE_POINTS[$('f_base').value] || BASE_POINTS.tiananmen;
+  const base = curBase();
   const dist = (r.lng != null && r.lat != null) ? haversine(base.lng, base.lat, r.lng, r.lat).toFixed(1) + ' km' : '—';
   $('pane-ov').innerHTML =
     '<div class="infogrid">' +
@@ -1839,8 +1924,7 @@ function openCompare() {
 }
 
 function localCompareRow(r) {
-  let base = BASE_POINTS[$('f_base').value] || BASE_POINTS.tiananmen;
-  if (base.lng == null || base.lat == null) base = BASE_POINTS.tiananmen;
+  let base = curBase();
   const dist = (r.lng != null && r.lat != null && base.lng != null) ? haversine(base.lng, base.lat, r.lng, r.lat) : null;
   return {
     id: r.id, name: r.name, level: r.level, category: r.category, ownership: r.ownership || '未标注',

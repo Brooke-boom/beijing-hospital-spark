@@ -76,7 +76,7 @@
 :root[data-theme="light"]{
   --bg:#f4f5f8; --bg-soft:#eceef3; --panel:#ffffff; --panel-2:#f7f8fb;
   --panel-3:#eaeef5; --line:rgba(var(--hair-rgb),.09); --line-2:rgba(var(--hair-rgb),.17);
-  --ink:#16181d; --ink-2:#4d525c; --ink-3:#6f7480; --ink-4:#9aa0ab;
+  --ink:#16181d; --ink-2:#4d525c; --ink-3:#6f7480; --ink-4:#7a8090;
   --ink-strong:#000000; --hair-rgb:15,20,35;
   --acc:#3a5bd9; --acc-d:#2f4bc4; --acc-rgb:58,91,217;
   --teal:#0f8a58; --teal-rgb:15,138,88;
@@ -91,7 +91,7 @@
   --t-info-fg:#4d6a94; --t-info-fg2:#55637d;
   --grad-brand:linear-gradient(90deg,#4a6ae8,#3a5bd9);
   --grad-vio:linear-gradient(90deg,#7a68e0,#6350cf);
-  --sh-1:0 1px 2px rgba(15,23,42,.05); --sh-2:0 6px 20px -14px rgba(15,23,42,.22);
+  --sh-1:0 1px 2px rgba(15,23,42,.06),0 3px 10px -4px rgba(15,23,42,.08); --sh-2:0 6px 20px -14px rgba(15,23,42,.22);
   --sh-3:0 18px 50px -22px rgba(15,23,42,.3);
   --veil:rgba(255,255,255,.94); --veil-2:rgba(255,255,255,.97); --veil-crit:rgba(255,240,243,.96);
   --scrim:rgba(15,23,42,.32); --scrim-2:rgba(15,23,42,.4);
@@ -103,6 +103,7 @@
   --map-r1:#e8ecf4; --map-r2:#c9d5ea; --map-r3:#8fa6da;
 }
 *{box-sizing:border-box;margin:0;padding:0}
+html.theming,html.theming *,html.theming *::before,html.theming *::after{transition:background-color .3s ease,color .3s ease,border-color .3s ease,fill .3s ease,stroke .3s ease,box-shadow .3s ease !important}
 html{-webkit-text-size-adjust:100%}
 body{
   background:var(--bg); color:var(--ink); min-height:100vh; font-size:13px; line-height:1.55;
@@ -159,12 +160,42 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .navnote{color:var(--ink-4);font-size:11px;white-space:nowrap;padding-right:4px;flex:0 0 auto;text-align:right}
 
 /* ============================ 视图 ============================ */
+/* —— 左侧导航布局（2026-09-14） —— */
+.layout{display:flex;align-items:stretch;min-height:100vh}
+.sidebar{position:sticky;top:0;align-self:flex-start;height:100vh;overflow:auto;
+  display:flex;flex-direction:column;gap:16px;width:218px;flex:0 0 218px;
+  padding:18px 12px 14px;background:var(--bg-soft);border-right:1px solid var(--line);z-index:57}
+.sidebar .brand{padding:0 6px}
+.sidebar .brand h1{font-size:13.5px;white-space:normal;line-height:1.45}
+.sidebar .brand .sub{white-space:normal;line-height:1.5}
+.sidebar .navbar{position:static;display:flex;flex-direction:column;gap:3px;padding:0;
+  background:transparent;border:0;overflow:visible}
+.sidebar .navtab{flex:none;justify-content:flex-start;max-width:none;padding:9px 13px;border-radius:9px}
+.sidebar .navtab.active::after{left:0;right:auto;top:8px;bottom:8px;width:3px;height:auto;
+  border-radius:0 2px 2px 0}
+.sidebar .navtab.active{background:rgba(var(--acc-rgb),.10);color:var(--acc)}
+.sidefoot{margin-top:auto;padding:0 6px}
+.sidebar .navnote{white-space:normal;line-height:1.75;padding:0;text-align:left;font-size:10.5px}
+.maincol{flex:1 1 auto;min-width:0}
+.maincol .topbar{justify-content:flex-end;gap:8px;padding:11px var(--pad-x)}
+@media (max-width:1080px){
+  .sidebar{width:60px;flex-basis:60px;padding:14px 8px;gap:12px}
+  .sidebar .brand{display:flex;justify-content:center;padding:0}
+  .sidebar .brand h1,.sidebar .brand .sub,.sidefoot{display:none}
+  .sidebar .navtab{justify-content:center;padding:10px 0}
+  .sidebar .navtab .lbl{display:none}
+  .sidebar .navtab .ico{font-size:16px}
+  .sidebar .navtab.active::after{left:5px;right:5px;top:auto;bottom:-1px;height:2px;width:auto}
+}
+
 .view{display:none}
 .view.active{display:block;animation:vf .28s cubic-bezier(.22,.9,.3,1)}
 @keyframes vf{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 
 /* ============================ 卡片 ============================ */
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:var(--gap);padding:var(--gap) var(--pad-x) 0}
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--gap);padding:var(--gap) var(--pad-x) 0}
+@media (max-width:1360px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:640px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .card{
   position:relative;overflow:hidden;padding:15px 17px;border-radius:var(--r-l);
   background:var(--panel);border:1px solid var(--line);box-shadow:var(--sh-1);transition:.18s
@@ -173,7 +204,15 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .card .l{color:var(--ink-3);font-size:11px;font-weight:600;letter-spacing:.03em;display:flex;align-items:center;gap:6px}
 .card .v{font-size:27px;font-weight:700;letter-spacing:-.02em;margin:8px 0 3px;color:var(--ink);line-height:1.04;font-variant-numeric:tabular-nums}
 .card .s{color:var(--ink-4);font-size:10.5px;line-height:1.45}
-.card.k2 .v,.card.k3 .v,.card.k4 .v,.card.k5 .v,.card.k6 .v{color:var(--ink)}
+.card.hero .v{font-size:34px;color:var(--acc)}
+.card.hero .l{color:var(--acc)}
+.card.hero{border-color:rgba(var(--acc-rgb),.38);background:linear-gradient(135deg,rgba(var(--acc-rgb),.10),transparent 62%),var(--panel)}
+.card.k2 .v{color:var(--crit)}.card.k3 .v{color:var(--teal)}.card.k4 .v{color:var(--vio)}
+.card.k5 .v{color:var(--warn)}.card.k6 .v{color:var(--acc)}
+.card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--acc)}
+.card.k2::before{background:var(--crit)}.card.k3::before{background:var(--teal)}
+.card.k4::before{background:var(--vio)}.card.k5::before{background:var(--warn)}
+.card.hero::before{width:4px;background:linear-gradient(180deg,var(--acc),var(--vio))}
 
 /* ============================ 面板 ============================ */
 .panel{
@@ -245,7 +284,7 @@ select{cursor:pointer;appearance:none;
 .nlq-in input:focus{border-color:var(--vio);box-shadow:0 0 0 3px rgba(var(--vio-rgb),.16)}
 .filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 12px;align-items:end}
 .rangebox{display:flex;gap:5px;align-items:stretch;flex-wrap:nowrap}
-.rangebox select{flex:1;min-width:0}
+.rangebox input{flex:1;min-width:0}
 .actline{margin-top:11px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
 .actline .r{margin-left:auto;color:var(--ink-4);font-size:11px}
 
@@ -665,7 +704,8 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 :root[data-theme="light"] .themebtn .ic-moon{display:inline-block}
 
 /* ============================ 筛选区：左侧字段矩阵 + 右侧 AI 栏 ============================ */
-.fltmain{display:grid;grid-template-columns:minmax(0,960px) minmax(0,1fr);gap:20px;align-items:start}
+.fltmain{display:grid;grid-template-columns:minmax(0,920px) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:1260px){.fltmain{grid-template-columns:minmax(0,1fr)}}
 .fltmain .nlqbar{margin-bottom:0}
 .fltcol{min-width:0}
 .nlq-in{display:flex;flex-direction:column;gap:8px}
@@ -677,14 +717,26 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 <body>
 <div class="loading" id="loading"><span class="pulse"></span>正在加载数据快照（9,789 家机构）…</div>
 
-<header class="topbar">
+<div class="layout">
+<aside class="sidebar">
   <div class="brand">
     <div class="mark"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V6l8-3 8 3v15M9 21v-4h6v4M12 8v5M9.5 10.5h5"/></svg></div>
     <div style="min-width:0">
       <h1>北京市医疗机构资源整合与多维筛选可视化系统</h1>
-      <div class="sub">Beijing Hospital Resource Integration &amp; Multi-dimensional Filtering</div>
+      <div class="sub">Beijing Medical Institutions · Spark · Flask · ECharts</div>
     </div>
   </div>
+  <nav class="navbar" id="navbar">
+  <button class="navtab active" data-view="overview"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h7v7H4zM11 4h9v4h-9zM11 10h9v10h-9zM4 13h7v7H4z"/></svg></span><span class="lbl">综合看板</span></button>
+  <button class="navtab" data-view="analytics"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-12"/></svg></span><span class="lbl">多维分析</span></button>
+  <button class="navtab" data-view="triage"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg></span><span class="lbl">智能导诊</span></button>
+  <button class="navtab" data-view="admin"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v12H3zM3 16l3 4h12l3-4M9 20h6"/></svg></span><span class="lbl">运营后台</span></button>
+  <button class="navtab" data-view="about"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 10v6M12 7.5h.01"/></svg></span><span class="lbl">关于</span></button>
+  </nav>
+  <div class="sidefoot"><span class="navnote">7 维筛选 · 地图与列表悬停互指<br>勾选 2–3 家横向对比</span></div>
+</aside>
+<div class="maincol">
+<header class="topbar">
   <div class="topmeta">
     <span class="chipmeta">数据快照 <b id="m_total">—</b> 家机构</span>
     <span class="chipmeta t2">更新 <b id="m_time">—</b></span>
@@ -693,20 +745,11 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   </div>
 </header>
 
-<nav class="navbar" id="navbar">
-  <button class="navtab active" data-view="overview"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h7v7H4zM11 4h9v4h-9zM11 10h9v10h-9zM4 13h7v7H4z"/></svg></span>综合看板</button>
-  <button class="navtab" data-view="analytics"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-12"/></svg></span>多维分析</button>
-  <button class="navtab" data-view="triage"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg></span>智能导诊</button>
-  <button class="navtab" data-view="admin"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v12H3zM3 16l3 4h12l3-4M9 20h6"/></svg></span>运营后台</button>
-  <button class="navtab" data-view="about"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 10v6M12 7.5h.01"/></svg></span>关于</button>
-  <span class="navspacer"></span>
-  <span class="navnote">7 维筛选 · 地图与列表悬停互指 · 勾选 2–3 家横向对比</span>
-</nav>
 
 <!-- ============================ 综合看板 ============================ -->
 <section id="view-overview" class="view active">
   <div class="kpis" id="cards">
-    <div class="card"><div class="l">筛选结果</div><div class="v" id="v_match">0</div><div class="s">符合当前条件的机构</div></div>
+    <div class="card hero"><div class="l">筛选结果</div><div class="v" id="v_match">0</div><div class="s">符合当前条件的机构</div></div>
     <div class="card k2"><div class="l">三级医院</div><div class="v" id="v_l3">0</div><div class="s">筛选结果中的三级机构</div></div>
     <div class="card k3"><div class="l">含坐标</div><div class="v" id="v_coord">0</div><div class="s">可参与距离排序与地图散点</div></div>
     <div class="card k4"><div class="l">平均科室数</div><div class="v" id="v_dept">0</div><div class="s">筛选结果的平均水平</div></div>
@@ -739,12 +782,17 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
         </select></div>
         <div class="field"><label>距离基准</label>
           <div class="rangebox">
-            <select id="f_base" title="距离排序与「离家最近」的参照点">
-              <option value="tiananmen">天安门</option>
-              <option value="capital_airport">首都机场</option>
-              <option value="daxing_airport">大兴机场</option>
-              <option value="geo" id="opt_geo" disabled>我的位置（未定位）</option>
-            </select>
+            <input id="f_base" type="text" list="base_list" autocomplete="off" spellcheck="false" value="天安门"
+                   title="距离排序与「离家最近」的参照点：点「定位」自动获取；或输入 地标 / 区名 / 机构名 / 地址关键词">
+            <datalist id="base_list">
+              <option value="天安门"></option><option value="首都机场"></option><option value="大兴机场"></option>
+              <option value="东城区"></option><option value="西城区"></option><option value="朝阳区"></option>
+              <option value="海淀区"></option><option value="丰台区"></option><option value="石景山区"></option>
+              <option value="门头沟区"></option><option value="房山区"></option><option value="通州区"></option>
+              <option value="顺义区"></option><option value="昌平区"></option><option value="大兴区"></option>
+              <option value="怀柔区"></option><option value="平谷区"></option><option value="密云区"></option>
+              <option value="延庆区"></option>
+            </datalist>
             <button class="btn sm" id="btn_locate" type="button" onclick="locateMe()" title="定位我的位置（需浏览器授权，http://localhost 下可用）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.5 7-12a7 7 0 10-14 0c0 5.5 7 12 7 12zM12 9a3 3 0 100 6 3 3 0 000-6z"/></svg> 定位</button>
           </div>
         </div>
@@ -786,7 +834,6 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 
     <div class="actline">
       <button class="btn ghost sm" id="btn_reset">↺ 重置筛选</button>
-      <button class="btn ghost sm" id="btn_clear_pick"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg> 清空已选</button>
       <span class="r">数据加载时间：<span id="m_time2">—</span></span>
       </div>
     </div>
@@ -799,6 +846,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
         <div class="lh-l">
           <span>点行看详情 · 悬停行可在地图定位 · <b style="color:var(--warn)">★</b> 收藏 · 左侧方块加入对比</span>
           <button class="favbtn" id="btn_favs" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6l2.62 5.31 5.86.86-4.24 4.13 1 5.84L12 17.02l-5.24 2.72 1-5.84L3.52 9.77l5.86-.86z"/></svg> 收藏夹 <b id="fav_n">0</b></button>
+          <button class="favbtn" id="btn_clear_pick" type="button" title="清空已勾选的对比机构（保留筛选条件）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg> 清空已选 <b id="pick_n">0</b></button>
           <button class="favbtn" id="btn_ov_sum" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 9h6v6H9zM4 10v4M20 10v4M10 4h4M10 20h4M6.5 7.5L4 9M17.5 7.5L20 9M6.5 16.5L4 15M17.5 16.5L20 15"/></svg> AI 总结当前结果</button>
         </div>
         <div class="pager">
@@ -1030,6 +1078,9 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   </div>
 </div>
 
+
+</div>
+</div>
 
 <!-- 收藏夹 -->
 <div class="cmpwrap" id="favwrap">
@@ -1344,7 +1395,7 @@ const FLT_FIELDS = [
   ['f_kw', '关键词'], ['f_dept', '科室'], ['f_district', '区域'], ['f_level', '等级'],
   ['f_cat', '类型'], ['f_net', '协作网络'], ['f_base', '距离基准点'],
 ];
-const FLT_DEFAULT = { f_base: 'tiananmen', f_sort: 'score' };
+const FLT_DEFAULT = { f_base: '天安门', f_sort: 'score' };
 const NET_LABEL = {
   ped_core: '儿科医联体·核心', ped_member: '儿科医联体·成员', stroke: '卒中中心',
   neonatal: '危重新生儿·市级', maternal: '危重孕产妇·市级',
@@ -1399,7 +1450,7 @@ function syncPresetUI() {
 // 预设是"一键切换"而非叠加：先清空筛选类字段，再套用，避免越点越乱
 function applyPreset(key) {
   const spec = PRESETS[key]; if (!spec) return;
-  if (key === 'near3' && $('f_base').value === 'geo' &&
+  if (key === 'near3' && BASE_NOW === BASE_POINTS.geo &&
       (BASE_POINTS.geo.lng == null || BASE_POINTS.geo.lat == null)) locateMe();
   ['f_level', 'f_cat', 'f_dept', 'f_district', 'f_net'].forEach(k => { const e = $(k); if (e) e.value = ''; });
   const s = $('f_sort'); if (s) s.value = 'score';
@@ -1410,13 +1461,17 @@ function applyPreset(key) {
 }
 
 const NLQ_EXAMPLES = [
-  '朝阳区看心脏病的三级医院', '海淀区离我最近的儿科', '延庆区有哪些医院',
-  '想找科室最全的三级医院', '西城区口腔科',
+  ['朝阳·心脏病·三级', '朝阳区看心脏病的三级医院'],
+  ['海淀·儿科·最近', '海淀区离我最近的儿科'],
+  ['延庆区医院', '延庆区有哪些医院'],
+  ['科室最全的三级', '想找科室最全的三级医院'],
+  ['西城·口腔科', '西城区口腔科'],
 ];
 function initAiQuick() {
   const bar = $('ai_quick'); if (!bar) return;
-  bar.innerHTML = NLQ_EXAMPLES.map(x =>
-    '<button class="qb" data-nlq="' + esc(x) + '">' + esc(x) + '</button>').join('');
+  bar.innerHTML = NLQ_EXAMPLES.map(function(p){
+    return '<button class="qb" data-nlq="' + esc(p[1]) + '" title="' + esc(p[1]) + '">' + esc(p[0]) + '</button>';
+  }).join('');
   Array.prototype.forEach.call(bar.querySelectorAll('[data-nlq]'), b =>
     b.addEventListener('click', () => {
       $('f_ai').value = b.getAttribute('data-nlq');
@@ -1543,8 +1598,7 @@ function localSummary(rows, meta) {
   return p.join('');
 }
 function currentScopeMeta() {
-  const baseKey = $('f_base').value;
-  const base = BASE_POINTS[baseKey] || BASE_POINTS.tiananmen;
+  const base = curBase();
   return {
     district: $('f_district').value || '', level: $('f_level').value || '',
     depts: $('f_dept').value ? [$('f_dept').value] : [],
@@ -1679,6 +1733,7 @@ function init() {
     initVoice('btn_voice_t', 't_in', sendTriage);
     initOverSummary();
     initAIState();
+    initBase();
     applyFilter();
     loadAbout();
   } catch (e) {
@@ -1720,7 +1775,7 @@ function fillSelect(id, opts, firstLabel) {
 // ============================================================================
 let _kwT;
 function bindEvents() {
-  ['f_district', 'f_level', 'f_cat', 'f_dept', 'f_net', 'f_base', 'f_sort'].forEach(id => {
+  ['f_district', 'f_level', 'f_cat', 'f_dept', 'f_net', 'f_sort'].forEach(id => {
     const el = $(id); if (!el) return;
     el.addEventListener('input', () => { PAGE = 1; applyFilter(); });
     el.addEventListener('change', () => {
@@ -1752,9 +1807,12 @@ function bindEvents() {
   $('pg_next').addEventListener('click', () => { if (PAGE * PAGE_SIZE < FILTERED.length) { PAGE++; renderList(); } });
   $('pg_size').addEventListener('change', e => { PAGE_SIZE = +e.target.value; PAGE = 1; renderList(); });
 
-  $('f_base').addEventListener('change', e => {
-    if (e.target.value === 'geo' && (BASE_POINTS.geo.lng == null || BASE_POINTS.geo.lat == null)) locateMe();
-  });
+  // 距离基准输入框：回车 / 失焦 / 选下拉项时解析为坐标
+  const fb = $('f_base');
+  if (fb) {
+    fb.addEventListener('change', () => resolveBase(fb.value));
+    fb.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); resolveBase(fb.value); } });
+  }
 
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
@@ -1767,7 +1825,7 @@ function bindEvents() {
 function resetFilter() {
   $('f_kw').value = ''; $('f_district').value = ''; $('f_level').value = '';
   $('f_cat').value = ''; $('f_dept').value = ''; $('f_net').value = '';
-  $('f_base').value = 'tiananmen'; $('f_sort').value = 'score';
+  BASE_NOW = BASE_POINTS.tiananmen; $('f_base').value = '天安门'; $('f_sort').value = 'score';
   PAGE = 1; applyFilter();
 }
 
@@ -1786,8 +1844,7 @@ function locateMe() {
       const acc = Math.round(pos.coords.accuracy);
       BASE_POINTS.geo.lng = lng; BASE_POINTS.geo.lat = lat;
       BASE_POINTS.geo.name = '我的位置(±' + acc + 'm)';
-      const opt = $('opt_geo'); opt.disabled = false; opt.textContent = '已定位 · ' + BASE_POINTS.geo.name;
-      $('f_base').value = 'geo';
+      setBase(BASE_POINTS.geo, true);
       btn.textContent = '已定位';
       setTimeout(() => { btn.textContent = '重新定位'; btn.disabled = false; }, 1300);
       $('f_sort').value = 'distance';
@@ -1802,6 +1859,83 @@ function locateMe() {
     },
     { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
   );
+}
+
+// ============================================================================
+//  4.5 距离基准：内置地标 / 我的定位 / 自定义输入（地标 / 区名 / 机构名 / 地址）
+//      解析完全在前端离线完成：区中心 = 区内机构坐标均值；机构 = 名称/地址匹配
+// ============================================================================
+let BASE_NOW = null;   // 当前生效基准点（必含 lng/lat；未生效时 curBase 回退天安门）
+const BASE_STORE_KEY = 'bjyy_base_v1';
+
+function curBase() {
+  if (BASE_NOW && BASE_NOW.lng != null && BASE_NOW.lat != null) return BASE_NOW;
+  return BASE_POINTS.tiananmen;
+}
+function setBase(p, silent) {
+  BASE_NOW = p;
+  const input = $('f_base');
+  if (input) input.value = p.name;
+  try { localStorage.setItem(BASE_STORE_KEY, JSON.stringify({ name: p.name, lng: p.lng, lat: p.lat })); } catch (e) { }
+  if (!silent) {
+    const s = $('f_sort');
+    if (s && s.value !== 'distance') s.value = 'distance';
+    PAGE = 1; applyFilter();
+  }
+}
+function initBase() {
+  try {
+    const p = JSON.parse(localStorage.getItem(BASE_STORE_KEY) || 'null');
+    if (p && p.name && p.lng != null && p.lat != null) {
+      BASE_NOW = p;
+      const i = $('f_base'); if (i) i.value = p.name;
+    }
+  } catch (e) { }
+}
+function resolveBase(q) {
+  q = (q || '').trim();
+  const input = $('f_base');
+  const cur = BASE_NOW || BASE_POINTS.tiananmen;
+  const revert = () => { if (input) input.value = cur.name; };
+  if (!q || q === cur.name) { revert(); return; }
+  // 1) 内置地标
+  for (const k in BASE_POINTS) {
+    if (k !== 'geo' && BASE_POINTS[k].name === q) { setBase(BASE_POINTS[k]); return; }
+  }
+  // 2) 我的位置
+  if (q.indexOf('我的位置') === 0) {
+    if (BASE_POINTS.geo.lng == null) { toast(svgIcon('warn') + ' 还没有定位 —— 请先点右侧「定位」按钮', 4200); revert(); }
+    else setBase(BASE_POINTS.geo);
+    return;
+  }
+  if (!DATA || !DATA.institutions || !DATA.institutions.length) { revert(); return; }
+  const ok = r => r.lng != null && r.lat != null;
+  // 3) 区名 → 区内机构坐标均值（区中心）
+  const pts = DATA.institutions.filter(r => ok(r) && r.district === q);
+  if (pts.length >= 3) {
+    const lng = pts.reduce((s, r) => s + r.lng, 0) / pts.length;
+    const lat = pts.reduce((s, r) => s + r.lat, 0) / pts.length;
+    setBase({ name: q + '(区中心)', lng: +lng.toFixed(4), lat: +lat.toFixed(4) });
+    toast(svgIcon('location') + ' 距离基准：' + q + ' 区中心（区内 ' + pts.length.toLocaleString() + ' 家机构坐标均值）', 5200);
+    track('base_custom', q);
+    return;
+  }
+  // 4) 机构名 / 地址关键词 → 取等级最高的一家
+  const ql = q.toLowerCase();
+  let hits = DATA.institutions.filter(r => ok(r) && r.name === q);
+  if (!hits.length) hits = DATA.institutions.filter(r => ok(r) && r.name.toLowerCase().indexOf(ql) === 0);
+  if (!hits.length) hits = DATA.institutions.filter(r => ok(r) && r.name.toLowerCase().indexOf(ql) >= 0);
+  if (!hits.length) hits = DATA.institutions.filter(r => ok(r) && (r.addr || '').toLowerCase().indexOf(ql) >= 0);
+  if (hits.length) {
+    hits.sort((a, b) => (LEVEL_RANK[b.level] || 0) - (LEVEL_RANK[a.level] || 0));
+    const r = hits[0];
+    setBase({ name: r.name, lng: r.lng, lat: r.lat });
+    toast(svgIcon('location') + ' 距离基准：' + r.name + '（' + (r.district || '') + '）· 已按距离升序', 5200);
+    track('base_custom', r.name);
+    return;
+  }
+  toast(svgIcon('warn') + ' 没找到「' + trunc(q, 16) + '」—— 可输入 地标名 / 区名 / 机构名 / 地址关键词', 5200);
+  revert();
 }
 
 // ============================================================================
@@ -1981,9 +2115,7 @@ function applyFilter() {
   const kw = ($('f_kw').value || '').trim().toLowerCase();
   const district = $('f_district').value, level = $('f_level').value, cat = $('f_cat').value;
   const dept = $('f_dept').value, net = $('f_net').value, sort = $('f_sort').value;
-  const baseKey = $('f_base').value;
-  if (!BASE_POINTS[baseKey]) $('f_base').value = 'tiananmen';
-  let base = BASE_POINTS[$('f_base').value] || BASE_POINTS.tiananmen;
+  let base = curBase();
   // 防御：选了「我的位置」但尚未定位成功（lng 为空）时回退到天安门，
   // 否则 haversine 会算出 NaN，导致距离列与排序全部失效。
   if (base.lng == null || base.lat == null) base = BASE_POINTS.tiananmen;
@@ -2118,9 +2250,8 @@ function renderList() {
     box.innerHTML = '<div class="empty">没有符合条件的机构，试试放宽筛选条件</div>';
     return;
   }
-  const baseKey = $('f_base').value;
-  const baseNow = BASE_POINTS[baseKey] || BASE_POINTS.tiananmen;
-  const distLabel = (baseKey === 'geo' && (baseNow.lng == null || baseNow.lat == null)) ? svgIcon('warn') + ' 请先点定位' : ('距' + baseNow.name);
+  const baseNow = curBase();
+  const distLabel = '距' + baseNow.name;
 
   box.innerHTML = page.map(r => {
     const dist = r._dist == null ? '—' : r._dist.toFixed(1) + ' km';
@@ -2258,7 +2389,12 @@ function applyTheme(name) {
   } catch (e) { }
   setTimeout(resizeAll, 40);
 }
-function toggleTheme() { applyTheme(currentTheme() === 'light' ? 'dark' : 'light'); }
+function toggleTheme() {
+  const h = document.documentElement;
+  h.classList.add('theming');
+  applyTheme(currentTheme() === 'light' ? 'dark' : 'light');
+  setTimeout(() => h.classList.remove('theming'), 450);
+}
 function initTheme() {
   const b = $('btn_theme');
   if (b) b.addEventListener('click', toggleTheme);
@@ -2571,7 +2707,7 @@ function paintDrawerLocal(r) {
   $('dw_meta').innerHTML = levelBadge(r.level) + catBadge(r.category) + ownBadge(r.ownership) +
     '<span class="chip">' + esc(r.district) + '</span>' +
     (r.category_sub && r.category_sub !== '未细分' ? '<span class="chip">' + esc(r.category_sub) + '</span>' : '');
-  const base = BASE_POINTS[$('f_base').value] || BASE_POINTS.tiananmen;
+  const base = curBase();
   const dist = (r.lng != null && r.lat != null) ? haversine(base.lng, base.lat, r.lng, r.lat).toFixed(1) + ' km' : '—';
   $('pane-ov').innerHTML =
     '<div class="infogrid">' +
@@ -2927,8 +3063,7 @@ function openCompare() {
 }
 
 function localCompareRow(r) {
-  let base = BASE_POINTS[$('f_base').value] || BASE_POINTS.tiananmen;
-  if (base.lng == null || base.lat == null) base = BASE_POINTS.tiananmen;
+  let base = curBase();
   const dist = (r.lng != null && r.lat != null && base.lng != null) ? haversine(base.lng, base.lat, r.lng, r.lat) : null;
   return {
     id: r.id, name: r.name, level: r.level, category: r.category, ownership: r.ownership || '未标注',
