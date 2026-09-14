@@ -234,10 +234,10 @@ select{cursor:pointer;appearance:none;
 }
 .nlq-in input{flex:1;min-width:180px;border-color:var(--line-2)}
 .nlq-in input:focus{border-color:var(--vio);box-shadow:0 0 0 3px rgba(154,140,240,.16)}
-.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:11px;align-items:end}
-.rangebox{display:flex;gap:5px;align-items:stretch}
+.filters{display:grid;grid-template-columns:74px repeat(3,minmax(0,1fr));gap:10px 14px;align-items:end}
+.rangebox{display:flex;gap:5px;align-items:stretch;flex-wrap:wrap}
 .rangebox select{flex:1;min-width:0}
-.actline{margin-top:12px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.actline{margin-top:11px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
 .actline .r{margin-left:auto;color:var(--ink-4);font-size:11px}
 
 /* ============================ 列表 / 地图 ============================ */
@@ -550,17 +550,22 @@ body.has-pick{padding-bottom:84px}
 .filterbox .fh .ftag{margin-left:2px;background:rgba(107,140,255,.13);color:var(--acc);
   border:1px solid rgba(107,140,255,.3);font-size:11px;font-weight:650;padding:3px 10px;border-radius:20px;
   font-variant-numeric:tabular-nums;white-space:nowrap}
-.fglabel{grid-column:1/-1;display:flex;align-items:center;gap:7px;color:var(--ink-3);font-size:11px;
-  font-weight:650;letter-spacing:.03em;margin:2px 0 -2px}
-.fglabel i{width:3px;height:11px;border-radius:2px;background:var(--ink-4);display:block;flex:0 0 auto}
-.fglabel:after{content:'';flex:1;height:1px;background:var(--line)}
-.presetbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:12px}
+.fglabel{grid-column:1;display:flex;align-items:flex-start;gap:8px;color:var(--ink-2);font-size:11px;
+  font-weight:650;letter-spacing:.02em;align-self:stretch}
+.fglabel.g-attr{grid-row:span 2}
+.fglabel.g-pos{grid-row:span 1}
+.fglabel i{width:3px;border-radius:2px;background:var(--line-2);display:block;flex:0 0 auto;align-self:stretch;min-height:12px}
+.field.w2{grid-column:span 2}
+.rangebox .hint{color:var(--ink-4);font-size:10.5px;align-self:center;white-space:nowrap;margin-left:auto;padding-right:2px}
+.field.w2 .rangebox select{flex:0 1 330px}
+.fltfoot{margin-top:13px;padding-top:12px;border-top:1px solid var(--line)}
+.presetbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:0}
 .presetbar .plabel{color:var(--ink-4);font-size:11px;white-space:nowrap}
 .preset{background:var(--panel-2);border:1px solid var(--line);color:var(--ink-2);font-size:11.5px;
   padding:4px 11px;border-radius:20px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:5px}
 .preset:hover{background:var(--panel-3);color:var(--ink);border-color:rgba(107,140,255,.34)}
 .preset.on{background:rgba(107,140,255,.14);border-color:rgba(107,140,255,.44);color:var(--acc)}
-.fltchips{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:11px}
+.fltchips{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px}
 .fltchips:empty{display:none}
 .fltchips .fl{color:var(--ink-4);font-size:11px;white-space:nowrap}
 .fchip{display:inline-flex;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--line);
@@ -619,6 +624,17 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(224
   animation:blink 1s steps(1) infinite;margin-left:2px}
 @keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}
 .aibox.ovsum{margin:0 0 10px}
+@media (max-width:1200px){
+  .filters{grid-template-columns:66px repeat(2,minmax(0,1fr))}
+  .fglabel.g-attr{grid-row:span 3}
+  .field.w2{grid-column:span 1}
+  .field.w2 .hint{display:none}
+}
+@media (max-width:760px){
+  .filters{grid-template-columns:minmax(0,1fr);gap:9px}
+  .fglabel{gap:7px;padding-top:5px}
+  .fglabel.g-attr,.fglabel.g-pos{grid-row:auto}
+}
 </style>
 </head>
 <body>
@@ -681,9 +697,9 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(224
     </div>
 
     <div class="filters">
-      <div class="fglabel"><i></i>机构属性</div>
-      <div class="field"><label>关键词（机构名 / 地址）</label><input id="f_kw" type="text" placeholder="如：协和 / 海淀 / 中医"></div>
-      <div class="field"><label>科室（擅长 / 诊疗）</label><select id="f_dept"><option value="">全部科室</option></select></div>
+      <div class="fglabel g-attr"><i></i>机构属性</div>
+      <div class="field"><label>关键词</label><input id="f_kw" type="text" placeholder="机构名 / 地址，如：协和 或 海淀" title="按机构名称或地址关键词检索"></div>
+      <div class="field"><label>科室（擅长 / 诊疗）</label><select id="f_dept" title="按科室名称筛选（含擅长 / 诊疗方向）"><option value="">全部科室</option></select></div>
       <div class="field"><label>区域</label><select id="f_district"><option value="">全部 16 区</option></select></div>
       <div class="field"><label>等级</label><select id="f_level"><option value="">全部等级</option></select></div>
       <div class="field"><label>类型</label><select id="f_cat"><option value="">全部类型</option></select></div>
@@ -695,8 +711,8 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(224
         <option value="neonatal">危重新生儿救治 · 市级</option>
         <option value="maternal">危重孕产妇救治 · 市级</option>
       </select></div>
-      <div class="fglabel"><i></i>位置与排序</div>
-      <div class="field"><label>距离基准点</label>
+      <div class="fglabel g-pos"><i></i>位置排序</div>
+      <div class="field w2"><label>距离基准</label>
         <div class="rangebox">
           <select id="f_base">
             <option value="tiananmen">天安门</option>
@@ -705,6 +721,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(224
             <option value="geo" id="opt_geo" disabled>我的位置（未定位）</option>
           </select>
           <button class="btn sm" id="btn_locate" type="button" onclick="locateMe()" title="需浏览器授权位置权限（http://localhost 下可用）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.5 7-12a7 7 0 10-14 0c0 5.5 7 12 7 12zM12 9a3 3 0 100 6 3 3 0 000-6z"/></svg> 定位</button>
+          <span class="hint">用于距离排序</span>
         </div>
       </div>
       <div class="field"><label>排序方式</label><select id="f_sort">
@@ -716,6 +733,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(224
       </select></div>
     </div>
 
+    <div class="fltfoot">
     <div class="presetbar" id="presetbar">
       <span class="plabel">常用筛选</span>
       <button class="preset" data-preset="l3">三级医院</button>
@@ -732,6 +750,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(224
       <button class="btn ghost sm" id="btn_reset">↺ 重置筛选</button>
       <button class="btn ghost sm" id="btn_clear_pick"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg> 清空已选</button>
       <span class="r">数据加载时间：<span id="m_time2">—</span></span>
+      </div>
     </div>
   </div>
 
