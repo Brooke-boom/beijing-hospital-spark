@@ -36,7 +36,7 @@
   /* —— 中性 —— */
   --bg:#0a0b0d; --bg-soft:#0e0f12; --panel:#131419; --panel-2:#171922;
   --panel-3:#1d2029; --line:rgba(var(--hair-rgb),.07); --line-2:rgba(var(--hair-rgb),.13);
-  --ink:#ededee; --ink-2:#a0a2aa; --ink-3:#73757e; --ink-4:#4c4e57;
+  --ink:#e2e4ea; --ink-2:#a0a2aa; --ink-3:#73757e; --ink-4:#4c4e57;
   --ink-strong:#ffffff; --hair-rgb:255,255,255;
   /* —— 主色 / 语义色 —— */
   --acc:#6b8cff; --acc-d:#5573e6; --acc-rgb:107,140,255;
@@ -57,6 +57,7 @@
   --grad-vio:linear-gradient(90deg,#9a8cf0,#7c6fe0);
   --sh-1:0 1px 2px rgba(0,0,0,.42); --sh-2:0 6px 20px -12px rgba(0,0,0,.7);
   --sh-3:0 18px 50px -20px rgba(0,0,0,.85);
+  --lift:inset 0 1px 0 rgba(255,255,255,.05);   /* 暗色卡片顶部微高光，勾出轮廓防“飘” */
   --veil:rgba(14,15,18,.92); --veil-2:rgba(14,15,18,.96); --veil-crit:rgba(24,12,16,.92);
   --scrim:rgba(0,0,0,.55); --scrim-2:rgba(0,0,0,.62);
   --drawer-sh:-24px 0 60px -24px rgba(0,0,0,.8);
@@ -65,7 +66,8 @@
   --tip-bg:rgba(19,20,25,.96); --tip-bd:rgba(255,255,255,.14); --tip-sh:rgba(0,0,0,.8);
   --body-2:#c9cbd2;
   --map-label:#8b94ad; --map-area:#171922; --map-hi:#2a3550;
-  --map-r1:#171922; --map-r2:#3a4150; --map-r3:#6b8cff;
+  --map-bd:rgba(255,255,255,.09);
+  --map-r1:#171922; --map-r2:#3a4150; --map-r3:#4f639f; --map-r4:#5d74bb; --map-r5:#6f64b8;
   --r-s:6px; --r-m:8px; --r-l:10px; --r-xl:14px;
   --gap:16px; --pad-x:28px;
   --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
@@ -93,6 +95,7 @@
   --grad-vio:linear-gradient(90deg,#7a68e0,#6350cf);
   --sh-1:0 1px 2px rgba(15,23,42,.06),0 3px 10px -4px rgba(15,23,42,.08); --sh-2:0 6px 20px -14px rgba(15,23,42,.22);
   --sh-3:0 18px 50px -22px rgba(15,23,42,.3);
+  --lift:inset 0 1px 0 rgba(255,255,255,0);     /* 亮色下无需高光，保持 no-op */
   --veil:rgba(255,255,255,.94); --veil-2:rgba(255,255,255,.97); --veil-crit:rgba(255,240,243,.96);
   --scrim:rgba(15,23,42,.32); --scrim-2:rgba(15,23,42,.4);
   --drawer-sh:-24px 0 60px -28px rgba(15,23,42,.22);
@@ -100,7 +103,8 @@
   --tip-bg:rgba(255,255,255,.98); --tip-bd:rgba(15,20,35,.14); --tip-sh:rgba(15,23,42,.18);
   --body-2:#3f434c;
   --map-label:#5b6170; --map-area:#e8ecf4; --map-hi:#c2d2f6;
-  --map-r1:#e8ecf4; --map-r2:#c9d5ea; --map-r3:#8fa6da;
+  --map-bd:rgba(15,23,42,.20);
+  --map-r1:#e8ecf4; --map-r2:#c9d5ea; --map-r3:#8fa6da; --map-r4:#6f87c8; --map-r5:#7f6fce;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html.theming,html.theming *,html.theming *::before,html.theming *::after{transition:background-color .3s ease,color .3s ease,border-color .3s ease,fill .3s ease,stroke .3s ease,box-shadow .3s ease !important}
@@ -176,7 +180,8 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .sidebar .navtab .ic{width:18px;height:18px}
 .sidebar .navtab.active::after{left:0;right:auto;top:8px;bottom:8px;width:3px;height:auto;
   border-radius:0 2px 2px 0}
-.sidebar .navtab.active{background:rgba(var(--acc-rgb),.10);color:var(--acc)}
+.sidebar .navtab.active{background:rgba(var(--acc-rgb),.16);color:var(--acc);font-weight:650}
+.sidebar .navtab.active .ico{color:var(--acc)}
 .sidefoot{margin-top:auto;padding:0 6px}
 .sidebar .navnote{white-space:normal;line-height:1.75;padding:0;text-align:left;font-size:10.5px}
 .maincol{flex:1 1 auto;min-width:0}
@@ -206,15 +211,16 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .card:hover{border-color:var(--line-2)}
 .card .l{color:var(--ink-3);font-size:11px;font-weight:600;letter-spacing:.03em;display:flex;align-items:center;gap:6px}
 .card .v{font-size:27px;font-weight:700;letter-spacing:-.02em;margin:8px 0 3px;color:var(--ink);line-height:1.04;font-variant-numeric:tabular-nums}
+/* 关键数字用最亮字色（暗色下纯白只留给核心数字，正文用 --ink 降眩光） */
+.card .v{color:var(--ink-strong)}
 .card .s{color:var(--ink-4);font-size:10.5px;line-height:1.45}
 .card.hero .v{font-size:34px;color:var(--acc)}
 .card.hero .l{color:var(--acc)}
 .card.hero{border-color:rgba(var(--acc-rgb),.38);background:linear-gradient(135deg,rgba(var(--acc-rgb),.10),transparent 62%),var(--panel)}
 .card.k2 .v{color:var(--crit)}.card.k3 .v{color:var(--teal)}.card.k4 .v{color:var(--vio)}
 .card.k5 .v{color:var(--warn)}.card.k6 .v{color:var(--acc)}
-.card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--acc)}
-.card.k2::before{background:var(--crit)}.card.k3::before{background:var(--teal)}
-.card.k4::before{background:var(--vio)}.card.k5::before{background:var(--warn)}
+/* KPI 竖线统一为中性色（避免彩虹感），仅“筛选结果”hero 卡保留主色渐变高亮 */
+.card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:rgba(var(--hair-rgb),.16)}
 .card.hero::before{width:4px;background:linear-gradient(180deg,var(--acc),var(--vio))}
 
 /* ============================ 面板 ============================ */
@@ -264,6 +270,14 @@ select{cursor:pointer;appearance:none;
   background-position:calc(100% - 15px) 55%,calc(100% - 11px) 55%;background-size:4px 4px,4px 4px;background-repeat:no-repeat;padding-right:26px}
 .check{display:inline-flex;align-items:center;gap:7px;color:var(--ink-2);font-size:12.5px;cursor:pointer;user-select:none}
 .check input{width:15px;height:15px;accent-color:var(--acc);cursor:pointer}
+/* 白天主题：输入控件加深描边 + 轻内阴影，避免边框在白底上过浅（:not(:focus) 不干扰聚焦态） */
+:root[data-theme="light"] input[type=text]:not(:focus),
+:root[data-theme="light"] input[type=search]:not(:focus),
+:root[data-theme="light"] select:not(:focus){
+  border-color:#d4d8e2;box-shadow:inset 0 1px 2px rgba(15,23,42,.05)}
+:root[data-theme="light"] input[type=text]:not(:focus):hover,
+:root[data-theme="light"] input[type=search]:not(:focus):hover,
+:root[data-theme="light"] select:not(:focus):hover{border-color:#a9b1c2}
 
 /* ============================ 筛选区 ============================ */
 .filterbox{
@@ -322,7 +336,9 @@ select{cursor:pointer;appearance:none;
 .row .meta{color:var(--ink-3);font-size:10.5px;margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 .row .side{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:5px;text-align:right}
 .row .dist{color:var(--acc);font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums}
-.row .score{color:var(--warn);font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.row .score{color:var(--t-warn-fg);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;
+  background:rgba(var(--warn-rgb),.13);border:1px solid rgba(var(--warn-rgb),.28);
+  padding:1px 8px;border-radius:999px;line-height:1.6}
 .row .ksc{display:flex;align-items:baseline;gap:4px;font-size:10px;color:var(--ink-3)}
 .row .ksc b{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
 .row .ksc.on b{color:var(--crit)} .row .ksc.on{color:var(--t-crit-fg)}
@@ -360,6 +376,8 @@ select{cursor:pointer;appearance:none;
 .agrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:var(--gap);padding:var(--gap) var(--pad-x) 22px}
 .apanel{background:var(--panel);border:1px solid var(--line);
   border-radius:var(--r-l);padding:13px 15px;display:flex;flex-direction:column;height:314px;min-width:0;box-shadow:var(--sh-1)}
+/* 暗色卡片轮廓增强：统一叠加顶部微高光（亮色主题该令牌为 no-op） */
+.card,.panel,.apanel,.filterbox{box-shadow:var(--sh-1),var(--lift)}
 .apanel > h3{font-size:12.5px;display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;gap:10px}
 .apanel > h3 .tag{color:var(--ink-4);font-size:9.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
 .achart{flex:1;width:100%;min-height:0}

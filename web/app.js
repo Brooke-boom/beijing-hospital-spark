@@ -9,7 +9,7 @@
 // 这些名字在数百处图表配置里被引用，故统一声明为 let，由 loadTokens() 集中刷新；
 // 切换主题时先 loadTokens() 再重绘图表，颜色即随主题改变。
 // 注意：ECharts 的颜色是喂给 canvas 的，不能写 var(--x)，必须用这里解析后的实值。
-let BG, PANEL, PANEL2, EDGE, EDGE2, INK, INK_STRONG, SUB, DIM, FAINT;
+let BG, PANEL, PANEL2, EDGE, EDGE2, INK, INK_STRONG, SUB, DIM, FAINT, MAP_BD;
 let ACC, ACC2, WARN, CRIT, VIO, VIO2, PINK, ACC_RGB;
 let CHART_AXIS, CHART_SPLIT, TIP_BG, TIP_BD, TIP_SH, BODY2;
 let MAP_LBL, MAP_AREA, MAP_HI, MAP_RAMP;
@@ -515,8 +515,9 @@ function loadTokens() {
   TIP_BG = cssVar('--tip-bg', 'rgba(19,20,25,.96)'); TIP_BD = cssVar('--tip-bd', 'rgba(255,255,255,.14)');
   TIP_SH = cssVar('--tip-sh', 'rgba(0,0,0,.8)'); BODY2 = cssVar('--body-2', '#c9cbd2');
   MAP_LBL = cssVar('--map-label', '#8b94ad'); MAP_AREA = cssVar('--map-area', '#171922');
-  MAP_HI = cssVar('--map-hi', '#2a3550');
-  MAP_RAMP = [cssVar('--map-r1'), cssVar('--map-r2'), cssVar('--map-r3'), ACC, VIO];
+  MAP_HI = cssVar('--map-hi', '#2a3550'); MAP_BD = cssVar('--map-bd', 'rgba(255,255,255,.09)');
+  MAP_RAMP = [cssVar('--map-r1'), cssVar('--map-r2'), cssVar('--map-r3'),
+              cssVar('--map-r4', '#5d74bb'), cssVar('--map-r5', '#6f64b8')];
 
   // ECharts 统一主题片段（每次装载重建，颜色随主题变化）
   AXIS = {
@@ -1167,7 +1168,7 @@ function drawMap() {
       geo: {
         map: 'beijing', roam: true, zoom: 1, layoutCenter: ['50%', '50%'], layoutSize: '96%', aspectScale: 0.9,
         label: { show: true, color: MAP_LBL, fontSize: 10 },
-        itemStyle: { borderColor: EDGE2, borderWidth: 1, areaColor: MAP_AREA },
+        itemStyle: { borderColor: MAP_BD, borderWidth: 1, areaColor: MAP_AREA },
         emphasis: { label: { color: INK_STRONG }, itemStyle: { areaColor: MAP_HI } },
         select: { itemStyle: { areaColor: MAP_HI }, label: { color: INK_STRONG } },
       },
