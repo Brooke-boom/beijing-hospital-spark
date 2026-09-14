@@ -5,10 +5,15 @@
 // ============================================================================
 'use strict';
 
-// ---------- 设计令牌（与 dashboard.html 的 CSS 变量保持一致） ----------
-const BG = '#0a0b0d', PANEL = '#131419', PANEL2 = '#171922', EDGE = 'rgba(255,255,255,.08)';
-const INK = '#ededee', SUB = '#a0a2aa', DIM = '#73757e', FAINT = '#4c4e57';
-const ACC = '#6b8cff', ACC2 = '#46c08a', WARN = '#e0a23b', CRIT = '#e0697e', VIO = '#9a8cf0', PINK = '#e69ab5';
+// ---------- 设计令牌（运行期从 dashboard.html 的 CSS 变量读取，故支持 白天/黑夜 双主题） ----------
+// 这些名字在数百处图表配置里被引用，故统一声明为 let，由 loadTokens() 集中刷新；
+// 切换主题时先 loadTokens() 再重绘图表，颜色即随主题改变。
+// 注意：ECharts 的颜色是喂给 canvas 的，不能写 var(--x)，必须用这里解析后的实值。
+let BG, PANEL, PANEL2, EDGE, EDGE2, INK, INK_STRONG, SUB, DIM, FAINT;
+let ACC, ACC2, WARN, CRIT, VIO, VIO2, PINK, ACC_RGB;
+let CHART_AXIS, CHART_SPLIT, TIP_BG, TIP_BD, TIP_SH, BODY2;
+let MAP_LBL, MAP_AREA, MAP_HI, MAP_RAMP;
+let AXIS, TIP, LEGEND, LV_COLOR;
 
 const ICONS = {
   'overview': 'M4 4h7v7H4zM11 4h9v4h-9zM11 10h9v10h-9zM4 13h7v7H4z',
@@ -53,7 +58,7 @@ const BASE_POINTS = {
 };
 const LEVEL_RANK = { '三级': 4, '二级': 3, '一级': 2, '未定级': 1 };
 // 等级配色：全局唯一口径，禁止靠数组下标隐式配色（排序一变颜色就错位，把「一级」染成红色）
-const LV_COLOR = { '三级': '#e0697e', '二级': '#e0a23b', '一级': '#6b8cff', '未定级': '#9a8cf0', '不适用': '#73757e' };
+// 取值由 loadTokens() 按当前主题生成（见下方）
 const W_LEVEL = 0.5, W_DIST = 0.3, W_DEPT = 0.2;
 const DASHBOARD_VERSION = 'v4.0-ui-refresh-20260911';
 const GUAhAO_114 = 'https://www.114yygh.com/';
@@ -74,6 +79,7 @@ const SID = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 
 
 // 图表实例
 let MAP_CHART, CH1, CH2, CH3;
+let ROW_EL_BY_ID = {}, SCATTER_IDX = {}, HOVER_ID = null;   // 地图 ↔ 列表 悬停互指
 let CH_OWN, CH_FEAT, CH_NET, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD;
 let A_KW, A_DIST, A_TRIAGE, A_DAILY, A_DENSITY, A_LEVEL, A_SPEC, A_NET, A_OWN, A_CAT;
 
@@ -274,8 +280,8 @@ function renderFilterChips() {
       '</b><i data-fclear="' + id + '" title="移除该条件">×</i></span>');
   });
   box.innerHTML = chips.length
-    ? '<span class="fl">已选 ' + chips.length + ' 项条件</span>' + chips.join('') +
-      '<span class="fchip" style="border-style:dashed;cursor:pointer" data-fclear="__all__"><b>全部清除</b></span>'
+    ? '<span class="fl">已选条件 ' + chips.length + ' 项</span>' + chips.join('') +
+      '<button class="fclear" type="button" data-fclear="__all__" title="清除全部筛选条件，回到全量 9,789 家">一键清除全部</button>'
     : '';
   Array.prototype.forEach.call(box.querySelectorAll('[data-fclear]'), b =>
     b.addEventListener('click', () => {
@@ -486,18 +492,44 @@ function initOverSummary() {
   });
 }
 
-// ECharts 统一主题片段
-const AXIS = {
-  axisLine: { lineStyle: { color: 'rgba(255,255,255,.14)' } },
-  axisTick: { show: false },
-  axisLabel: { color: '#8b8d96', fontSize: 10 },
-  splitLine: { lineStyle: { color: 'rgba(255,255,255,.06)' } },
-};
-const TIP = {
-  backgroundColor: 'rgba(19,20,25,.96)', borderColor: 'rgba(255,255,255,.14)', borderWidth: 1,
-  textStyle: { color: INK, fontSize: 11.5 }, extraCssText: 'border-radius:9px;box-shadow:0 10px 30px -10px rgba(0,0,0,.8)',
-};
-const LEGEND = { textStyle: { color: SUB, fontSize: 10.5 }, itemWidth: 10, itemHeight: 10, itemGap: 12 };
+// ---------- 主题令牌装载：把 CSS 变量解析成 ECharts 能用的实值 ----------
+function cssVar(name, fb) {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || (fb || '');
+  } catch (e) { return fb || ''; }
+}
+function loadTokens() {
+  BG = cssVar('--bg', '#0a0b0d'); PANEL = cssVar('--panel', '#131419'); PANEL2 = cssVar('--panel-2', '#171922');
+  EDGE = cssVar('--line', 'rgba(255,255,255,.08)'); EDGE2 = cssVar('--line-2', 'rgba(255,255,255,.13)');
+  INK = cssVar('--ink', '#ededee'); INK_STRONG = cssVar('--ink-strong', '#ffffff');
+  SUB = cssVar('--ink-2', '#a0a2aa'); DIM = cssVar('--ink-3', '#73757e'); FAINT = cssVar('--ink-4', '#4c4e57');
+  ACC = cssVar('--acc', '#6b8cff'); ACC_RGB = cssVar('--acc-rgb', '107,140,255');
+  ACC2 = cssVar('--teal', '#46c08a'); WARN = cssVar('--warn', '#e0a23b');
+  CRIT = cssVar('--crit', '#e0697e'); VIO = cssVar('--vio', '#9a8cf0');
+  VIO2 = cssVar('--vio-2', VIO2); PINK = cssVar('--pink', '#e69ab5');
+  CHART_AXIS = cssVar('--chart-axis', '#8b8d96'); CHART_SPLIT = cssVar('--chart-split', 'rgba(255,255,255,.06)');
+  TIP_BG = cssVar('--tip-bg', 'rgba(19,20,25,.96)'); TIP_BD = cssVar('--tip-bd', 'rgba(255,255,255,.14)');
+  TIP_SH = cssVar('--tip-sh', 'rgba(0,0,0,.8)'); BODY2 = cssVar('--body-2', '#c9cbd2');
+  MAP_LBL = cssVar('--map-label', '#8b94ad'); MAP_AREA = cssVar('--map-area', '#171922');
+  MAP_HI = cssVar('--map-hi', '#2a3550');
+  MAP_RAMP = [cssVar('--map-r1'), cssVar('--map-r2'), cssVar('--map-r3'), ACC, VIO];
+
+  // ECharts 统一主题片段（每次装载重建，颜色随主题变化）
+  AXIS = {
+    axisLine: { lineStyle: { color: EDGE2 } },
+    axisTick: { show: false },
+    axisLabel: { color: CHART_AXIS, fontSize: 10 },
+    splitLine: { lineStyle: { color: CHART_SPLIT } },
+  };
+  TIP = {
+    backgroundColor: TIP_BG, borderColor: TIP_BD, borderWidth: 1,
+    textStyle: { color: INK, fontSize: 11.5 },
+    extraCssText: 'border-radius:9px;box-shadow:0 10px 30px -10px ' + TIP_SH,
+  };
+  LEGEND = { textStyle: { color: SUB, fontSize: 10.5 }, itemWidth: 10, itemHeight: 10, itemGap: 12 };
+  LV_COLOR = { '三级': CRIT, '二级': WARN, '一级': ACC, '未定级': VIO, '不适用': DIM };
+}
 
 // ============================================================================
 //  1. 数据加载
@@ -519,7 +551,7 @@ function loadData() {
 function showLoadError(e) {
   const el = $('loading'); if (!el) return;
   el.classList.remove('hide');
-  el.style.background = '#e0697e';
+  el.style.background = cssVar('--crit', '#e0697e'); el.style.color = '#fff';
   el.innerHTML = svgIcon('err') + ' 数据加载失败：' + esc(e && e.message ? e.message : e) +
     ' &nbsp;·&nbsp; 请硬刷新（Mac <b>Cmd+Shift+R</b> / Win <b>Ctrl+F5</b>）' +
     '；或改用离线单文件 <code>web/dashboard_offline.html</code>';
@@ -530,6 +562,7 @@ function showLoadError(e) {
 // ============================================================================
 function init() {
   try {
+    loadTokens();                       // 先按当前主题装载配色令牌，再画图
     $('loading').classList.add('hide');
     setText('m_total', DATA.total.toLocaleString());
     setText('m_time', DATA.snapshot_time);
@@ -547,6 +580,7 @@ function init() {
     initAnalyticsCharts();
     initAdminCharts();
     initNav();
+    initTheme();
     initTriageChat();
     initDrawer();
     initCompare();
@@ -1022,11 +1056,16 @@ function renderList() {
     '</div>';
   }).join('');
 
+  ROW_EL_BY_ID = {}; HOVER_ID = null;
   Array.prototype.forEach.call(box.querySelectorAll('.row'), el => {
+    const rid = String(el.getAttribute('data-id'));
+    ROW_EL_BY_ID[rid] = el;
     el.addEventListener('click', ev => {
       if (ev.target.closest('[data-pick]') || ev.target.closest('[data-fav]')) return;
       openDrawer(el.getAttribute('data-id'));
     });
+    el.addEventListener('mouseenter', () => hoverRowToMap(rid, true));
+    el.addEventListener('mouseleave', () => hoverRowToMap(rid, false));
   });
   Array.prototype.forEach.call(box.querySelectorAll('[data-pick]'), el => {
     el.addEventListener('click', ev => { ev.stopPropagation(); togglePick(el.getAttribute('data-pick')); });
@@ -1039,6 +1078,28 @@ function renderList() {
 // ============================================================================
 //  8. 概览图表
 // ============================================================================
+// 地图底图：独立成函数，便于切换主题时按新配色重绘
+function drawMap() {
+  if (!MAP_CHART || !DATA || !DATA.overviews) return;
+  MAP_CHART.setOption({
+      backgroundColor: 'transparent', textStyle: { color: INK },
+      tooltip: Object.assign({ trigger: 'item', formatter: mapTipFmt }, TIP),
+      geo: {
+        map: 'beijing', roam: true, zoom: 1, layoutCenter: ['50%', '50%'], layoutSize: '96%', aspectScale: 0.9,
+        label: { show: true, color: MAP_LBL, fontSize: 10 },
+        itemStyle: { borderColor: EDGE2, borderWidth: 1, areaColor: MAP_AREA },
+        emphasis: { label: { color: INK_STRONG }, itemStyle: { areaColor: MAP_HI } },
+        select: { itemStyle: { areaColor: MAP_HI }, label: { color: INK_STRONG } },
+      },
+      visualMap: { min: 0, max: 1300, show: false,
+        inRange: { color: MAP_RAMP } },
+      series: [{
+        name: '机构数', type: 'map', geoIndex: 0,
+        data: DATA.overviews.districts.map(d => ({ name: d.district, value: d.inst_count })),
+      }],
+    });
+}
+
 function initCharts() {
   try {
     const mapDiv = $('map');
@@ -1052,27 +1113,18 @@ function initCharts() {
     const reg = echarts.getMap && echarts.getMap('beijing');
     if (!reg || !reg.geoJson) throw new Error('registerMap("beijing") 失败');
 
-    MAP_CHART.setOption({
-      backgroundColor: 'transparent', textStyle: { color: INK },
-      tooltip: Object.assign({ trigger: 'item', formatter: mapTipFmt }, TIP),
-      geo: {
-        map: 'beijing', roam: true, zoom: 1, layoutCenter: ['50%', '50%'], layoutSize: '96%', aspectScale: 0.9,
-        label: { show: true, color: '#8b94ad', fontSize: 10 },
-        itemStyle: { borderColor: 'rgba(255,255,255,.14)', borderWidth: 1, areaColor: '#171922' },
-        emphasis: { label: { color: '#fff' }, itemStyle: { areaColor: '#2a3550' } },
-        select: { itemStyle: { areaColor: '#2a3550' }, label: { color: '#fff' } },
-      },
-      visualMap: { min: 0, max: 1300, show: false,
-        inRange: { color: ['#171922', '#2a3550', '#4a5680', '#6b8cff', '#9a8cf0'] } },
-      series: [{
-        name: '机构数', type: 'map', geoIndex: 0,
-        data: DATA.overviews.districts.map(d => ({ name: d.district, value: d.inst_count })),
-      }],
-    });
+    drawMap();
     MAP_CHART.resize();
     MAP_CHART.on('click', p => {
       if (p.seriesType === 'effectScatter' && p.data && p.data.instId != null) { openDrawer(p.data.instId); return; }
       if (p.name) { $('f_district').value = p.name; PAGE = 1; track('filter_district', p.name, 'map'); applyFilter(); }
+    });
+    // 悬停散点 -> 高亮列表对应行（点击仍然是打开详情 / 筛选区县）
+    MAP_CHART.on('mouseover', p => {
+      if (p.seriesType === 'effectScatter' && p.data && p.data.instId != null) hoverMapToList(p.data.instId, true);
+    });
+    MAP_CHART.on('mouseout', p => {
+      if (p.seriesType === 'effectScatter' && p.data && p.data.instId != null) hoverMapToList(p.data.instId, false);
     });
 
     CH1 = echarts.init($('ch1')); CH2 = echarts.init($('ch2')); CH3 = echarts.init($('ch3'));
@@ -1092,6 +1144,64 @@ function resizeAll() {
   ].forEach(c => { if (c) { try { c.resize(); } catch (e) { } } });
 }
 
+// ============================================================================
+//  12. 白天 / 黑夜双主题
+// ============================================================================
+const THEME_KEY = 'bjyy_theme';
+function currentTheme() {
+  return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+}
+// 切主题 = 换 HTML 上的 data-theme（CSS 令牌整体切换）+ 用新令牌重绘所有图表
+function applyTheme(name) {
+  const th = (name === 'light') ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', th);
+  try { localStorage.setItem(THEME_KEY, th); } catch (e) { }
+  loadTokens();
+  try { drawMap(); } catch (e) { console.error('[applyTheme] 地图', e); }
+  try { updateCharts(); } catch (e) { console.error('[applyTheme] 总览图表', e); }
+  try { updateAnalyticsCharts(); } catch (e) { console.error('[applyTheme] 分析图表', e); }
+  try { renderKPI(); } catch (e) { }
+  try { renderList(); } catch (e) { }
+  try { renderFilterChips(); } catch (e) { }
+  try { if (DW_CUR) openDrawer(DW_CUR.id); } catch (e) { }
+  try {
+    const va = $('view-admin');
+    if (va && va.classList.contains('active')) renderAdmin();
+  } catch (e) { }
+  setTimeout(resizeAll, 40);
+}
+function toggleTheme() { applyTheme(currentTheme() === 'light' ? 'dark' : 'light'); }
+function initTheme() {
+  const b = $('btn_theme');
+  if (b) b.addEventListener('click', toggleTheme);
+}
+
+// ---------- 地图 ↔ 列表 悬停互指 ----------
+// 列表行悬停 -> 地图上对应散点高亮 + 弹出气泡；地图散点悬停 -> 列表中对应行高亮并滚动到可视区
+function hoverRowToMap(id, on) {
+  if (!MAP_CHART) return;
+  const i = SCATTER_IDX[String(id)];
+  if (i == null) return;                      // 该机构不在当前地图散点集合内
+  try {
+    MAP_CHART.dispatchAction(on
+      ? { type: 'highlight', seriesIndex: 1, dataIndex: i }
+      : { type: 'downplay', seriesIndex: 1, dataIndex: i });
+    MAP_CHART.dispatchAction(on
+      ? { type: 'showTip', seriesIndex: 1, dataIndex: i }
+      : { type: 'hideTip' });
+  } catch (e) { }
+}
+function hoverMapToList(id, on) {
+  const key = String(id);
+  if (on && HOVER_ID === key) return;
+  if (!on && HOVER_ID !== key) return;
+  HOVER_ID = on ? key : null;
+  const el = ROW_EL_BY_ID[key];
+  if (!el) return;
+  el.classList.toggle('hl', !!on);
+  if (on && el.scrollIntoView) { try { el.scrollIntoView({ block: 'nearest' }); } catch (e) { } }
+}
+
 function updateCharts() {
   if (!CH1 || !CH2 || !CH3) return;
   const lvCount = {};
@@ -1102,7 +1212,7 @@ function updateCharts() {
     series: [{
       type: 'pie', radius: ['46%', '70%'], center: ['50%', '43%'],
       data: Object.entries(lvCount).map(x => ({ name: x[0], value: x[1], itemStyle: { color: LV_COLOR[x[0]] || DIM } })),
-      label: { color: INK, fontSize: 11, formatter: '{b}\n{c}' }, labelLine: { lineStyle: { color: 'rgba(255,255,255,.18)' } },
+      label: { color: INK, fontSize: 11, formatter: '{b}\n{c}' }, labelLine: { lineStyle: { color: EDGE2 } },
       itemStyle: { borderColor: PANEL, borderWidth: 2.5 },
     }],
   });
@@ -1129,7 +1239,7 @@ function updateCharts() {
     tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, TIP),
     grid: { left: 46, right: 16, top: 14, bottom: 52 },
     xAxis: Object.assign({ type: 'category', data: dS.map(c => c[0]) }, AXIS,
-      { axisLabel: { color: '#8b8d96', fontSize: 9.5, rotate: 38, interval: 0 } }),
+      { axisLabel: { color: CHART_AXIS, fontSize: 9.5, rotate: 38, interval: 0 } }),
     yAxis: Object.assign({ type: 'value' }, AXIS),
     series: [{
       type: 'bar', data: dS.map(c => c[1]),
@@ -1141,6 +1251,8 @@ function updateCharts() {
   try {
     const inB = r => r.lng != null && r.lat != null && +r.lng > 115.35 && +r.lng < 117.50 && +r.lat > 39.40 && +r.lat < 41.10;
     const points = FILTERED.filter(inB).slice(0, 3000);
+    SCATTER_IDX = {};                                   // 机构 id -> 散点 dataIndex
+    points.forEach((r, i) => { SCATTER_IDX[String(r.id)] = i; });
     MAP_CHART.setOption({
       series: [
         { type: 'map', geoIndex: 0 },
@@ -1177,11 +1289,11 @@ function computeDistLevel() {
 function mapTipFmt(p) {
   if (p.seriesType === 'effectScatter') return scatterTipFmt(p);
   const dl = DIST_LEVEL[p.name]; const total = p.value || 0;
-  let s = '<b style="font-size:13px">' + esc(p.name) + '</b><br/>机构总数：<b style="color:#6b8cff">' + total + '</b> 家';
-  if (dl) s += '<div style="margin-top:4px;font-size:12px;color:#a0a2aa">' +
+  let s = '<b style="font-size:13px">' + esc(p.name) + '</b><br/>机构总数：<b style="color:' + ACC + '">' + total + '</b> 家';
+  if (dl) s += '<div style="margin-top:4px;font-size:12px;color:' + SUB + '">' +
     '三级 ' + dl['三级'] + ' · 二级 ' + dl['二级'] + ' · 一级 ' + dl['一级'] + '<br/>' +
     '未定级 ' + dl['未定级'] + ' · 不适用 ' + dl['不适用'] + '</div>';
-  s += '<div style="margin-top:5px;font-size:11px;color:#73757e">点击该区可直接筛选</div>';
+  s += '<div style="margin-top:5px;font-size:11px;color:' + DIM + '">点击该区可直接筛选</div>';
   return s;
 }
 
@@ -1190,10 +1302,10 @@ function scatterTipFmt(p) {
   const lvl = (r.level === '不适用医院分级') ? '不分级' : (r.level || '—');
   return '<div style="max-width:250px">' +
     '<b style="font-size:13px">' + esc(r.name) + '</b>' +
-    '<div style="color:#a0a2aa;margin:3px 0 6px;font-size:12px">' + esc(r.district) + ' · ' + esc(lvl) + '</div>' +
-    (r.addr ? '<div style="font-size:12px;color:#c9cbd2;line-height:1.4">' + esc(r.addr) + '</div>' : '') +
-    '<div style="font-size:12px;color:#c9cbd2;margin-top:3px">科室 ' + num(r.dept_count) + ' 个 · 重点专科 ' + num(r.key_specialty_count) + ' 项</div>' +
-    '<div style="font-size:11px;color:#6b8cff;margin-top:6px">点击查看机构详情 →</div>' +
+    '<div style="color:' + SUB + ';margin:3px 0 6px;font-size:12px">' + esc(r.district) + ' · ' + esc(lvl) + '</div>' +
+    (r.addr ? '<div style="font-size:12px;color:' + BODY2 + ';line-height:1.4">' + esc(r.addr) + '</div>' : '') +
+    '<div style="font-size:12px;color:' + BODY2 + ';margin-top:3px">科室 ' + num(r.dept_count) + ' 个 · 重点专科 ' + num(r.key_specialty_count) + ' 项</div>' +
+    '<div style="font-size:11px;color:' + ACC + ';margin-top:6px">点击查看机构详情 →</div>' +
     '</div>';
 }
 
@@ -1204,7 +1316,7 @@ function pieOpt(data) {
     series: [{
       type: 'pie', radius: ['42%', '70%'], center: ['50%', '44%'],
       data: data.map(d => ({ name: d[0], value: d[1], itemStyle: { color: d[2] } })),
-      label: { color: INK, fontSize: 11 }, labelLine: { lineStyle: { color: 'rgba(255,255,255,.18)' } },
+      label: { color: INK, fontSize: 11 }, labelLine: { lineStyle: { color: EDGE2 } },
       itemStyle: { borderColor: PANEL, borderWidth: 2.5 },
     }],
   };
@@ -1229,7 +1341,7 @@ function stackOpt(cats, series) {
     legend: Object.assign({ bottom: 0 }, LEGEND),
     grid: { left: 50, right: 16, top: 8, bottom: 40 },
     xAxis: Object.assign({ type: 'category', data: cats }, AXIS,
-      { axisLabel: { color: '#8b8d96', fontSize: 9, rotate: cats.length > 10 ? 38 : 0, interval: 0 } }),
+      { axisLabel: { color: CHART_AXIS, fontSize: 9, rotate: cats.length > 10 ? 38 : 0, interval: 0 } }),
     yAxis: Object.assign({ type: 'value' }, AXIS),
     series: series.map(s => Object.assign({ barMaxWidth: 26 }, s)),
   };
@@ -1263,7 +1375,7 @@ function updateAnalyticsCharts() {
     ['卒中中心', F.filter(r => r.net_stroke === '1').length],
     ['危重新生儿', F.filter(r => r.net_neonatal === '市级').length],
     ['危重孕产妇', F.filter(r => r.net_maternal === '市级').length],
-  ], [VIO, '#6d5bd0', CRIT, ACC2, ACC]));
+  ], [VIO, VIO2, CRIT, ACC2, ACC]));
 
   const levels = ['三级', '二级', '一级', '未定级'], owns = ['公立', '民营', '未标注'];
   CH_LVOWN.setOption(stackOpt(levels, owns.map(o => ({
@@ -1458,7 +1570,7 @@ function specialtyHTML(r) {
   if (nat.length) h += '<div class="blk"><h4><span class="bar"></span>国家级重点专科 <span class="r">' + nat.length + ' 项</span></h4><div class="deptchips">' +
     nat.map(x => '<span class="chip emg">' + esc(x.trim()) + '</span>').join('') + '</div></div>';
   if (mun.length) h += '<div class="blk"><h4><span class="bar"></span>北京市级重点专科 <span class="r">' + mun.length + ' 项</span></h4><div class="deptchips">' +
-    mun.map(x => '<span class="chip" style="background:rgba(255,181,71,.14);color:' + WARN + ';border-color:rgba(255,181,71,.34)">' + esc(x.trim()) + '</span>').join('') + '</div></div>';
+    mun.map(x => '<span class="chip" style="background:rgba(var(--warn-rgb),.14);color:' + WARN + ';border-color:rgba(var(--warn-rgb),.34)">' + esc(x.trim()) + '</span>').join('') + '</div></div>';
   if (feat.length) h += '<div class="blk"><h4><span class="bar"></span>擅长 / 诊疗科室 <span class="r">' + feat.length + ' 项</span></h4><div class="deptchips">' +
     feat.map(x => '<span class="chip">' + esc(x.trim()) + '</span>').join('') + '</div></div>';
   if (!h) h = '<div class="empty">该机构未收录重点专科或擅长科室信息</div>';
@@ -1470,7 +1582,7 @@ function specialtyHTML(r) {
     '下方的重点专科清单来自官方公示名单，点击按钮可直达官方平台查询该机构、该专科的真实出诊专家。</div>' +
     '<div class="taglist">' +
       (nat.concat(mun).length ? nat.concat(mun).slice(0, 6).map(d =>
-        '<div class="tagrow"><span class="tk" style="background:rgba(255,107,129,.16);color:#ffa4b3;border:1px solid rgba(255,107,129,.34)">' + esc(d.trim()) + '</span>' +
+        '<div class="tagrow"><span class="tk" style="background:rgba(var(--crit-rgb),.16);color:var(--t-crit-fg);border:1px solid rgba(var(--crit-rgb),.34)">' + esc(d.trim()) + '</span>' +
         '<span class="tv">该科室为' + (nat.indexOf(d) >= 0 ? '国家级' : '市级') + '重点专科 — ' +
         '<a href="' + GUAhAO_114 + '" target="_blank" rel="noopener">到 114 平台查询该科专家号 →</a></span></div>').join('')
         : '<div style="color:' + DIM + ';font-size:12px">暂无重点专科记录，可通过 114 平台按机构名检索</div>') +
@@ -1483,7 +1595,7 @@ function aroundPlaceholder(r) {
   return '<div class="notice">周边配套（最近地铁站 / 停车场 / 公交站）通过高德开放平台实时查询，' +
     '需要本地 Flask 服务支持。<br>当前为离线模式，你仍可查看地址并使用导航。</div>' +
     '<div class="blk"><h4><span class="bar"></span>地址与导航</h4>' +
-    '<div class="poilist"><div class="poi"><div class="pi" style="background:rgba(76,154,255,.14)">' + svgIcon('location') + '</div>' +
+    '<div class="poilist"><div class="poi"><div class="pi" style="background:rgba(var(--acc-rgb),.14)">' + svgIcon('location') + '</div>' +
     '<div class="pb"><div class="pn">' + esc(r.addr || (r.district + '（详细地址未收录）')) + '</div>' +
     '<div class="ps">' + esc(r.district) + ' · ' + (r.lng != null ? (r.lng + ', ' + r.lat) : '无坐标') + '</div></div>' +
     (link ? '<a class="btn ghost sm" href="' + link + '" target="_blank" rel="noopener">导航</a>' : '') +
@@ -1575,12 +1687,12 @@ function paintDrawerFull(d) {
   } else if (!d.around_online) {
     near = '<div class="notice">高德接口暂时不可用（网络或额度问题），已保留地址与导航入口。</div>';
   }
-  near += poiBlock(svgIcon('metro'), '最近地铁站', a.metro, 'rgba(76,154,255,.16)') +
-          poiBlock(svgIcon('parking'), '附近停车场', a.parking, 'rgba(255,181,71,.16)') +
-          poiBlock(svgIcon('bus'), '附近公交站', a.bus, 'rgba(56,224,192,.16)');
+  near += poiBlock(svgIcon('metro'), '最近地铁站', a.metro, 'rgba(var(--acc-rgb),.16)') +
+          poiBlock(svgIcon('parking'), '附近停车场', a.parking, 'rgba(var(--warn-rgb),.16)') +
+          poiBlock(svgIcon('bus'), '附近公交站', a.bus, 'rgba(var(--teal-rgb),.16)');
   if (!a.metro && !a.parking && !a.bus) {
     near += '<div class="blk"><h4><span class="bar"></span>地址与导航</h4><div class="poilist">' +
-      '<div class="poi"><div class="pi" style="background:rgba(76,154,255,.14)">' + svgIcon('location') + '</div>' + '<div class="pb">' +
+      '<div class="poi"><div class="pi" style="background:rgba(var(--acc-rgb),.14)">' + svgIcon('location') + '</div>' + '<div class="pb">' +
       '<div class="pn">' + esc(c.addr || '未收录详细地址') + '</div>' +
       '<div class="ps">' + esc(c.lng != null ? (c.lng + ', ' + c.lat) : '无坐标') + '</div></div>' +
       (L.amap_nav ? '<a class="btn ghost sm" href="' + L.amap_nav + '" target="_blank" rel="noopener">导航</a>' : '') +
@@ -1960,7 +2072,7 @@ function requestTriage() {
 
     const emg = j.matched_depts.some(x => x.emergency);
     if (emg) {
-      html += '<div style="margin-top:9px;padding:9px 12px;border-radius:10px;background:rgba(255,107,129,.12);border:1px solid rgba(255,107,129,.36);color:#ffa4b3;font-size:12px">' +
+      html += '<div style="margin-top:9px;padding:9px 12px;border-radius:10px;background:rgba(var(--crit-rgb),.12);border:1px solid rgba(var(--crit-rgb),.36);color:var(--t-crit-fg);font-size:12px">' +
         svgIcon('warn') + ' 涉及急诊科室：如出现胸痛、意识不清、大出血、呼吸困难等急危症状，请<b>立即拨打 120 或直接前往最近医院急诊</b>，不要依赖线上筛选。</div>';
     }
     html += '<div style="margin-top:10px;color:' + DIM + ';font-size:11.5px">按 <b>等级 0.5 / 距离 0.3 / 科室匹配 0.2</b> 加权评分排序，为你推荐以下 ' + j.hospitals.length + ' 家：</div>';
@@ -2155,12 +2267,12 @@ function renderAdmin() {
         tooltip: Object.assign({ trigger: 'axis' }, TIP),
         grid: { left: 42, right: 18, top: 14, bottom: 34 },
         xAxis: Object.assign({ type: 'category', data: daily.map(x => String(x.d).slice(5)) }, AXIS,
-          { axisLabel: { color: '#8b8d96', fontSize: 9.5, rotate: 30 } }),
+          { axisLabel: { color: CHART_AXIS, fontSize: 9.5, rotate: 30 } }),
         yAxis: Object.assign({ type: 'value' }, AXIS),
         series: [{
           type: 'line', smooth: true, data: daily.map(x => x.n), symbolSize: 6,
           lineStyle: { width: 2.5, color: ACC }, itemStyle: { color: ACC2 },
-          areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(76,154,255,.42)' }, { offset: 1, color: 'rgba(76,154,255,0)' }]) },
+          areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(' + ACC_RGB + ',.42)' }, { offset: 1, color: 'rgba(' + ACC_RGB + ',0)' }]) },
         }],
       });
     }
@@ -2197,7 +2309,7 @@ function renderAdminResources() {
       ['卒中中心', nets.filter(r => r.net_stroke === '1').length],
       ['危重新生儿', nets.filter(r => r.net_neonatal === '市级').length],
       ['危重孕产妇', nets.filter(r => r.net_maternal === '市级').length],
-    ], [VIO, '#6d5bd0', CRIT, ACC2, PINK]));
+    ], [VIO, VIO2, CRIT, ACC2, PINK]));
   }
   if (A_OWN) {
     const own = {}; DATA.institutions.forEach(r => own[r.ownership || '未标注'] = (own[r.ownership || '未标注'] || 0) + 1);
