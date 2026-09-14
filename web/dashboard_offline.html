@@ -211,25 +211,28 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 /* —— 左侧导航布局（2026-09-14） —— */
 .layout{display:flex;align-items:stretch;min-height:100vh}
 .sidebar{position:sticky;top:0;align-self:flex-start;height:100vh;overflow:auto;
-  display:flex;flex-direction:column;gap:16px;width:218px;flex:0 0 218px;
-  padding:18px 12px 14px;background:var(--bg-soft);border-right:1px solid var(--line);z-index:57}
-.sidebar .brand{padding:0 6px}
-.sidebar .brand h1{font-size:13.5px;white-space:normal;line-height:1.45}
-.sidebar .brand .sub{white-space:normal;line-height:1.5}
-.sidebar .navbar{position:static;display:flex;flex-direction:column;gap:3px;padding:0;
+  display:flex;flex-direction:column;gap:0;width:188px;flex:0 0 188px;
+  padding:14px 12px 12px;background:var(--bg-soft);border-right:1px solid var(--line);z-index:57}
+.navcap{color:var(--ink-4);font-size:10.5px;font-weight:650;letter-spacing:.09em;
+  padding:4px 10px 9px;text-transform:uppercase}
+
+.sidebar .navbar{position:static;display:flex;flex-direction:column;gap:7px;padding:0;
   background:transparent;border:0;overflow:visible}
-.sidebar .navtab{flex:none;justify-content:flex-start;max-width:none;padding:9px 13px;border-radius:9px}
+.sidebar .navtab{flex:none;justify-content:flex-start;max-width:none;padding:12px 14px;
+  font-size:13.5px;gap:11px;border-radius:10px}
+
+.sidebar .navtab .ic{width:18px;height:18px}
 .sidebar .navtab.active::after{left:0;right:auto;top:8px;bottom:8px;width:3px;height:auto;
   border-radius:0 2px 2px 0}
 .sidebar .navtab.active{background:rgba(var(--acc-rgb),.10);color:var(--acc)}
 .sidefoot{margin-top:auto;padding:0 6px}
 .sidebar .navnote{white-space:normal;line-height:1.75;padding:0;text-align:left;font-size:10.5px}
 .maincol{flex:1 1 auto;min-width:0}
-.maincol .topbar{justify-content:flex-end;gap:8px;padding:11px var(--pad-x)}
+.maincol .topbar{gap:14px;padding:10px var(--pad-x)}
 @media (max-width:1080px){
   .sidebar{width:60px;flex-basis:60px;padding:14px 8px;gap:12px}
-  .sidebar .brand{display:flex;justify-content:center;padding:0}
-  .sidebar .brand h1,.sidebar .brand .sub,.sidefoot{display:none}
+  .navcap{display:none}
+  .sidefoot{display:none}
   .sidebar .navtab{justify-content:center;padding:10px 0}
   .sidebar .navtab .lbl{display:none}
   .sidebar .navtab .ico{font-size:16px}
@@ -767,14 +770,8 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 
 <div class="layout">
 <aside class="sidebar">
-  <div class="brand">
-    <div class="mark"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V6l8-3 8 3v15M9 21v-4h6v4M12 8v5M9.5 10.5h5"/></svg></div>
-    <div style="min-width:0">
-      <h1>北京市医疗机构资源整合与多维筛选可视化系统</h1>
-      <div class="sub">Beijing Medical Institutions · Spark · Flask · ECharts</div>
-    </div>
-  </div>
   <nav class="navbar" id="navbar">
+  <div class="navcap">功能导航</div>
   <button class="navtab active" data-view="overview"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h7v7H4zM11 4h9v4h-9zM11 10h9v10h-9zM4 13h7v7H4z"/></svg></span><span class="lbl">综合看板</span></button>
   <button class="navtab" data-view="analytics"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-12"/></svg></span><span class="lbl">多维分析</span></button>
   <button class="navtab" data-view="triage"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg></span><span class="lbl">智能导诊</span></button>
@@ -785,6 +782,13 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 </aside>
 <div class="maincol">
 <header class="topbar">
+  <div class="brand">
+    <div class="mark"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V6l8-3 8 3v15M9 21v-4h6v4M12 8v5M9.5 10.5h5"/></svg></div>
+    <div style="min-width:0">
+      <h1>北京市医疗机构资源整合与多维筛选可视化系统</h1>
+      <div class="sub">Beijing Medical Institutions · Spark · Flask · ECharts</div>
+    </div>
+  </div>
   <div class="topmeta">
     <span class="chipmeta">数据快照 <b id="m_total">—</b> 家机构</span>
     <span class="chipmeta t2">更新 <b id="m_time">—</b></span>
