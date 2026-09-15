@@ -7,7 +7,8 @@
 | 层 | 技术 |
 |---|---|
 | 数据处理 | PySpark 3.5.3（Standalone 集群，Docker 原生 arm64） |
-| 存储 | MySQL 8.0（ODS/DWD/DWS/ADS 四层数仓） |
+| 存储 | **HDFS 3.3.6**（ODS/DWD/DWS 分层 Parquet）+ **MySQL 8.0**（ADS 服务层结果） |
+| 依赖管理 | Maven 坐标（`spark-submit --packages`，见 `spark/pom.xml`） |
 | 服务 | Flask RESTful API |
 | 前端 | ECharts 5（北京地图散点 + 柱状 + 环形图） |
 | 部署 | Docker Compose |
@@ -16,15 +17,35 @@
 
 ```
 ├── data/               # 数据目录（不入库，含原始数据与 processed 产物）
-├── etl/                # 数据清洗/地理编码/科室字典脚本
-├── spark/              # PySpark 作业脚本（数仓分层 ETL）
+├── etl/                # 数据清洗/地理编码/科室字典脚本 + 入湖脚本
+│   └── upload_to_hdfs.py   # 治理后 CSV / 行为日志 → HDFS ods/raw（数据入湖）
+├── spark/              # PySpark 数仓作业
+│   ├── jobs/           # 按「分层 + 分析维度」拆分（见下表）
+│   ├── run_all.sh      # 全链路一键跑批（宿主机）
+│   └── pom.xml         # 依赖清单（Maven 坐标）
+├── docker/hadoop/      # 自建 arm64 HDFS 镜像（官方镜像仅 amd64，M1 上起不来）
 ├── web/                # Flask 应用（API + 可视化前端）
 │   ├── app.py          # RESTful API（筛选/详情/概览）
 │   ├── templates/      # 单页前端
 │   └── static/         # ECharts、北京 geoJSON、样式
 ├── docs/               # 开发日志等文档
-└── docker-compose.yml  # spark-master + spark-worker + mysql 编排
+└── docker-compose.yml  # hdfs(namenode+datanode) + spark(master+worker) + mysql
 ```
+
+### Spark 作业按分层 + 分析维度拆分
+
+| 文件 | 职责 | 输入 → 输出 |
+|---|---|---|
+| `jobs/common.py` | 公共模块：SparkSession、HDFS 路径、读写封装 | — |
+| `jobs/layer_ods.py` | ODS 层：原始数据列式化 | HDFS CSV → HDFS Parquet |
+| `jobs/layer_dwd.py` | DWD 层：清洗 + 坐标关联 | HDFS Parquet → HDFS Parquet |
+| `jobs/dim_space.py` | **空间维度**：区县分布、坐标覆盖、区间 Haversine 距离矩阵 | DWD → `dws/space/*` |
+| `jobs/dim_category.py` | **类型/等级维度**：等级、类型、主办方结构 | DWD → `dws/category/*` |
+| `jobs/dim_dept.py` | **科室维度**：科室覆盖度、科室×区分布、科室密度 | DWD → `dws/dept/*` |
+| `jobs/dim_network.py` | **协作网络维度**：儿科医联体/卒中/危重新生儿/危重孕产妇 | DWD → `dws/network/*` |
+| `jobs/dim_time.py` | **时间维度**：用户行为日趋势/时段/功能结构 + ETL 批次时效性快照 | 行为日志 → `dws/time/*` |
+| `jobs/layer_ads.py` | ADS 服务层：分析结果落业务库 | HDFS → MySQL |
+| `jobs/run_all.py` | 编排入口（单 SparkSession 串起 8 个阶段） | — |
 
 ## 快速开始
 
@@ -34,44 +55,53 @@
 open web/dashboard_offline.html      # macOS；其他系统直接双击该文件
 ```
 
-数据快照已内联进单个 HTML（约 6.6MB），**无需 Python、Docker、数据库、联网**，
+数据快照已内联进单个 HTML（约 6.8MB），**无需 Python、Docker、数据库、联网**，
 即可使用七维筛选、四种排序、图表联动、导航栏视图切换、八维分析图表与详情查看。
 
-### 方式二：完整工程链路（Spark + MySQL + Flask）
+### 方式二：完整工程链路（HDFS + Spark + MySQL + Flask）
 
 ```bash
 # 1. 安装 Web 依赖
 pip install -r requirements.txt
 
-# 2. 启动 Spark 集群 + MySQL
+# 2. 启动 HDFS（namenode + datanode）+ Spark 集群 + MySQL
 docker compose up -d
 
-# 3. 提交数仓 ETL（CSV → ODS → DWD → DWS → ADS → MySQL）
-docker exec spark-master /opt/spark/bin/spark-submit \
-  --master spark://spark-master:7077 \
-  --jars /opt/workspace/jobs/mysql-connector-j-8.4.0.jar \
-  --driver-class-path /opt/workspace/jobs/mysql-connector-j-8.4.0.jar \
-  /opt/workspace/jobs/etl_hospital.py
+# 3. 治理后数据入湖到 HDFS（ODS 原始层，含行为日志导出）
+python etl/upload_to_hdfs.py
 
-# 4. 重建查询索引（ETL 以 overwrite 模式写表会 DROP+CREATE，索引会丢失，此步必做）
+# 4. 提交数仓全链路作业：ODS → DWD → 空间/类型/科室/网络/时间 五维分析 → ADS 落 MySQL
+bash spark/run_all.sh
+#   （等价于容器内 spark-submit --packages com.mysql:mysql-connector-j:8.4.0 jobs/run_all.py）
+#   单独重跑某阶段：bash spark/run_all.sh --only ads  /  --from space
+
+# 5. 重建查询索引（落库以 overwrite 模式写表会 DROP+CREATE，索引会丢失，此步必做）
 python etl/create_indexes.py
 
-# 4.5 加载智能导诊知识库维度（首跑或更新疾病词典后执行）
+# 5.5 加载智能导诊知识库维度（首跑或更新疾病词典后执行）
 python etl/build_disease_dept_map.py     # 生成 data/processed/disease_dept_map.csv
 python etl/load_disease_dept.py          # 写入 MySQL 维度表 dim_disease_dept
 
-# 5. 重新生成快照与离线大屏
+# 6. 重新生成快照与离线大屏
 bash web/build_spa.sh
 
-# 6. 启动 Web 服务
+# 7. 启动 Web 服务
 bash web/start.sh
 # 浏览器访问 http://localhost:5001
+```
+
+HDFS 分层结果可现场核验：
+
+```bash
+docker exec hdfs-namenode hdfs dfs -ls -R /hospital | head -30
+docker exec hdfs-namenode hdfs dfs -du -s -h /hospital/ods /hospital/dwd /hospital/dws
 ```
 
 验证服务是否就绪：`curl -s http://127.0.0.1:5001/api/health`
 正常返回 `{"institutions":9789,"status":"ok"}`。
 
 - 系统界面: http://localhost:5001
+- HDFS NameNode UI: http://localhost:9870
 - Spark Master UI: http://localhost:8080
 - Spark Worker UI: http://localhost:8081
 - MySQL: localhost:3307（root/hospital123，应用账号 app/app123）
@@ -114,7 +144,7 @@ bash web/start.sh
 > 模型选型实测：`agnes-2.0-flash` 平均约 4 秒、答案准确；`agnes-2.5-flash` 平均约 18 秒（最长 32 秒），不适合交互式场景，故默认用前者。
 > 免费额度实测约 **1 次 / 30~40 秒**，现场连续提问会触发 429。演示前建议先预热：`bash web/start.sh` 后运行 `python etl/warm_ai_cache.py`（本地知识库已覆盖的问法会自动跳过，不浪费额度）。
 
-**在线演示**：仓库内 `web/dashboard_offline.html` 为零依赖单文件离线大屏（数据快照内联，约 6.6MB），可直接打开浏览完整可视化界面，无需启动任何服务。也可访问 GitHub Pages 在线版。
+**在线演示**：仓库内 `web/dashboard_offline.html` 为零依赖单文件离线大屏（数据快照内联，约 6.8MB），可直接打开浏览完整可视化界面，无需启动任何服务。也可访问 GitHub Pages 在线版。
 
 **可视化大屏：五视图导航（v4.0 视觉重构）**：前端通过顶部导航栏切换五个视图，浅色/深色统一由设计令牌驱动：
 
@@ -142,12 +172,30 @@ bash web/start.sh
 ## 系统架构
 
 ```
-多源 CSV/XLSX → Spark ETL 清洗整合 → ODS → DWD → DWS → ADS
-                                                      ↓
-              ECharts 可视化 ← Flask API ← MySQL（ADS 层）
-                                                      ↓
-                          build_spa.sh → 单文件离线大屏（快照注入）
+多源 CSV/XLSX ─治理─▶ data/processed/*.csv ─入湖─▶ HDFS /hospital/ods/raw
+                                                        │
+                            ┌───────────────────────────┴────────────────────────┐
+                            ▼                                                    │
+                    Spark 数仓分层（Standalone 集群）                             │
+         ODS Parquet ─▶ DWD 清洗关联 ─▶ DWS 五维分析 ─▶ ADS 服务层               │
+        /hospital/ods   /hospital/dwd    /hospital/dws    （HDFS 承载①②层，
+                                                           结果落 MySQL④）
+                            │
+              ECharts 可视化 ◀── Flask API ◀── MySQL（ADS 服务层）
+                            │
+                  build_spa.sh → 单文件离线大屏（快照注入）
 ```
+
+存储职责划分（对应复盘标准 ①②④）：
+
+| 层 | 存储位置 | 内容 |
+|---|---|---|
+| 原始层 | HDFS `/hospital/ods/raw` | 治理后 CSV + 行为日志（文本，可回溯） |
+| ODS | HDFS `/hospital/ods/parquet` | 原始数据列式化 Parquet |
+| DWD | HDFS `/hospital/dwd` | 清洗 + 坐标关联后的明细 |
+| DWS | HDFS `/hospital/dws/{space,category,dept,network,time}` | 五个分析维度的汇总结果 |
+| ADS | **MySQL** `hospital` 库 | 服务层宽表与分析结果，供 Flask 查询 |
+| 元数据 | HDFS `/hospital/meta/snapshots` | 每批次 ETL 快照（时效性维度） |
 
 > 说明：全部数据来自公开渠道清洗整合，无虚构模拟数据。对覆盖率不足或真实性存疑的字段（如床位数）采取"宁缺勿伪"原则，直接移除展示并在论文中说明，而非以估算值填充。
 
@@ -156,7 +204,10 @@ bash web/start.sh
 - [x] 数据清洗整合（70 文件 → 9,789 家机构主表）
 - [x] 科室字典（32 标准科室 / 11 大类 / 16,251 条映射，重点专科 68 家权威口径）
 - [x] Docker Spark 集群搭建与验证
-- [x] PySpark 数仓分层（ODS 5 表 → DWD 3 表 → DWS 4 表 → ADS 4 表）
+- [x] **HDFS 3.3.6 集群**（自建 arm64 镜像，namenode + datanode，数据入湖 `/hospital/ods/raw`）
+- [x] **PySpark 数仓分层（HDFS 承载）：ODS 6 表 → DWD 3 表 → DWS 五个分析维度 → ADS 服务层落 MySQL**
+- [x] **分析代码按维度拆分**（`jobs/dim_space|category|dept|network|time.py`，五维独立可跑）
+- [x] **Maven 依赖管理**（`spark-submit --packages com.mysql:mysql-connector-j:8.4.0`，替代手工 `--jars`）
 - [x] 地理编码（9,787/9,789 = 99.98%，高德 API 断点续跑，缺失 2 家地址不规范）
 - [x] Flask 筛选排序 API + ECharts 可视化
 - [x] 单文件离线大屏（build_spa.sh 构建链路）

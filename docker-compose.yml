@@ -1,6 +1,37 @@
 name: hospital-spark
 
 services:
+  # ---------- HDFS（大数据存储层：ODS/DWD/DWS 分层数据以 Parquet 落 HDFS） ----------
+  namenode:
+    build: ./docker/hadoop
+    image: hospital-hdfs:3.3.6
+    container_name: hdfs-namenode
+    hostname: namenode
+    environment:
+      - HDFS_ROLE=namenode
+    ports:
+      - "9870:9870"   # NameNode Web UI
+      - "8020:8020"   # NameNode RPC（Spark/HDFS 客户端接入）
+    volumes:
+      - hdfs-namenode:/data/dfs/name
+      - ./data:/opt/workspace/data:ro   # 供 etl/upload_to_hdfs.py 上传治理后 CSV
+    restart: unless-stopped
+
+  datanode:
+    build: ./docker/hadoop
+    image: hospital-hdfs:3.3.6
+    container_name: hdfs-datanode
+    hostname: datanode
+    environment:
+      - HDFS_ROLE=datanode
+    ports:
+      - "9864:9864"   # DataNode Web UI
+    volumes:
+      - hdfs-datanode:/data/dfs/data
+    depends_on:
+      - namenode
+    restart: unless-stopped
+
   # ---------- Spark Standalone 集群（Mac M1 原生 arm64） ----------
   spark-master:
     image: apache/spark:3.5.3
@@ -11,12 +42,18 @@ services:
       - SPARK_MASTER_HOST=spark-master
       - SPARK_MASTER_PORT=7077
       - SPARK_MASTER_WEBUI_PORT=8080
+      - HADOOP_USER_NAME=root   # HDFS 客户端以超级用户身份访问（Spark 镜像默认 uid 185）
     ports:
       - "8080:8080"   # Master Web UI
       - "7077:7077"   # 提交作业端口
     volumes:
       - ./data:/opt/workspace/data:ro
       - ./spark:/opt/workspace/jobs
+      # HDFS 客户端配置：/opt/spark/conf 在 Spark 默认 classpath 上
+      - ./docker/hadoop/conf/core-site.xml:/opt/spark/conf/core-site.xml:ro
+      - ./docker/hadoop/conf/hdfs-site.xml:/opt/spark/conf/hdfs-site.xml:ro
+    depends_on:
+      - namenode
     restart: unless-stopped
 
   spark-worker:
@@ -28,11 +65,15 @@ services:
       - SPARK_WORKER_MEMORY=4G
       - SPARK_WORKER_CORES=4
       - SPARK_WORKER_WEBUI_PORT=8081
+      - HADOOP_USER_NAME=root   # HDFS 客户端以超级用户身份访问
     depends_on:
       - spark-master
+      - namenode
     volumes:
       - ./data:/opt/workspace/data:ro
       - ./spark:/opt/workspace/jobs
+      - ./docker/hadoop/conf/core-site.xml:/opt/spark/conf/core-site.xml:ro
+      - ./docker/hadoop/conf/hdfs-site.xml:/opt/spark/conf/hdfs-site.xml:ro
     ports:
       - "8081:8081"   # Worker Web UI
     restart: unless-stopped
@@ -55,3 +96,5 @@ services:
 
 volumes:
   mysql-data:
+  hdfs-namenode:
+  hdfs-datanode:

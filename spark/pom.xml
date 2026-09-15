@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  依赖清单（Maven 坐标）
+  ================================================================================
+  本项目的数据分析作业用 PySpark 编写，运行时依赖统一通过 Maven 坐标声明，
+  由 spark-submit --packages 交给 Ivy 从 Maven 中央仓库解析，
+  不再手工下载 jar 后 --jars 挂载（复盘标准③：数据预处理与分析使用大数据技术，
+  依赖以 Maven 方式管理）。
+
+  该 pom.xml 是**依赖清单的权威声明**，与 spark/run_all.sh 中的 --packages 一一对应：
+
+      spark-submit --packages com.mysql:mysql-connector-j:8.4.0 ...
+
+  另外两个依赖（spark-sql、spark-hadoop-cloud）由 apache/spark:3.5.3 运行时自带，
+  在此仅作版本声明，便于论文/说明书列明完整的依赖矩阵。
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>cn.edu.jxust.hospital</groupId>
+  <artifactId>hospital-dw-job-deps</artifactId>
+  <version>1.0.0</version>
+  <packaging>pom</packaging>
+  <name>北京市医疗机构数仓作业依赖清单</name>
+
+  <properties>
+    <spark.version>3.5.3</spark.version>
+    <hadoop.version>3.3.6</hadoop.version>
+    <scala.binary.version>2.12</scala.binary.version>
+    <mysql.connector.version>8.4.0</mysql.connector.version>
+    <maven.compiler.source>11</maven.compiler.source>
+    <maven.compiler.target>11</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+    <!-- 计算引擎：Spark SQL / DataFrame（运行环境自带，此处声明版本） -->
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-sql_${scala.binary.version}</artifactId>
+      <version>${spark.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- HDFS 客户端：读写 hdfs://namenode:8020 上的 ODS/DWD/DWS 分层数据 -->
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-client</artifactId>
+      <version>${hadoop.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- 业务库写入：ADS 服务层结果落 MySQL（--packages 实际解析的坐标） -->
+    <dependency>
+      <groupId>com.mysql</groupId>
+      <artifactId>mysql-connector-j</artifactId>
+      <version>${mysql.connector.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- 生成依赖树，便于在论文附录中列出完整依赖矩阵：
+           mvn -f spark/pom.xml dependency:tree -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.6.1</version>
+      </plugin>
+    </plugins>
+  </build>
+</project>

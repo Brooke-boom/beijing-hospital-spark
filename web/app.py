@@ -2,7 +2,8 @@
 """
 北京市医疗机构资源整合与多维筛选可视化系统 —— Flask API
 =========================================================
-数据源：MySQL hospital 库 ADS 层（由 spark/etl_hospital.py 生成）
+数据源：MySQL hospital 库 ADS 服务层（由 spark/jobs/ 数仓作业产出，
+        ODS/DWD/DWS 三层 Parquet 落在 HDFS /hospital）
   - ads_inst_search        筛选排序主表（9,789 家机构）
   - ads_district_overview  区域概览
   - ads_level_overview     等级概览
@@ -1456,13 +1457,15 @@ def api_about():
              "desc": "机构去重合并、办别归属判定（国有+集体全资→公立）、机构类型细分、机构更名纠偏。"},
             {"step": 3, "name": "资源整合", "tool": "etl/integrate_networks.py",
              "desc": "接入儿科医联体、卒中中心、危重新生儿/孕产妇救治中心等协作网络名单，形成网络维度。"},
-            {"step": 4, "name": "数仓分层 ETL", "tool": "Spark 3.5.3 · spark/etl_hospital.py",
-             "desc": "ODS 原始层 → DWD 明细清洗层 → DWS 汇总层 → ADS 应用层，共四层建模，Spark SQL 完成清洗、关联、聚合。"},
-            {"step": 5, "name": "地理编码与距离", "tool": "高德地理编码 / Haversine",
+            {"step": 4, "name": "数据入湖", "tool": "HDFS 3.3.6 · etl/upload_to_hdfs.py",
+             "desc": "治理后 CSV 与用户行为日志统一上传至 HDFS /hospital/ods/raw，作为后续分析数据的唯一来源。"},
+            {"step": 5, "name": "数仓分层与维度分析", "tool": "Spark 3.5.3 · spark/jobs/",
+             "desc": "ODS 原始层 → DWD 明细清洗层 → DWS 五维汇总层（空间/类型等级/科室/协作网络/时间）→ ADS 服务层；ODS/DWD/DWS 以 Parquet 存于 HDFS，仅 ADS 服务层结果落 MySQL。"},
+            {"step": 6, "name": "地理编码与距离", "tool": "高德地理编码 / Haversine",
              "desc": "补全机构经纬度（覆盖率 99.98%），用于距离计算、排序与地图散点。"},
-            {"step": 6, "name": "索引优化", "tool": "etl/create_indexes.py",
+            {"step": 7, "name": "索引优化", "tool": "etl/create_indexes.py",
              "desc": "为筛选主表建立复合前缀索引，实测典型多维筛选扫描行数由 9,777 降至 33。"},
-            {"step": 7, "name": "服务与可视化", "tool": "Flask + ECharts",
+            {"step": 8, "name": "服务与可视化", "tool": "Flask + ECharts",
              "desc": "Flask 提供筛选/排序/详情/导诊接口，ECharts 渲染地图与多维分析图表，并可导出零依赖离线单文件。"},
         ],
         "sources": [

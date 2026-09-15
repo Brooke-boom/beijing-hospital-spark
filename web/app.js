@@ -2486,10 +2486,11 @@ const PIPELINE = [
   { step: 1, name: '数据采集', tool: '多源公开文件 · 去重后 70 个源文件', desc: '整合北京市卫健委公开数据、医疗机构名录、重点专科公示名单、协作网络名单等多源文件。' },
   { step: 2, name: '数据治理', tool: 'etl/govern_master.py', desc: '机构去重合并、办别归属判定（国有 + 集体全资 → 公立）、机构类型细分、机构更名与别名纠偏。' },
   { step: 3, name: '资源整合', tool: 'etl/integrate_networks.py', desc: '接入儿科医联体、卒中中心、危重新生儿 / 危重孕产妇救治中心等协作网络名单，形成网络维度。' },
-  { step: 4, name: '数仓分层 ETL', tool: 'Spark 3.5.3 · spark/etl_hospital.py', desc: 'ODS 原始层 → DWD 明细清洗层 → DWS 汇总层 → ADS 应用层，四层建模，Spark SQL 完成清洗、关联与聚合。' },
-  { step: 5, name: '地理编码与距离', tool: '高德地理编码 · Haversine 球面距离', desc: '补全机构经纬度（覆盖率 99.98%），支撑距离计算、距离排序、地图散点与周边配套查询。' },
-  { step: 6, name: '索引优化', tool: 'etl/create_indexes.py', desc: '为筛选主表建立复合前缀索引（TEXT 列按 UTF-8 汉字 3 字节取前缀长度），实测典型多维筛选扫描行数由 9,777 降至 33。' },
-  { step: 7, name: '服务与可视化', tool: 'Flask + ECharts + Docker Compose', desc: 'Flask 提供筛选 / 排序 / 详情 / 对比 / 导诊 / 埋点接口，ECharts 渲染地图与多维图表，并导出零依赖离线单文件。' },
+  { step: 4, name: '数据入湖', tool: 'HDFS 3.3.6 · etl/upload_to_hdfs.py', desc: '治理后 CSV 与用户行为日志统一上传至 HDFS /hospital/ods/raw，作为后续分析数据的唯一来源。' },
+  { step: 5, name: '数仓分层与维度分析', tool: 'Spark 3.5.3 · spark/jobs/ 按维度拆分', desc: 'ODS 原始层 → DWD 明细清洗层 → DWS 五维汇总层（空间 / 类型等级 / 科室 / 协作网络 / 时间）→ ADS 服务层；ODS/DWD/DWS 以 Parquet 存于 HDFS，仅 ADS 服务层结果落 MySQL。' },
+  { step: 6, name: '地理编码与距离', tool: '高德地理编码 · Haversine 球面距离', desc: '补全机构经纬度（覆盖率 99.98%），支撑距离计算、距离排序、地图散点与周边配套查询。' },
+  { step: 7, name: '索引优化', tool: 'etl/create_indexes.py', desc: '为筛选主表建立复合前缀索引（TEXT 列按 UTF-8 汉字 3 字节取前缀长度），实测典型多维筛选扫描行数由 9,777 降至 33。' },
+  { step: 8, name: '服务与可视化', tool: 'Flask + ECharts + Docker Compose', desc: 'Flask 提供筛选 / 排序 / 详情 / 对比 / 导诊 / 埋点接口，ECharts 渲染地图与多维图表，并导出零依赖离线单文件。' },
 ];
 const SOURCES = [
   { icon: svgIcon('gov'), name: '北京市卫生健康委员会', url: 'https://wjw.beijing.gov.cn/', desc: '医疗机构名录、重点专科公示名单、协作网络名单' },

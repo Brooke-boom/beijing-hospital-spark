@@ -60,3 +60,6 @@ etl/api_commit_*.py
 
 # 归档目录（重复/历史副本，不入库）
 .archive/
+
+# Spark Maven 依赖缓存（本地解析产物，不入库）
+spark/.ivy2/
