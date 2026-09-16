@@ -168,32 +168,29 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .layout{display:flex;align-items:stretch;min-height:100vh}
 .sidebar{position:sticky;top:0;align-self:flex-start;height:100vh;overflow:auto;
   display:flex;flex-direction:column;gap:0;width:188px;flex:0 0 188px;
-  padding:14px 12px 12px;background:var(--bg-soft);border-right:1px solid var(--line);z-index:57}
-.navcap{color:var(--ink-4);font-size:10.5px;font-weight:650;letter-spacing:.09em;
-  padding:4px 10px 9px;text-transform:uppercase}
-
-.sidebar .navbar{position:static;display:flex;flex-direction:column;gap:7px;padding:0;
+  padding:12px 12px 12px;background:var(--bg-soft);border-right:1px solid var(--line);z-index:57}
+.sidebar .navbar{position:static;display:flex;flex-direction:column;gap:6px;padding:0;
   background:transparent;border:0;overflow:visible}
-.sidebar .navtab{flex:none;justify-content:flex-start;max-width:none;padding:12px 14px;
-  font-size:13.5px;gap:11px;border-radius:10px}
+.sidebar .navtab{flex:none;justify-content:flex-start;max-width:none;padding:9px 13px;
+  font-size:13.5px;gap:10px;border-radius:10px;font-weight:500}
+.sidebar .navtab:active{transform:scale(.98)}
 
 .sidebar .navtab .ic{width:18px;height:18px}
-.sidebar .navtab.active::after{left:0;right:auto;top:8px;bottom:8px;width:3px;height:auto;
-  border-radius:0 2px 2px 0}
-.sidebar .navtab.active{background:rgba(var(--acc-rgb),.16);color:var(--acc);font-weight:650}
+.sidebar .navtab.active::after{content:none}
+.sidebar .navtab.active{background:rgba(var(--acc-rgb),.14);color:var(--acc);font-weight:650}
 .sidebar .navtab.active .ico{color:var(--acc)}
-.sidefoot{margin-top:auto;padding:0 6px}
+.sidebar .navaux{margin-top:auto}
+.sidefoot{margin-top:10px;padding:0 6px}
 .sidebar .navnote{white-space:normal;line-height:1.75;padding:0;text-align:left;font-size:10.5px}
 .maincol{flex:1 1 auto;min-width:0}
 .maincol .topbar{gap:14px;padding:10px var(--pad-x)}
 @media (max-width:1080px){
   .sidebar{width:60px;flex-basis:60px;padding:14px 8px;gap:12px}
-  .navcap{display:none}
   .sidefoot{display:none}
   .sidebar .navtab{justify-content:center;padding:10px 0}
   .sidebar .navtab .lbl{display:none}
   .sidebar .navtab .ico{font-size:16px}
-  .sidebar .navtab.active::after{left:5px;right:5px;top:auto;bottom:-1px;height:2px;width:auto}
+  .sidebar .navtab.active::after{content:'';left:5px;right:5px;top:auto;bottom:-1px;height:2px;width:auto}
 }
 
 .view{display:none}
@@ -844,13 +841,12 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 <div class="layout">
 <aside class="sidebar">
   <nav class="navbar" id="navbar">
-  <div class="navcap">功能导航</div>
   <button class="navtab active" data-view="overview"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h7v7H4zM11 4h9v4h-9zM11 10h9v10h-9zM4 13h7v7H4z"/></svg></span><span class="lbl">综合看板</span></button>
   <button class="navtab" data-view="analytics"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-12"/></svg></span><span class="lbl">多维分析</span></button>
   <button class="navtab" data-view="triage"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg></span><span class="lbl">智能导诊</span></button>
   <button class="navtab" data-view="admin"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v12H3zM3 16l3 4h12l3-4M9 20h6"/></svg></span><span class="lbl">运营后台</span></button>
-  <button class="navtab" data-view="about"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 10v6M12 7.5h.01"/></svg></span><span class="lbl">关于</span></button>
   </nav>
+  <button class="navtab navaux" data-view="about"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 10v6M12 7.5h.01"/></svg></span><span class="lbl">关于</span></button>
   <div class="sidefoot"><span class="navnote">7 维筛选 · 地图与列表悬停互指<br>勾选 2–3 家横向对比</span></div>
 </aside>
 <div class="maincol">
