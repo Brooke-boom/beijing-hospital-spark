@@ -2160,7 +2160,8 @@ function requestTriage() {
       html += '<div style="margin-top:9px;padding:9px 12px;border-radius:10px;background:rgba(var(--crit-rgb),.12);border:1px solid rgba(var(--crit-rgb),.36);color:var(--t-crit-fg);font-size:12px">' +
         svgIcon('warn') + ' 涉及急诊科室：如出现胸痛、意识不清、大出血、呼吸困难等急危症状，请<b>立即拨打 120 或直接前往最近医院急诊</b>，不要依赖线上筛选。</div>';
     }
-    html += '<div style="margin-top:10px;color:' + DIM + ';font-size:11.5px">按 <b>等级 0.5 / 距离 0.3 / 科室匹配 0.2</b> 加权评分排序，为你推荐以下 ' + j.hospitals.length + ' 家：</div>';
+    html += '<div style="margin-top:10px;color:' + DIM + ';font-size:11.5px">' +
+      esc(j.weight_profile || '按科室优先加权评分排序') + '，为你推荐以下 ' + j.hospitals.length + ' 家：</div>';
     html += j.hospitals.map(h => recCard(h, j)).join('');
     const node = addBot(html);
 
@@ -2223,9 +2224,11 @@ function triageFacts(j) {
     '推荐机构数': hs.length, '等级构成': lv,
     '评分最高': top ? { 名称: top.name, 区域: top.district,
                        评分: Math.round((top.score || 0) * 100) / 100,
+                       专科实力: top.specialty_label || '无专科标注',
                        重点专科: !!top.is_key_specialty } : null,
-    '距离最近': near ? { 名称: near.name, 距离km: near.distance_km } : null,
-    '评分权重': '等级 0.5 / 距离 0.3 / 科室匹配 0.2',
+    '距离最近': near ? { 名称: near.name, 距离km: near.distance_km,
+                       基准: j.located ? '用户定位' : '市中心（用户未定位）' } : null,
+    '评分权重': j.weight_profile || '科室优先加权评分',
     '含急诊科室': (j.matched_depts || []).some(x => x.emergency),
   };
 }
@@ -2235,19 +2238,20 @@ function localTriageSummary(j) {
   const depts = (j.matched_depts || []).map(x => x.dept);
   const near = hs.filter(h => h.distance_km != null).sort((a, b) => a.distance_km - b.distance_km)[0];
   const top = hs.slice().sort((a, b) => (b.score || 0) - (a.score || 0))[0];
-  const keyN = hs.filter(h => h.is_key_specialty).length;
+  const keyN = hs.filter(h => h.specialty_label && /重点专科/.test(h.specialty_label)).length;
+  const ref = j.located ? '距您' : '距市中心';
   const p = [];
   p.push('针对「' + esc(j.query || '') + '」，系统从' +
     (j.engine === 'llm' ? '大模型兜底' : '本地疾病-科室知识库') + '命中 <b>' + esc(depts.join('、')) +
     '</b>，筛出 <b>' + hs.length + '</b> 家具备该科室的机构。');
-  if (top) p.push('按<b>等级 0.5 / 距离 0.3 / 科室匹配 0.2</b> 加权评分，<b>' + esc(top.name) +
-    '</b> 综合评分最高（' + Math.round((top.score || 0) * 100) + ' 分' +
-    (top.is_key_specialty ? '，且具备重点专科' : '') + '）。');
+  if (top) p.push('按<b>科室优先</b>加权评分（' + esc(j.weight_profile || '') + '），<b>' + esc(top.name) +
+    '</b> 评分最高（' + Math.round((top.score || 0) * 100) + ' 分' +
+    (top.specialty_label ? '，该院为' + esc(top.specialty_label) : '') + '）。');
   if (near && near.distance_km != null) {
-    p.push(near === top ? '它同时也是距离最近的一家，约 ' + near.distance_km.toFixed(1) + ' km。'
-      : '距离最近的是<b>' + esc(near.name) + '</b>，约 ' + near.distance_km.toFixed(1) + ' km。');
+    p.push(near === top ? '它同时也是' + ref + '最近的一家，约 ' + near.distance_km.toFixed(1) + ' km。'
+      : ref + '最近的是<b>' + esc(near.name) + '</b>，约 ' + near.distance_km.toFixed(1) + ' km。');
   }
-  if (keyN) p.push('其中 ' + keyN + ' 家拥有重点专科认定，可优先考虑。');
+  if (keyN) p.push('其中 ' + keyN + ' 家在该科室上有国家级/市级重点专科认定，可优先考虑。');
   if (hs.some(h => (h.matched_depts || []).some(x => /急诊/.test(x)))) {
     p.push('如出现胸痛、意识不清、大出血、呼吸困难等急危症状，请<b>立即拨打 120</b>，不要依赖线上筛选。');
   }
@@ -2256,7 +2260,14 @@ function localTriageSummary(j) {
 
 function recCard(h, j) {
   const sc = Math.round((h.score || 0) * 100);
-  const dist = h.distance_km == null ? '距离未知' : (h.distance_km.toFixed(1) + ' km');
+  // 只有真正拿到用户坐标时才说"距您"，否则基准点只是市中心参照物
+  const near = !!(j && j.located);
+  const dist = h.distance_km == null ? '距离未知'
+    : (h.distance_km.toFixed(1) + ' km' + (near ? '' : '（距市中心）'));
+  const spec = h.specialty_label
+    ? '<span class="chip emg">' + svgIcon('ok') + ' ' + esc(h.specialty_label) + '</span>' : '';
+  const alias = h.alias_count
+    ? '<span class="chip">另有 ' + h.alias_count + ' 个院区</span>' : '';
   const dchs = (h.matched_depts || []).map(x => '<span class="chip acc">' + esc(x) + '</span>').join('');
   const bars = (h.reason_detail || []).map(r =>
     '<div class="barrow"><span class="bk">' + esc(r.label) + '</span>' +
@@ -2264,9 +2275,9 @@ function recCard(h, j) {
     '<span class="bv">' + esc(String(r.value)) + ' · +' + r.score + '</span></div>').join('');
   return '<div class="rec" data-detail="' + esc(h.id) + '">' +
     '<div class="rh"><span class="rn">' + esc(h.name) + '</span>' +
-      (h.is_key_specialty ? '<span class="chip emg">重点专科</span>' : '') +
+      (spec || (h.is_key_specialty ? '<span class="chip emg">重点专科</span>' : '')) +
       '<span class="rs">' + sc + '<span style="font-size:10px;color:' + DIM + ';font-weight:400"> 分</span></span></div>' +
-    '<div class="rm">' + levelBadge(h.level) + '<span>' + esc(h.district) + '</span><span style="color:' + FAINT + '">·</span><span>' + dist + '</span>' + dchs + '</div>' +
+    '<div class="rm">' + levelBadge(h.level) + '<span>' + esc(h.district) + '</span><span style="color:' + FAINT + '">·</span><span>' + dist + '</span>' + dchs + alias + '</div>' +
     '<div class="hint" style="color:' + DIM + ';font-size:10.5px;margin-top:3px">' + esc(h.reason || '') + '</div>' +
     '<div class="bars">' + bars + '</div>' +
     '<div style="display:flex;gap:6px;margin-top:9px;flex-wrap:wrap">' +

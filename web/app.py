@@ -884,6 +884,10 @@ def api_triage():
         "ANY_VALUE(s.addr) AS addr, ANY_VALUE(s.phone) AS phone, "
         "ANY_VALUE(s.lng) AS lng, ANY_VALUE(s.lat) AS lat, "
         "ANY_VALUE(s.key_specialty_count) AS key_specialty_count, "
+        "ANY_VALUE(s.feature) AS feature, "
+        "ANY_VALUE(s.national_specialty) AS national_specialty, "
+        "ANY_VALUE(s.municipal_specialty) AS municipal_specialty, "
+        "ANY_VALUE(s.dept_count) AS dept_count, "
         "GROUP_CONCAT(d.dept_name) AS matched_depts, "
         "MAX(d.is_key_specialty='1') AS has_key "
         "FROM ads_inst_search s "
@@ -898,6 +902,11 @@ def api_triage():
         sql += " AND s.level_norm=%s"
         args.append(level)
     sql += " GROUP BY s.id"
+
+    # 是否真正拿到了用户坐标：前端只在勾选"按距离排序"时才传 lng/lat，
+    # 因此"参数缺失"等价于"未定位"，此时不计距离分。
+    located = ("lng" in request.args) and ("lat" in request.args)
+    w = TRIAGE_W_LOC if located else TRIAGE_W_NO_LOC
 
     db = get_db()
     results = []
@@ -915,44 +924,77 @@ def api_triage():
             hit_w = sum(matched[d][0] for d in hit)
             total_w = sum(matched[d][0] for d in dept_list)
             frac = min(1.0, hit_w / total_w) if total_w else 0.0
-            lvl = LEVEL_SCORE.get(r["level_norm"], 0.5)
-            level_c = 0.5 * (lvl / 3.0)
-            dist_c = 0.3 * (1.0 / (1.0 + (dist or 999) / 5.0)) if dist is not None else 0.0
-            dept_c = 0.2 * frac
-            score = level_c + dist_c + dept_c
-            key_bonus = 0.05 if r["has_key"] in (1, "1", True) else 0.0
-            score = min(1.0, score + key_bonus)
+            # 专科强度：命中科室中，该院被标注为国家级/市级重点专科或擅长科室的加权占比
+            nat = _split_ann(r["national_specialty"])
+            mun = _split_ann(r["municipal_specialty"])
+            feat = _split_ann(r["feature"])
+            spec_w, best_lv, spec_label = 0.0, 0.0, ""
+            for d in hit:
+                lv, lb = _dept_specialty_level(d, nat, mun, feat)
+                spec_w += matched[d][0] * lv
+                if lv > best_lv:
+                    best_lv, spec_label = lv, lb
+            spec = min(1.0, (spec_w / total_w) if total_w else 0.0)
+            level_c = w["level"] * (LEVEL_SCORE.get(r["level_norm"], 0.5) / 3.0)
+            dept_c = w["dept"] * frac
+            spec_c = w["spec"] * spec
+            dist_c = (w["dist"] * (1.0 / (1.0 + (dist or 999) / 5.0))
+                      if (located and dist is not None) else 0.0)
+            score = min(1.0, level_c + dept_c + spec_c + dist_c)
+            has_key = r["has_key"] in (1, "1", True)
             results.append({
                 "id": r["id"], "name": r["name"], "district": r["district"],
                 "level": r["level"], "addr": r["addr"], "phone": r["phone"],
                 "distance_km": round(dist, 1) if dist is not None else None,
                 "matched_depts": hit,
-                "is_key_specialty": bool(r["has_key"] in (1, "1", True)),
+                "is_key_specialty": has_key,
+                "specialty_label": spec_label,
+                "specialty_level": best_lv,
+                "dept_focus": round(len(hit) / max(1, r["dept_count"] or 1), 3),
                 "score": round(score, 4),
                 "score_break": {
                     "level": round(level_c, 3), "distance": round(dist_c, 3),
-                    "dept": round(dept_c, 3),
+                    "dept": round(dept_c, 3), "specialty": round(spec_c, 3),
                 },
                 # 推荐理由可视化：把加权评分的每一项摊开给用户看（可解释，非黑箱）
                 "reason_detail": [
-                    {"label": "医院等级", "value": r["level_norm"] or "未知",
-                     "weight": 0.5, "score": round(level_c, 3),
-                     "desc": "等级越高得分越高（三级=满分）"},
-                    {"label": "距离", "weight": 0.3, "score": round(dist_c, 3),
-                     "value": ("%.1f km" % dist) if dist is not None else "无坐标",
-                     "desc": "基于 Haversine 球面距离，越近得分越高"},
-                    {"label": "科室匹配", "weight": 0.2, "score": round(dept_c, 3),
+                    {"label": "科室契合", "weight": w["dept"], "score": round(dept_c, 3),
                      "value": "、".join(hit) or "—",
                      "desc": "命中科室权重之和 / 全部候选科室权重之和"},
-                ] + ([{"label": "重点专科加成", "weight": 0.05, "score": key_bonus,
-                       "value": "含重点专科", "desc": "该院该科室为权威认定重点专科"}] if key_bonus else []),
-                "reason": _triage_reason(hit, r["level"], dist, r["has_key"]),
+                    {"label": "专科实力", "weight": w["spec"], "score": round(spec_c, 3),
+                     "value": spec_label or "无专科标注",
+                     "desc": "该科室为国家级重点 / 市级重点 / 该院擅长科室"},
+                    {"label": "医院等级", "weight": w["level"], "score": round(level_c, 3),
+                     "value": r["level_norm"] or "未知",
+                     "desc": "等级越高得分越高（三级=满分）"},
+                ] + ([{"label": "距离", "weight": w["dist"], "score": round(dist_c, 3),
+                       "value": ("%.1f km" % dist) if dist is not None else "无坐标",
+                       "desc": "基于 Haversine 球面距离，越近得分越高"}]
+                     if located else []),
+                "reason": _triage_reason(hit, r["level"], dist, r["has_key"],
+                                         located=located, spec_label=spec_label),
             })
 
-    # 急诊优先：命中科室含急诊的排前
-    results.sort(key=lambda x: (not any(matched[d][1] for d in x["matched_depts"]),
-                                -x["score"]))
-    results = results[:top_n]
+    # 急诊优先：命中科室含急诊的排前。
+    # 同分时依次比「专科强度档位」「科室专注度」「名称」，保证顺序稳定可复现
+    # （只按 score 排会退化成数据库返回序，同一病症多次查询结果不一致）。
+    results.sort(key=lambda x: (
+        not any(matched[d][1] for d in x["matched_depts"]),
+        -x["score"], -x["specialty_level"], -x["dept_focus"], x["name"]))
+    # 同院多院区/别名合并：只保留最高分的一条，其余折叠计数，
+    # 否则 6 个推荐名额里会重复出现同一家医院（如同仁本部 + 同仁东院区）
+    merged, by_main = [], {}
+    for h in results:
+        k = _main_name(h["name"])
+        if k in by_main:
+            by_main[k]["alias_count"] += 1
+            by_main[k]["alias_names"].append(h["name"])
+            continue
+        h["alias_count"] = 0
+        h["alias_names"] = []
+        by_main[k] = h
+        merged.append(h)
+    results = merged[:top_n]
     # 歧义澄清：命中多个可能科室 → 反问一句（前端渲染为可点选项，点击后作为 extra 收窄）
     # nocl=1：用户选择"不限科室，都看看"，本轮不再反问（前端澄清气泡的跳过按钮）
     clarify = None if request.args.get("nocl") == "1" else _clarify_for(q_norm, matched, extra)
@@ -972,16 +1014,75 @@ def api_triage():
             for d in dept_list
         ],
         "count": len(results),
+        "located": located,
+        # 把导诊的排序口径显式告诉前端，避免与主检索的 0.5/0.3/0.2 混淆
+        "weight_profile": ("导诊按「科室优先」评分：科室契合 %.2f / 专科实力 %.2f / 医院等级 %.2f"
+                           % (w["dept"], w["spec"], w["level"])
+                           + (" / 距离 %.2f" % w["dist"] if located
+                              else "（未定位，不计距离）")),
         "hospitals": results,
     })
 
 
-def _triage_reason(hit_depts, level, dist, has_key):
+# ---- 智能导诊：科室优先的评分权重 ----
+# 刻意区别于主检索的「等级 0.5 / 距离 0.3 / 科室 0.2」：
+#   主检索回答"哪家综合实力强"，导诊必须回答"哪个医院的这个科强"。
+# 若沿用主检索权重，大型综合医院因各科齐全（科室契合恒为满分）又等级最高，
+# 任何病症都会推出同一批三级医院——实测已复现该问题。
+# 距离项仅在用户真正提供坐标时计分：否则会以"默认基准点"臆造位置，
+# 把排序偏移到基准点所在的城区（实测顶端长期被东城区几家医院占据）。
+TRIAGE_W_LOC = {"dept": 0.30, "spec": 0.30, "level": 0.20, "dist": 0.20}
+TRIAGE_W_NO_LOC = {"dept": 0.45, "spec": 0.35, "level": 0.20}
+
+# 专科强度分级：权威认定越强，得分越高
+SPEC_NATIONAL, SPEC_MUNICIPAL, SPEC_FEATURE = 1.0, 0.7, 0.4
+
+
+def _split_ann(s):
+    """把「擅长科室 / 重点专科」字段切成集合。
+
+    字段形如 "眼科;耳鼻咽喉科;变态反应(鼻过敏)科;中医眼科学(国家级中医重点学科)"，
+    需先剔除括号注释，再按分隔符切分，并丢弃长度 < 2 的碎片
+    （原始数据里混入过 "医信平台口径）" 这类括号残片）。
+    """
+    if not s:
+        return set()
+    s = re.sub(r"[（(][^）)]*[）)]", "", s)
+    return {x.strip() for x in re.split(r"[;；、,，/]+", s) if len(x.strip()) >= 2}
+
+
+def _dept_specialty_level(dept, nat, mun, feat):
+    """该院在 dept 上的专科强度，返回 (分值, 可读标签)。"""
+    def hit(s):
+        return bool(s) and (dept in s or any(dept in a or a in dept for a in s))
+
+    if hit(nat):
+        return SPEC_NATIONAL, "国家级重点专科"
+    if hit(mun):
+        return SPEC_MUNICIPAL, "市级重点专科"
+    if hit(feat):
+        return SPEC_FEATURE, "擅长科室"
+    return 0.0, ""
+
+
+def _main_name(name):
+    """取主体名（截到首个括号），用于合并同院多院区/别名。
+
+    数据里同一家医院常有多条记录（如"北京同仁医院"与其"（东院区）"、
+    隆福医院的两个别名），不合并会让 6 个推荐名额被同一家医院占掉 2 个。
+    """
+    return re.sub(r"[（(].*$", "", (name or "").strip()).strip()
+
+
+def _triage_reason(hit_depts, level, dist, has_key, located=False, spec_label=""):
     parts = ["命中科室：" + "、".join(hit_depts)]
+    if spec_label:
+        parts.append(spec_label)
     if level:
         parts.append(level)
     if dist is not None:
-        parts.append("距您约 %.1f km" % dist)
+        # 未定位时基准点只是市中心参照物，不能声称"距您"
+        parts.append(("距您约 %.1f km" if located else "距市中心约 %.1f km") % dist)
     if has_key in (1, "1", True):
         parts.append("含重点专科")
     return "；".join(parts)
