@@ -304,18 +304,18 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .btn .ico{font-size:13px;line-height:1}
 
 /* ============================ 表单 ============================ */
-.field{display:flex;flex-direction:column;gap:5px;min-width:0}
-.field > label{color:var(--ink-3);font-size:10.5px;font-weight:550;letter-spacing:.02em}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field > label{color:var(--ink-3);font-size:11px;font-weight:550;letter-spacing:.02em;line-height:1.2}
 input[type=text],input[type=search],select{
-  width:100%;background:var(--bg-soft);border:1px solid var(--line-2);color:var(--ink);
-  padding:9px 11px;border-radius:8px;font-size:12.5px;font-family:inherit;outline:none;transition:.15s
+  width:100%;height:36px;box-sizing:border-box;background:var(--bg-soft);border:1px solid var(--line-2);color:var(--ink);
+  padding:0 11px;border-radius:8px;font-size:12.5px;font-family:inherit;outline:none;transition:.15s
 }
 input::placeholder{color:var(--ink-4)}
 input:hover,select:hover{border-color:var(--ink-4)}
 input:focus,select:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(var(--acc-rgb),.16);background:var(--panel)}
-select{cursor:pointer;appearance:none;
+select{cursor:pointer;appearance:none;padding-right:28px;
   background-image:linear-gradient(45deg,transparent 50%,var(--ink-3) 50%),linear-gradient(135deg,var(--ink-3) 50%,transparent 50%);
-  background-position:calc(100% - 15px) 55%,calc(100% - 11px) 55%;background-size:4px 4px,4px 4px;background-repeat:no-repeat;padding-right:26px}
+  background-position:calc(100% - 15px) center,calc(100% - 11px) center;background-size:4px 4px,4px 4px;background-repeat:no-repeat}
 .check{display:inline-flex;align-items:center;gap:7px;color:var(--ink-2);font-size:12.5px;cursor:pointer;user-select:none}
 .check input{width:15px;height:15px;accent-color:var(--acc);cursor:pointer}
 /* 白天主题：输入控件加深描边 + 轻内阴影，避免边框在白底上过浅（:not(:focus) 不干扰聚焦态） */
@@ -329,29 +329,22 @@ select{cursor:pointer;appearance:none;
 
 /* ============================ 筛选区 ============================ */
 .filterbox{
-  margin:var(--gap) var(--pad-x) 0;padding:15px 17px;border-radius:var(--r-l);
+  margin:var(--gap) var(--pad-x) 0;padding:18px 20px 16px;border-radius:var(--r-l);
   background:var(--panel);border:1px solid var(--line);box-shadow:var(--sh-1)
 }
-.filterbox .fh{display:flex;align-items:center;gap:9px;margin-bottom:12px;flex-wrap:wrap}
+.filterbox .fh{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
 .filterbox .fh .t{font-size:13px;font-weight:650}
-.filterbox .fh .bar{width:3px;height:14px;border-radius:2px;background:var(--acc)}
-.filterbox .fh .r{margin-left:auto;color:var(--ink-4);font-size:11px}
-.nlqbar{
-  margin-bottom:13px;padding:11px 13px;border-radius:var(--r-m);
-  background:var(--panel-2);border:1px solid var(--line-2)
-}
-.nlq-in{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.nlq-badge{
-  background:var(--vio);color:var(--on-accent);font-size:10px;font-weight:700;padding:4px 9px;border-radius:7px;
-  letter-spacing:.04em;white-space:nowrap
-}
-.nlq-in input{flex:1;min-width:180px;border-color:var(--line-2)}
-.nlq-in input:focus{border-color:var(--vio);box-shadow:0 0 0 3px rgba(var(--vio-rgb),.16)}
-.filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 12px;align-items:end}
-.rangebox{display:flex;gap:5px;align-items:stretch;flex-wrap:nowrap}
-.rangebox input{flex:1;min-width:0}
-.actline{margin-top:11px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
-.actline .r{margin-left:auto;color:var(--ink-4);font-size:11px}
+.filterbox .fh .bar{width:3px;height:15px;border-radius:2px;background:var(--acc)}
+/* 技术参数退到次要层级，细节收进 tooltip */
+.filterbox .fh .r{margin-left:auto;color:var(--ink-4);font-size:10.5px;opacity:.6;cursor:help}
+.filterbox .fh .r:hover{opacity:1;color:var(--ink-3)}
+.filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:end}
+.rangebox{display:flex;gap:6px;align-items:stretch;flex-wrap:nowrap}
+.rangebox input,.rangebox select{flex:1;min-width:0}
+.rangebox .btn{height:36px}
+.actline{margin-top:14px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.actline .r{margin-left:auto;color:var(--ink-3);font-size:11px}
+.actline .r b{color:var(--ink-2);font-weight:600;font-variant-numeric:tabular-nums;margin-left:2px}
 
 /* ============================ 列表 / 地图 ============================ */
 .split{display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,1.08fr);gap:var(--gap);padding:var(--gap) var(--pad-x);align-items:stretch}
@@ -675,35 +668,41 @@ body.has-pick{padding-bottom:84px}
 .fglabel i{width:3px;border-radius:2px;background:var(--line-2);display:block;flex:0 0 auto;align-self:stretch;min-height:12px}
 
 .rangebox .btn{padding:6px 10px!important;flex:none}
-.fltfoot{margin-top:13px;padding-top:12px;border-top:1px solid var(--line)}
-.presetbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:10px}
+.fltfoot{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.presetbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:0}
 .presetbar .plabel{color:var(--ink-4);font-size:11px;white-space:nowrap}
 .preset{background:var(--panel-2);border:1px solid var(--line);color:var(--ink-2);font-size:11.5px;
   padding:4px 11px;border-radius:20px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:5px}
 .preset:hover{background:var(--panel-3);color:var(--ink);border-color:rgba(var(--acc-rgb),.34)}
 .preset.on{background:rgba(var(--acc-rgb),.14);border-color:rgba(var(--acc-rgb),.44);color:var(--acc)}
+/* 预设生效后，被改动的控件脉冲高亮一次，让用户看清系统做了什么 */
+@keyframes ctlflash{0%{box-shadow:0 0 0 0 rgba(var(--acc-rgb),.55);border-color:var(--acc)}
+  100%{box-shadow:0 0 0 8px rgba(var(--acc-rgb),0);border-color:var(--line-2)}}
+.flash{animation:ctlflash .9s ease-out 2}
+
+/* ---------- 已选条件：压矮的浅条 + 温和的清除入口 ---------- */
 .fltchips{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px;
-  padding:8px 11px;border-radius:var(--r-m);background:rgba(var(--acc-rgb),.06);border:1px solid rgba(var(--acc-rgb),.16)}
+  padding:6px 10px;border-radius:var(--r-m);background:rgba(var(--acc-rgb),.045);
+  border:1px solid rgba(var(--acc-rgb),.13)}
 .fltchips:empty{display:none}
-.fltchips .fl{color:var(--ink-2);font-size:11px;white-space:nowrap;font-weight:600;
+.fltchips .fl{color:var(--ink-3);font-size:10.5px;white-space:nowrap;font-weight:600;
   display:inline-flex;align-items:center;gap:5px}
-.fltchips .fl::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--acc);flex:none}
-.fchip{display:inline-flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line-2);
-  color:var(--ink-2);font-size:11.5px;padding:3px 4px 3px 10px;border-radius:7px}
-.fchip em{color:var(--ink-4)}
-.fchip b{color:var(--acc);font-weight:600}
-.fclear{cursor:pointer;font-family:inherit;padding:3px 11px;font-weight:600;
-  background:rgba(var(--crit-rgb),.1);border:1px solid rgba(var(--crit-rgb),.3);color:var(--crit);
-  border-radius:7px;font-size:11.5px;transition:.15s;margin-left:auto}
-.fclear:hover{background:rgba(var(--crit-rgb),.18);border-color:rgba(var(--crit-rgb),.45)}
+.fltchips .fl::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--acc);flex:none}
+.fchip{display:inline-flex;align-items:center;gap:5px;background:var(--panel);border:1px solid var(--line-2);
+  color:var(--ink-2);font-size:11px;padding:2px 3px 2px 9px;border-radius:6px;line-height:1.55}
 .fchip em{color:var(--ink-4);font-style:normal;font-size:10.5px}
 .fchip b{color:var(--ink);font-weight:600}
-.fchip i{cursor:pointer;color:var(--ink-4);font-style:normal;font-size:13px;line-height:1;padding:0 4px;border-radius:4px}
+.fchip i{cursor:pointer;color:var(--ink-4);font-style:normal;font-size:13px;line-height:1;padding:0 3px;border-radius:4px}
 .fchip i:hover{color:var(--crit);background:rgba(var(--crit-rgb),.14)}
-.quickbar{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
-.quickbar .qb{background:none;border:1px dashed var(--line-2);color:var(--ink-3);font-size:11px;
-  padding:3px 9px;border-radius:20px;cursor:pointer;transition:.15s;font-family:inherit}
-.quickbar .qb:hover{color:var(--acc);border-color:rgba(var(--acc-rgb),.42);border-style:solid}
+/* 清除全部：默认幽灵态，只有悬停才露出删除色 */
+.freset{cursor:pointer;font-family:inherit;padding:3px 9px;font-weight:550;margin-left:auto;
+  background:transparent;border:1px solid var(--line-2);color:var(--ink-3);
+  border-radius:6px;font-size:11px;transition:.15s}
+.freset:hover{background:var(--panel-3);color:var(--ink);border-color:var(--ink-4)}
+.fclear{cursor:pointer;font-family:inherit;padding:3px 9px;font-weight:550;
+  background:transparent;border:1px solid transparent;color:var(--ink-4);
+  border-radius:6px;font-size:11px;transition:.15s;margin-left:0}
+.fclear:hover{background:rgba(var(--crit-rgb),.1);border-color:rgba(var(--crit-rgb),.28);color:var(--crit)}
 
 /* ============================ 语音输入 ============================ */
 .iconbtn{padding:6px 9px!important;position:relative;line-height:0}
@@ -773,13 +772,119 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 :root[data-theme="light"] .themebtn .ic-moon{display:inline-block}
 
 /* ============================ 筛选区：左侧字段矩阵 + 右侧 AI 栏 ============================ */
-.fltmain{display:grid;grid-template-columns:minmax(0,920px) minmax(0,1fr);gap:20px;align-items:start}
-@media (max-width:1260px){.fltmain{grid-template-columns:minmax(0,1fr)}}
-.fltmain .nlqbar{margin-bottom:0}
-.fltcol{min-width:0}
-.nlq-in{display:flex;flex-direction:column;gap:8px}
-.nlq-in input{width:100%}
-.nlq-btns{display:flex;gap:8px;align-items:center}
+.fltmain{display:grid;grid-template-columns:minmax(0,920px) minmax(0,1fr);gap:22px;align-items:start}
+/* 命中数作为核心反馈：放大加粗 */
+.filterbox .fh .ftag{font-size:12.5px;font-weight:700;padding:4px 12px}
+
+/* ---------- 关键词：内嵌搜索图标 + 清空 + 输入联想 ---------- */
+.kwbox{position:relative;display:flex;align-items:center}
+.kwbox .kwi{position:absolute;left:10px;width:14px;height:14px;color:var(--ink-4);pointer-events:none}
+.kwbox input{padding-left:30px;padding-right:28px}
+.kwbox .kwx{position:absolute;right:6px;width:20px;height:20px;padding:0;border:0;border-radius:5px;
+  background:transparent;color:var(--ink-4);font-size:15px;line-height:1;cursor:pointer;
+  display:none;align-items:center;justify-content:center}
+.kwbox .kwx:hover{background:var(--panel-3);color:var(--ink)}
+.kwbox.has-val .kwx{display:inline-flex}
+.acbox{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:60;display:none;
+  background:var(--panel);border:1px solid var(--line-2);border-radius:10px;box-shadow:var(--sh-3);
+  padding:5px;max-height:252px;overflow:auto}
+.acbox.show{display:block}
+.acitem{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:7px;cursor:pointer;
+  font-size:12px;color:var(--ink-2)}
+.acitem .an{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acitem .am{color:var(--ink-4);font-size:10.5px;white-space:nowrap;flex:none}
+.acitem:hover,.acitem.act{background:rgba(var(--acc-rgb),.1);color:var(--ink)}
+.acitem mark{background:transparent;color:var(--acc);font-weight:650}
+.acempty{color:var(--ink-4);font-size:11.5px;padding:9px;text-align:center}
+
+/* ---------- 排序方向一键切换 ---------- */
+.dirtog{flex:none;width:36px;height:36px;padding:0;border-radius:8px;cursor:pointer;font-family:inherit;
+  background:var(--bg-soft);border:1px solid var(--line-2);color:var(--ink-2);font-size:14px;
+  line-height:1;transition:.15s}
+.dirtog:hover{border-color:var(--acc);color:var(--acc);background:var(--panel)}
+.dirtog:disabled{opacity:.4;cursor:not-allowed;background:var(--bg-soft);
+  border-color:var(--line-2);color:var(--ink-4)}
+
+/* ---------- AI 面板：独立视觉边界 + 可折叠 ---------- */
+.nlqbar{margin-bottom:0;padding:13px 15px 14px;border-radius:var(--r-m);position:relative;
+  background:linear-gradient(180deg,rgba(var(--vio-rgb),.075),rgba(var(--vio-rgb),.02)),var(--panel-2);
+  border:1px solid rgba(var(--vio-rgb),.26)}
+.nlqbar:before{content:'';position:absolute;left:0;top:14px;bottom:14px;width:2px;border-radius:2px;
+  background:linear-gradient(180deg,rgba(var(--vio-rgb),.18),var(--vio),rgba(var(--vio-rgb),.18))}
+.nlq-head{display:flex;align-items:center;gap:8px;margin-bottom:11px}
+.nlq-badge{background:var(--vio);color:var(--on-accent);font-size:10px;font-weight:700;
+  padding:4px 9px;border-radius:7px;letter-spacing:.04em;white-space:nowrap;
+  display:inline-flex;align-items:center;gap:5px}
+.nlq-badge .ic{width:12px;height:12px}
+.nlq-sub{color:var(--ink-4);font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nlq-fold{margin-left:auto;flex:none;width:24px;height:24px;padding:0;border-radius:6px;cursor:pointer;
+  background:transparent;border:1px solid transparent;color:var(--ink-4);
+  display:inline-flex;align-items:center;justify-content:center;transition:.15s}
+.nlq-fold:hover{background:rgba(var(--vio-rgb),.12);color:var(--vio);border-color:rgba(var(--vio-rgb),.3)}
+.nlq-fold .ic{width:14px;height:14px;transition:transform .2s}
+.nlqbar.collapsed{padding:11px 15px}
+.nlqbar.collapsed .nlq-head{margin-bottom:0}
+.nlqbar.collapsed .nlq-body,.nlqbar.collapsed .nlq-sub{display:none}
+.nlqbar.collapsed .nlq-fold .ic{transform:rotate(180deg)}
+
+.nlq-field{position:relative;display:flex;align-items:center;gap:6px;
+  background:var(--panel);border:1px solid var(--line-2);border-radius:10px;
+  padding:4px 5px 4px 6px;transition:.15s}
+.nlq-field:focus-within{border-color:var(--vio);box-shadow:0 0 0 3px rgba(var(--vio-rgb),.15)}
+.nlq-field input{flex:1;min-width:0;height:34px;border:0;background:transparent;padding:0 2px;font-size:12.5px}
+.nlq-field input:focus{box-shadow:none;border:0;background:transparent}
+.nlq-ic{flex:none;width:28px;height:28px;padding:0;border-radius:7px;cursor:pointer;
+  background:transparent;border:1px solid transparent;color:var(--ink-3);
+  display:inline-flex;align-items:center;justify-content:center;transition:.15s}
+.nlq-ic:hover{background:rgba(var(--vio-rgb),.12);color:var(--vio);border-color:rgba(var(--vio-rgb),.3)}
+.nlq-ic.rec{background:rgba(var(--crit-rgb),.14);color:var(--crit);border-color:rgba(var(--crit-rgb),.4);
+  animation:recpulse 1.1s ease-in-out infinite}
+@keyframes recpulse{0%,100%{opacity:1}50%{opacity:.48}}
+.nlq-ic .ic{width:15px;height:15px}
+.nlq-x{flex:none;width:22px;height:22px;padding:0;border:0;border-radius:5px;background:transparent;
+  color:var(--ink-4);font-size:15px;line-height:1;cursor:pointer;
+  display:none;align-items:center;justify-content:center}
+.nlq-x:hover{background:var(--panel-3);color:var(--ink)}
+.nlq-field.has-val .nlq-x{display:inline-flex}
+.nlq-send{flex:none;width:30px;height:30px;padding:0;border:0;border-radius:8px;cursor:pointer;
+  background:var(--vio);color:var(--on-accent);
+  display:inline-flex;align-items:center;justify-content:center;transition:.15s}
+.nlq-send:hover{filter:brightness(1.12)}
+.nlq-send:active{transform:scale(.95)}
+.nlq-send .ic{width:15px;height:15px}
+
+.quickbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px}
+.quickbar .qlab{color:var(--ink-4);font-size:10.5px;white-space:nowrap}
+.quickbar .qb{background:none;border:1px dashed var(--line-2);color:var(--ink-3);font-size:11px;
+  padding:3px 9px;border-radius:20px;cursor:pointer;transition:.15s;font-family:inherit}
+.quickbar .qb:hover{color:var(--acc);border-color:rgba(var(--acc-rgb),.42);border-style:solid}
+
+@media (max-width:1260px){
+  .fltmain{grid-template-columns:minmax(0,1fr)}
+  .fltmain .nlqbar{order:-1;margin-bottom:6px}
+}
+@media (max-width:900px){.filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){
+  .filters{grid-template-columns:minmax(0,1fr)}
+  .fltmain{gap:16px}
+}
+
+/* 折叠 AI 面板后：整块升到顶部横条，字段矩阵独占整行 */
+.fltmain.nlq-folded{grid-template-columns:minmax(0,1fr)}
+.fltmain.nlq-folded .nlqbar{order:-1;margin-bottom:6px}
+
+/* 筛选结果变化时，命中数做一次轻微反馈 */
+@keyframes vpop{0%{opacity:.3;transform:translateY(-4px)}100%{opacity:1;transform:none}}
+.kpis .v.pop{animation:vpop .42s ease-out}
+
+/* 空状态：说明原因 + 给出出路 */
+.empty .eic{width:30px;height:30px;color:var(--ink-4);display:block;margin:0 auto 10px}
+.empty .et{color:var(--ink-2);font-size:13px;font-weight:600;margin-bottom:5px}
+.empty .es{color:var(--ink-4);font-size:11.5px;line-height:1.8;margin-bottom:12px}
+
+/* 语音 / 解析的进行态 */
+.nlq-ic.off{opacity:.4;cursor:not-allowed}
+.nlq-send.loading{animation:recpulse .9s ease-in-out infinite;cursor:progress}
 </style>
 <script>/* 首帧前落定主题，避免明暗闪烁 */(function(){try{var t=localStorage.getItem("bjyy_theme");if(t==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
 </head>
@@ -809,7 +914,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   </div>
   <div class="topmeta">
     <span class="chipmeta">数据快照 <b id="m_total">—</b> 家机构</span>
-    <span class="chipmeta t2">更新 <b id="m_time">—</b></span>
+    <span class="chipmeta t2" title="数据快照生成日期（数据截止日），非实时数据；Spark 全链路重跑约 54 秒">更新 <b id="m_time">—</b></span>
     <span class="chipmeta" id="ai_state">AI 兜底 <b>检测中</b></span>
     <button class="themebtn" id="btn_theme" type="button" title="切换白天 / 黑夜外观" aria-label="切换白天 / 黑夜外观"><svg class="ic ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7.4a4.6 4.6 0 100 9.2 4.6 4.6 0 000-9.2zM12 2.4v2.1M12 19.5v2.1M4.3 4.3l1.5 1.5M18.2 18.2l1.5 1.5M2.4 12h2.1M19.5 12h2.1M4.3 19.7l1.5-1.5M18.2 5.8l1.5-1.5"/></svg><svg class="ic ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.2 14.6A8.6 8.6 0 019.4 3.8a8.6 8.6 0 1010.8 10.8z"/></svg></button>
   </div>
@@ -831,18 +936,26 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     <div class="fh">
       <span class="bar"></span><span class="t">多维筛选</span>
       <span class="ftag" id="flt_count">—</span>
-      <span class="r" id="flt_meta">7 维筛选 · 6 种排序 · 加权评分 · Haversine 球面距离</span>
+      <span class="r" id="flt_meta" title="7 个筛选维度 · 6 种排序方式 · 加权评分（等级 0.5 / 距离 0.3 / 科室 0.2）· Haversine 球面距离公式">7 维筛选 · 6 种排序 · 加权评分</span>
     </div>
 
-    <div class="fltmain">
+    <div class="fltmain" id="fltmain">
       <div class="fltcol">
       <div class="filters">
-        <div class="field"><label>关键词</label><input id="f_kw" type="text" placeholder="机构名 / 地址，如：协和 或 海淀" title="按机构名称或地址关键词检索"></div>
-        <div class="field"><label>科室</label><select id="f_dept" title="按科室名称筛选（含擅长 / 诊疗方向）"><option value="">全部科室</option></select></div>
-        <div class="field"><label>区域</label><select id="f_district"><option value="">全部 16 区</option></select></div>
-        <div class="field"><label>等级</label><select id="f_level"><option value="">全部等级</option></select></div>
-        <div class="field"><label>类型</label><select id="f_cat"><option value="">全部类型</option></select></div>
-        <div class="field"><label>协作网络</label><select id="f_net" title="市级协作网络">
+        <div class="field"><label for="f_kw">关键词</label>
+          <div class="kwbox">
+            <svg class="kwi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.4 16.4L21 21"/></svg>
+            <input id="f_kw" type="text" autocomplete="off" spellcheck="false" placeholder="机构名 / 地址，如 协和"
+                   title="按机构名称或地址关键词检索，输入即联想">
+            <button class="kwx" id="btn_kw_clear" type="button" tabindex="-1" title="清空关键词" aria-label="清空关键词">×</button>
+            <div class="acbox" id="kw_ac" role="listbox" aria-label="关键词联想"></div>
+          </div>
+        </div>
+        <div class="field"><label for="f_dept">科室</label><select id="f_dept" title="按科室名称筛选（含擅长 / 诊疗方向）"><option value="">全部科室</option></select></div>
+        <div class="field"><label for="f_district">区域</label><select id="f_district"><option value="">全部 16 区</option></select></div>
+        <div class="field"><label for="f_level">等级</label><select id="f_level"><option value="">全部等级</option></select></div>
+        <div class="field"><label for="f_cat">类型</label><select id="f_cat"><option value="">全部类型</option></select></div>
+        <div class="field"><label for="f_net">协作网络</label><select id="f_net" title="市级协作网络">
           <option value="">全部网络</option>
           <option value="ped_core">儿科医联体 · 核心医院</option>
           <option value="ped_member">儿科医联体 · 成员机构</option>
@@ -850,7 +963,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
           <option value="neonatal">危重新生儿救治 · 市级</option>
           <option value="maternal">危重孕产妇救治 · 市级</option>
         </select></div>
-        <div class="field"><label>距离基准</label>
+        <div class="field"><label for="f_base">距离基准</label>
           <div class="rangebox">
             <input id="f_base" type="text" list="base_list" autocomplete="off" spellcheck="false" value="天安门"
                    title="距离排序与「离家最近」的参照点：点「定位」自动获取；或输入 地标 / 区名 / 机构名 / 地址关键词">
@@ -866,32 +979,48 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
             <button class="btn sm" id="btn_locate" type="button" onclick="locateMe()" title="定位我的位置（需浏览器授权，http://localhost 下可用）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.5 7-12a7 7 0 10-14 0c0 5.5 7 12 7 12zM12 9a3 3 0 100 6 3 3 0 000-6z"/></svg> 定位</button>
           </div>
         </div>
-        <div class="field"><label>排序方式</label><select id="f_sort">
-          <option value="score">综合评分 ↓</option>
-          <option value="distance">距离 ↑</option>
-          <option value="level">等级 ↓</option>
-          <option value="depts">科室数 ↓</option>
-          <option value="name">名称 A–Z</option>
-        </select></div>
+        <div class="field"><label for="f_sort">排序方式</label>
+          <div class="rangebox">
+            <select id="f_sort" title="排序维度">
+              <option value="score">综合评分</option>
+              <option value="distance">距离（近 → 远）</option>
+              <option value="level">医院等级</option>
+              <option value="depts">科室数量</option>
+              <option value="name">机构名称</option>
+            </select>
+            <button class="dirtog" id="f_dir" type="button" data-dir="desc"
+                    title="切换升序 / 降序（距离维度固定为近 → 远）" aria-label="切换排序方向">↓</button>
+          </div>
+        </div>
       </div>
       <div class="fltchips" id="flt_chips"></div>
       </div>
 
-      <div class="nlqbar">
-        <div class="nlq-in">
-          <span class="nlq-badge">AI 说人话</span>
-          <input id="f_ai" type="text" placeholder="试试直接说：朝阳区看心脏病的三级医院，离家近一点的">
-          <div class="nlq-btns">
-            <button class="btn vio sm" id="btn_ai" type="button">解析</button>
-          <button class="btn ghost sm iconbtn" id="btn_voice_ai" type="button"
-            title="语音输入：点一下说出需求（需在 http://localhost:5001 下使用）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11a7 7 0 0014 0M12 18v3M8.5 21h7"/></svg></button>
-            <button class="btn ghost sm" id="btn_ai_clear" type="button">清空</button>
-          </div>
+      <div class="nlqbar" id="nlqbar">
+        <div class="nlq-head">
+          <span class="nlq-badge"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4zM18 15.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg>AI 智能筛选</span>
+          <span class="nlq-sub">说人话就行</span>
+          <button class="nlq-fold" id="btn_nlq_fold" type="button" aria-expanded="true" title="折叠 / 展开 AI 面板" aria-label="折叠或展开 AI 面板">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+          </button>
         </div>
-        <div class="quickbar" id="ai_quick"></div>
-        <div id="ai_echo" class="ai-echo" style="margin-top:9px;font-size:11.5px;color:var(--ink-3);line-height:1.8;display:none"></div>
+        <div class="nlq-body" id="nlq_body">
+          <div class="nlq-field">
+            <button class="nlq-ic" id="btn_voice_ai" type="button"
+              title="语音输入：点一下说出需求（需在 http://localhost:5001 下使用）" aria-label="语音输入"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11a7 7 0 0014 0M12 18v3M8.5 21h7"/></svg></button>
+            <input id="f_ai" type="text" autocomplete="off" spellcheck="false"
+                   placeholder="朝阳区看心脏病的三级医院"
+                   title="支持口语化描述：区域 / 科室 / 等级 / 类型 / 距离 / 排序，可一次说全">
+            <button class="nlq-x" id="btn_ai_clear" type="button" title="清空输入" aria-label="清空输入">×</button>
+            <button class="nlq-send" id="btn_ai" type="button" title="解析（也可直接按回车）" aria-label="解析"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+          </div>
+          <div class="quickbar" id="ai_quick"></div>
+          <div id="ai_echo" class="ai-echo" style="margin-top:9px;font-size:11.5px;color:var(--ink-3);line-height:1.8;display:none"></div>
+        </div>
       </div>
-    </div>    <div class="fltfoot">
+    </div>
+
+    <div class="fltfoot">
     <div class="presetbar" id="presetbar">
       <span class="plabel">常用筛选</span>
       <button class="preset" data-preset="l3">三级医院</button>
@@ -903,8 +1032,9 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     </div>
 
     <div class="actline">
-      <button class="btn ghost sm" id="btn_reset">↺ 重置筛选</button>
-      <span class="r">数据加载时间：<span id="m_time2">—</span></span>
+      <button class="btn ghost sm" id="btn_reset"
+        title="恢复默认视图：清空全部筛选条件、距离基准回到天安门、排序回到综合评分">↺ 恢复默认</button>
+      <span class="r" title="数据快照生成日期（数据截止日），非实时数据">数据快照 <b id="m_time2">—</b></span>
       </div>
     </div>
   </div>
@@ -1463,9 +1593,51 @@ function initFavs() {
 // ============================================================================
 const FLT_FIELDS = [
   ['f_kw', '关键词'], ['f_dept', '科室'], ['f_district', '区域'], ['f_level', '等级'],
-  ['f_cat', '类型'], ['f_net', '协作网络'], ['f_base', '距离基准点'],
+  ['f_cat', '类型'], ['f_net', '协作网络'], ['f_base', '距离基准点'], ['f_sort', '排序'],
 ];
 const FLT_DEFAULT = { f_base: '天安门', f_sort: 'score' };
+// 排序 = 维度 × 方向；距离维度的语义就是「近 → 远」，固定为升序
+const SORT_LABEL = { score: '综合评分', distance: '距离', level: '医院等级', depts: '科室数量', name: '机构名称' };
+const SORT_DIR_DEFAULT = { score: 'desc', distance: 'asc', level: 'desc', depts: 'desc', name: 'asc' };
+const SORT_FIXED_ASC = { distance: true };
+let SORT_DIR = 'desc';
+
+function curSort() { const e = $('f_sort'); return (e && e.value) || 'score'; }
+function curDir() { return SORT_FIXED_ASC[curSort()] ? 'asc' : SORT_DIR; }
+// 排序方向按钮：距离维度禁用（语义固定），其余维度一键升降序
+function syncDirUI() {
+  const b = $('f_dir'); if (!b) return;
+  const k = curSort(), fixed = !!SORT_FIXED_ASC[k], d = curDir();
+  b.textContent = d === 'asc' ? '\u2191' : '\u2193';
+  b.setAttribute('data-dir', d);
+  b.disabled = fixed;
+  b.title = fixed
+    ? '距离维度固定为「近 \u2192 远」，无需切换方向'
+    : ('当前 ' + SORT_LABEL[k] + (d === 'asc' ? ' 升序' : ' 降序') + '，点击切换');
+}
+function setSort(key, dir, silent) {
+  const e = $('f_sort'); if (e) e.value = key;
+  SORT_DIR = dir || SORT_DIR_DEFAULT[key] || 'desc';
+  syncDirUI();
+  if (!silent) { PAGE = 1; applyFilter(); }
+}
+// 预设生效后让被改动的控件脉冲高亮一次
+function flashControls(ids) {
+  (ids || []).forEach(id => {
+    const el = $(id); if (!el) return;
+    const box = el.closest('.rangebox') || el;
+    box.classList.remove('flash'); void box.offsetWidth; box.classList.add('flash');
+    setTimeout(() => box.classList.remove('flash'), 1900);
+  });
+}
+function syncKwClear() {
+  const i = $('f_kw'), b = i && i.closest('.kwbox');
+  if (b) b.classList.toggle('has-val', !!(i.value || '').trim());
+}
+function syncAiClear() {
+  const i = $('f_ai'), b = i && i.closest('.nlq-field');
+  if (b) b.classList.toggle('has-val', !!(i.value || '').trim());
+}
 const NET_LABEL = {
   ped_core: '儿科医联体·核心', ped_member: '儿科医联体·成员', stroke: '卒中中心',
   neonatal: '危重新生儿·市级', maternal: '危重孕产妇·市级',
@@ -1484,22 +1656,33 @@ function renderFilterChips() {
     const el = $(id); if (!el) return;
     const v = (el.value || '').trim();
     if (!v || (FLT_DEFAULT[id] && v === FLT_DEFAULT[id])) return;
-    const show = id === 'f_net' ? (NET_LABEL[v] || v) : v;
+    const show = id === 'f_net' ? (NET_LABEL[v] || v)
+      : id === 'f_sort' ? ((SORT_LABEL[v] || v) + (curDir() === 'asc' ? ' \u2191' : ' \u2193'))
+      : v;
     chips.push('<span class="fchip"><em>' + esc(label) + '</em><b>' + esc(trunc(show, 16)) +
       '</b><i data-fclear="' + id + '" title="移除该条件">×</i></span>');
   });
   box.innerHTML = chips.length
     ? '<span class="fl">已选条件 ' + chips.length + ' 项</span>' + chips.join('') +
-      '<button class="fclear" type="button" data-fclear="__all__" title="清除全部筛选条件，回到全量 9,789 家">一键清除全部</button>'
+      '<button class="freset" type="button" data-freset="1" title="恢复默认：清空全部条件，距离基准回到天安门，排序回到综合评分">\u21ba 恢复默认</button>' +
+      '<button class="fclear" type="button" data-fclear="__all__" title="只清空上方筛选条件，保留距离基准与排序设置">\u2715 清除条件</button>'
     : '';
   Array.prototype.forEach.call(box.querySelectorAll('[data-fclear]'), b =>
     b.addEventListener('click', () => {
       const k = b.getAttribute('data-fclear');
-      if (k === '__all__') { resetFilter(); return; }
+      if (k === '__all__') { clearConditions(); return; }
       const el = $(k); if (!el) return;
       el.value = FLT_DEFAULT[k] || '';
+      if (k === 'f_base') { BASE_NOW = BASE_POINTS.tiananmen; refreshBaseSummary(); }
+      if (k === 'f_kw') syncKwClear();
+      if (k === 'f_sort') setSort('score', 'desc', true);
       PAGE = 1; applyFilter();
     }));
+  const fr = box.querySelector('[data-freset]');
+  if (fr) fr.addEventListener('click', resetFilter);
+  // 有条件时，重置入口就放在条件条里，底部不再重复出现
+  const br = $('btn_reset');
+  if (br) br.style.display = chips.length ? 'none' : '';
   const cnt = $('flt_count');
   if (cnt) {
     const tot = DATA ? DATA.total.toLocaleString() : '—';
@@ -1523,8 +1706,11 @@ function applyPreset(key) {
   if (key === 'near3' && BASE_NOW === BASE_POINTS.geo &&
       (BASE_POINTS.geo.lng == null || BASE_POINTS.geo.lat == null)) locateMe();
   ['f_level', 'f_cat', 'f_dept', 'f_district', 'f_net'].forEach(k => { const e = $(k); if (e) e.value = ''; });
-  const s = $('f_sort'); if (s) s.value = 'score';
+  setSort('score', 'desc', true);
   Object.keys(spec).forEach(k => { const e = $(k); if (e) e.value = spec[k]; });
+  if (spec.f_sort) SORT_DIR = SORT_DIR_DEFAULT[spec.f_sort] || SORT_DIR;
+  syncDirUI();
+  flashControls(Object.keys(spec));   // 让用户看清系统改动了哪些控件
   PAGE = 1;
   track('preset', key);
   applyFilter();
@@ -1539,12 +1725,13 @@ const NLQ_EXAMPLES = [
 ];
 function initAiQuick() {
   const bar = $('ai_quick'); if (!bar) return;
-  bar.innerHTML = NLQ_EXAMPLES.map(function(p){
+  bar.innerHTML = '<span class="qlab">猜你想搜：</span>' + NLQ_EXAMPLES.map(function(p){
     return '<button class="qb" data-nlq="' + esc(p[1]) + '" title="' + esc(p[1]) + '">' + esc(p[0]) + '</button>';
   }).join('');
   Array.prototype.forEach.call(bar.querySelectorAll('[data-nlq]'), b =>
     b.addEventListener('click', () => {
       $('f_ai').value = b.getAttribute('data-nlq');
+      syncAiClear();
       applyNLQ();
     }));
 }
@@ -1552,6 +1739,151 @@ function initAiQuick() {
 function initPresets() {
   Array.prototype.forEach.call(document.querySelectorAll('[data-preset]'), b =>
     b.addEventListener('click', () => applyPreset(b.getAttribute('data-preset'))));
+}
+
+// ---- 排序控件：维度下拉 × 方向一键切换 ----
+function initSortCtl() {
+  const sel = $('f_sort'), btn = $('f_dir');
+  if (sel) sel.addEventListener('change', () => {
+    SORT_DIR = SORT_DIR_DEFAULT[sel.value] || 'desc';
+    syncDirUI();
+  });
+  if (btn) btn.addEventListener('click', () => {
+    if (SORT_FIXED_ASC[curSort()]) return;   // 距离固定近 → 远
+    SORT_DIR = curDir() === 'asc' ? 'desc' : 'asc';
+    syncDirUI();
+    PAGE = 1; applyFilter();
+  });
+  syncDirUI();
+}
+
+// ---- 距离基准摘要：把当前生效的基准点写进 title，便于随时核对 ----
+function refreshBaseSummary() {
+  const inp = $('f_base'); if (!inp) return;
+  const b = curBase();
+  const pos = (b.lng != null && b.lat != null)
+    ? (b.lng.toFixed(4) + ', ' + b.lat.toFixed(4)) : '尚未确定坐标';
+  inp.title = '当前距离基准：' + (b.name || '天安门') + '（' + pos + '）\n'
+    + '可输入 地标 / 区名 / 机构名 / 地址关键词，或点「定位」自动获取';
+}
+
+// ---- AI 面板折叠（状态本地记忆） ----
+const NLQ_FOLD_KEY = 'bjyy_nlq_fold_v1';
+function setNlqFold(fold, persist) {
+  const bar = $('nlqbar'), main = $('fltmain'), btn = $('btn_nlq_fold');
+  if (!bar) return;
+  bar.classList.toggle('collapsed', !!fold);
+  if (main) main.classList.toggle('nlq-folded', !!fold);
+  if (btn) {
+    btn.setAttribute('aria-expanded', fold ? 'false' : 'true');
+    btn.title = fold ? '展开 AI 面板' : '折叠 AI 面板';
+  }
+  if (persist) { try { localStorage.setItem(NLQ_FOLD_KEY, fold ? '1' : '0'); } catch (e) { } }
+  if (typeof resizeAll === 'function') setTimeout(resizeAll, 90);
+}
+function initNlqFold() {
+  const btn = $('btn_nlq_fold'); if (!btn) return;
+  let fold = false;
+  try { fold = localStorage.getItem(NLQ_FOLD_KEY) === '1'; } catch (e) { }
+  setNlqFold(fold, false);
+  btn.addEventListener('click', () => setNlqFold(!$('nlqbar').classList.contains('collapsed'), true));
+}
+
+// ============================================================================
+//  0.65 关键词输入联想（离线索引 9,789 家机构名 / 地址，零网络请求）
+// ============================================================================
+let AC_IDX = null, AC_ITEMS = [], AC_ACT = -1;
+function buildAcIndex() {
+  AC_IDX = ((DATA && DATA.institutions) || []).map(r => ({
+    n: r.name || '', a: r.addr || '', d: r.district || '',
+  }));
+}
+function acQuery(q) {
+  q = (q || '').trim().toLowerCase();
+  if (!q || !AC_IDX) return [];
+  const out = [];
+  for (let i = 0; i < AC_IDX.length && out.length < 320; i++) {
+    const r = AC_IDX[i];
+    if ((r.n + ' ' + r.a).toLowerCase().indexOf(q) < 0) continue;
+    out.push(r);
+  }
+  out.sort((x, y) => {
+    const xn = x.n.toLowerCase().indexOf(q) >= 0 ? 0 : 1;
+    const yn = y.n.toLowerCase().indexOf(q) >= 0 ? 0 : 1;
+    if (xn !== yn) return xn - yn;        // 名称命中排在地址命中之前
+    return x.n.length - y.n.length;       // 名称更短的更可能是目标
+  });
+  return out.slice(0, 8);
+}
+function acMark(name, q) {
+  if (!q) return esc(name);
+  const i = name.toLowerCase().indexOf(q);
+  if (i < 0) return esc(name);
+  return esc(name.slice(0, i)) + '<mark>' + esc(name.slice(i, i + q.length)) + '</mark>'
+    + esc(name.slice(i + q.length));
+}
+function acRender(list, q) {
+  const box = $('kw_ac'); if (!box) return;
+  AC_ITEMS = list; AC_ACT = -1;
+  if (!list.length) {
+    box.innerHTML = '<div class="acempty">没有匹配的机构，换个关键词试试</div>';
+    box.classList.add('show');
+    return;
+  }
+  box.innerHTML = list.map((r, i) =>
+    '<div class="acitem" data-i="' + i + '">' +
+      '<span class="an">' + acMark(r.n, q) + '</span>' +
+      '<span class="am">' + esc(r.d) + '</span>' +
+    '</div>').join('');
+  box.classList.add('show');
+}
+function acClose() {
+  const box = $('kw_ac');
+  if (box) { box.classList.remove('show'); box.innerHTML = ''; }
+  AC_ITEMS = []; AC_ACT = -1;
+}
+function acMove(d) {
+  const box = $('kw_ac'), n = AC_ITEMS.length;
+  if (!box || !n) return;
+  AC_ACT = (AC_ACT + d + n) % n;
+  Array.prototype.forEach.call(box.querySelectorAll('.acitem'), (el, i) =>
+    el.classList.toggle('act', i === AC_ACT));
+  const act = box.querySelector('.acitem.act');
+  if (act && act.scrollIntoView) act.scrollIntoView({ block: 'nearest' });
+}
+function acPick(i) {
+  const r = AC_ITEMS[i]; if (!r) return;
+  const inp = $('f_kw');
+  inp.value = r.n;
+  syncKwClear();
+  acClose();
+  PAGE = 1; applyFilter();
+}
+function initKwAC() {
+  const box = $('kw_ac'), inp = $('f_kw');
+  if (!box || !inp) return;
+  const openAc = () => {
+    const q = inp.value.trim();
+    if (!q) { acClose(); return; }
+    acRender(acQuery(q), q.toLowerCase());
+  };
+  inp.addEventListener('input', () => { if (inp.value.trim()) openAc(); else acClose(); });
+  inp.addEventListener('focus', () => { if (inp.value.trim()) openAc(); });
+  inp.addEventListener('keydown', e => {
+    if (!box.classList.contains('show')) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); acMove(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); acMove(-1); }
+    else if (e.key === 'Enter') {
+      if (AC_ACT >= 0) { e.preventDefault(); acPick(AC_ACT); } else acClose();
+    } else if (e.key === 'Escape') acClose();
+  });
+  inp.addEventListener('blur', () => setTimeout(acClose, 140));
+  box.addEventListener('mousedown', e => {
+    const it = e.target.closest ? e.target.closest('.acitem') : null;
+    if (!it) return;
+    e.preventDefault();
+    acPick(+it.getAttribute('data-i'));
+  });
 }
 
 // ============================================================================
@@ -1672,7 +2004,8 @@ function currentScopeMeta() {
   return {
     district: $('f_district').value || '', level: $('f_level').value || '',
     depts: $('f_dept').value ? [$('f_dept').value] : [],
-    kw: ($('f_kw').value || '').trim(), sort: $('f_sort').value,
+    kw: ($('f_kw').value || '').trim(),
+    sort: (SORT_LABEL[curSort()] || '综合评分') + (curDir() === 'asc' ? ' 升序' : ' 降序'),
     baseName: base.name, total: FILTERED.length,
   };
 }
@@ -1780,6 +2113,7 @@ function init() {
     setText('m_total', DATA.total.toLocaleString());
     setText('m_time', DATA.snapshot_time);
     setText('m_time2', DATA.snapshot_time);
+    buildAcIndex();                     // 关键词联想索引（离线）
 
     fillSelect('f_district', DATA.meta.districts.map(d => d.district), '全部 16 区');
     fillSelect('f_level', DATA.meta.levels.map(d => d.level), '全部等级');
@@ -1800,11 +2134,15 @@ function init() {
     initFavs();
     initPresets();
     initAiQuick();
+    initSortCtl();
+    initKwAC();
+    initNlqFold();
     initVoice('btn_voice_ai', 'f_ai', applyNLQ);
     initVoice('btn_voice_t', 't_in', sendTriage);
     initOverSummary();
     initAIState();
     initBase();
+    refreshBaseSummary();
     applyFilter();
     loadAbout();
   } catch (e) {
@@ -1861,6 +2199,7 @@ function bindEvents() {
   // 关键词输入做防抖埋点（不干扰实时筛选）
   const kwEl = $('f_kw');
   kwEl.addEventListener('input', () => {
+    syncKwClear();
     PAGE = 1; applyFilter();
     clearTimeout(_kwT);
     _kwT = setTimeout(() => { const v = kwEl.value.trim(); if (v.length >= 2) track('search', v); }, 1100);
@@ -1868,9 +2207,16 @@ function bindEvents() {
 
   $('btn_reset').addEventListener('click', resetFilter);
   $('btn_clear_pick').addEventListener('click', clearPicks);
+  const bkw = $('btn_kw_clear');
+  if (bkw) bkw.addEventListener('click', () => {
+    const e = $('f_kw'); e.value = ''; syncKwClear(); PAGE = 1; applyFilter(); e.focus();
+  });
 
   const aiInput = $('f_ai');
-  if (aiInput) aiInput.addEventListener('keydown', e => { if (e.key === 'Enter') applyNLQ(); });
+  if (aiInput) {
+    aiInput.addEventListener('input', syncAiClear);
+    aiInput.addEventListener('keydown', e => { if (e.key === 'Enter') applyNLQ(); });
+  }
   const bAi = $('btn_ai'); if (bAi) bAi.addEventListener('click', applyNLQ);
   const bAc = $('btn_ai_clear'); if (bAc) bAc.addEventListener('click', clearNLQ);
 
@@ -1893,10 +2239,20 @@ function bindEvents() {
   });
 }
 
+// 只清空筛选条件，保留距离基准与排序设置
+function clearConditionsSilent() {
+  ['f_kw', 'f_district', 'f_level', 'f_cat', 'f_dept', 'f_net']
+    .forEach(k => { const e = $(k); if (e) e.value = ''; });
+  syncKwClear();
+}
+function clearConditions() { clearConditionsSilent(); PAGE = 1; applyFilter(); }
+// 恢复默认视图：条件 + 距离基准 + 排序全部回到初始状态
 function resetFilter() {
-  $('f_kw').value = ''; $('f_district').value = ''; $('f_level').value = '';
-  $('f_cat').value = ''; $('f_dept').value = ''; $('f_net').value = '';
-  BASE_NOW = BASE_POINTS.tiananmen; $('f_base').value = '天安门'; $('f_sort').value = 'score';
+  clearConditionsSilent();
+  BASE_NOW = BASE_POINTS.tiananmen;
+  const fb = $('f_base'); if (fb) fb.value = '天安门';
+  setSort('score', 'desc', true);
+  refreshBaseSummary();
   PAGE = 1; applyFilter();
 }
 
@@ -1913,14 +2269,20 @@ function locateMe() {
     pos => {
       const lng = +pos.coords.longitude.toFixed(6), lat = +pos.coords.latitude.toFixed(6);
       const acc = Math.round(pos.coords.accuracy);
+      const hint = locateHint(lng, lat);
+      const area = hint ? ('北京市' + hint.district) : null;
       BASE_POINTS.geo.lng = lng; BASE_POINTS.geo.lat = lat;
-      BASE_POINTS.geo.name = '我的位置(±' + acc + 'm)';
+      BASE_POINTS.geo.name = '我的位置' + (area ? ' · ' + area : '') + '(±' + acc + 'm)';
       setBase(BASE_POINTS.geo, true);
+      refreshBaseSummary();
       btn.textContent = '已定位';
       setTimeout(() => { btn.textContent = '重新定位'; btn.disabled = false; }, 1300);
-      $('f_sort').value = 'distance';
+      setSort('distance', 'asc', true);
       applyFilter();
-      toast(svgIcon('location') + ' 已定位 ' + lng + ', ' + lat + '（±' + acc + 'm） · 已按距离升序排序', 5200);
+      const loc = hint
+        ? (area + ' · 最近机构 ' + hint.near + '（约 ' + hint.nearKm.toFixed(1) + ' km）')
+        : (lng + ', ' + lat);
+      toast(svgIcon('location') + ' 已定位到 ' + loc + ' · 精度 ±' + acc + 'm · 已按距离升序排序', 5600);
       track('locate', null, null, acc);
     },
     err => {
@@ -1947,10 +2309,10 @@ function setBase(p, silent) {
   BASE_NOW = p;
   const input = $('f_base');
   if (input) input.value = p.name;
+  refreshBaseSummary();
   try { localStorage.setItem(BASE_STORE_KEY, JSON.stringify({ name: p.name, lng: p.lng, lat: p.lat })); } catch (e) { }
   if (!silent) {
-    const s = $('f_sort');
-    if (s && s.value !== 'distance') s.value = 'distance';
+    if (curSort() !== 'distance') setSort('distance', 'asc', true); else syncDirUI();
     PAGE = 1; applyFilter();
   }
 }
@@ -2127,12 +2489,15 @@ function applyNLQ() {
   if (!raw) { if (echo) echo.style.display = 'none'; return; }
   const r = parseNLQ(raw);
   if (window.__AI_LLM_ON__ && r.hits.length === 0) {
+    const abtn = $('btn_ai');
+    if (abtn) abtn.classList.add('loading');
     fetch('/api/ai/parse?q=' + encodeURIComponent(raw))
       .then(x => x.ok ? x.json() : null)
       .then(j => {
         if (j && j.ok && j.conditions) { Object.assign(r, j.conditions, { engine: 'llm' }); }
         commitNLQ(r, raw);
-      }).catch(() => commitNLQ(r, raw));
+      }).catch(() => commitNLQ(r, raw))
+      .then(() => { if (abtn) abtn.classList.remove('loading'); });
     return;
   }
   if (r.hits.length || r.kw) track('nlq', raw, null, r.hits.length);
@@ -2143,8 +2508,10 @@ function commitNLQ(r, raw) {
   const echo = $('ai_echo');
   const setSel = (id, v) => { const el = $(id); if (el && v) el.value = v; };
   setSel('f_district', r.district); setSel('f_level', r.level); setSel('f_cat', r.cat);
-  setSel('f_dept', r.dept); setSel('f_sort', r.sort || 'score');
+  setSel('f_dept', r.dept);
+  if (r.sort) setSort(r.sort, SORT_DIR_DEFAULT[r.sort] || SORT_DIR, true); else syncDirUI();
   if (r.kw) $('f_kw').value = r.kw;
+  syncKwClear();
 
   const chips = [];
   if (r.district) chips.push('区域：' + r.district);
@@ -2167,6 +2534,7 @@ function commitNLQ(r, raw) {
 }
 function clearNLQ() {
   $('f_ai').value = '';
+  syncAiClear();
   const e = $('ai_echo'); if (e) e.style.display = 'none';
   resetFilter();
 }
@@ -2181,11 +2549,36 @@ function haversine(lng1, lat1, lng2, lat2) {
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+// 定位成功后反查所在区，把经纬度翻译成「北京市XX区」
+function locateHint(lng, lat) {
+  const rows = (DATA && DATA.institutions) || [];
+  let best = null, bd = Infinity;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.lng == null || r.lat == null) continue;
+    const d = (r.lng - lng) * (r.lng - lng) + (r.lat - lat) * (r.lat - lat);
+    if (d < bd) { bd = d; best = r; }
+  }
+  if (!best) return null;
+  let sx = 0, sy = 0, n = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.lng == null || r.district !== best.district) continue;
+    sx += r.lng; sy += r.lat; n++;
+  }
+  return {
+    district: best.district,
+    near: best.name,
+    nearKm: haversine(lng, lat, best.lng, best.lat),
+    centerKm: n ? haversine(lng, lat, sx / n, sy / n) : null,
+  };
+}
+
 function applyFilter() {
   if (!DATA) return;
   const kw = ($('f_kw').value || '').trim().toLowerCase();
   const district = $('f_district').value, level = $('f_level').value, cat = $('f_cat').value;
-  const dept = $('f_dept').value, net = $('f_net').value, sort = $('f_sort').value;
+  const dept = $('f_dept').value, net = $('f_net').value;
   let base = curBase();
   // 防御：选了「我的位置」但尚未定位成功（lng 为空）时回退到天安门，
   // 否则 haversine 会算出 NaN，导致距离列与排序全部失效。
@@ -2223,14 +2616,16 @@ function applyFilter() {
     r._score = W_LEVEL * lv + W_DIST * ds + W_DEPT * dp;
   });
 
-  const cmp = {
-    score:    (a, b) => b._score - a._score,
+  const ASC = {
+    score:    (a, b) => a._score - b._score,
     distance: (a, b) => (a._dist == null ? 9e9 : a._dist) - (b._dist == null ? 9e9 : b._dist),
-    level:    (a, b) => (LEVEL_RANK[b.level] || 0) - (LEVEL_RANK[a.level] || 0),
-    depts:    (a, b) => (b.dept_count || 0) - (a.dept_count || 0),
+    level:    (a, b) => (LEVEL_RANK[a.level] || 0) - (LEVEL_RANK[b.level] || 0),
+    depts:    (a, b) => (a.dept_count || 0) - (b.dept_count || 0),
     name:     (a, b) => String(a.name).localeCompare(String(b.name), 'zh-CN'),
-  }[sort] || ((a, b) => b._score - a._score);
-  FILTERED.sort(cmp);
+  };
+  const cmpAsc = ASC[curSort()] || ASC.score;
+  const dirMul = curDir() === 'asc' ? 1 : -1;
+  FILTERED.sort((a, b) => cmpAsc(a, b) * dirMul);
 
   renderKPI();
   renderList();
@@ -2242,6 +2637,8 @@ function applyFilter() {
 
 function renderKPI() {
   setText('v_match', FILTERED.length.toLocaleString());
+  const vmt = $('v_match');
+  if (vmt) { vmt.classList.remove('pop'); void vmt.offsetWidth; vmt.classList.add('pop'); }
   setText('v_l3', FILTERED.filter(r => r.level === '三级').length.toLocaleString());
   setText('v_coord', FILTERED.filter(r => r.lng != null).length.toLocaleString());
   const avg = FILTERED.length ? (FILTERED.reduce((s, r) => s + (r.dept_count || 0), 0) / FILTERED.length).toFixed(1) : '0';
@@ -2318,7 +2715,20 @@ function renderList() {
   $('pg_next').disabled = PAGE >= totalPg;
   const box = $('list');
   if (!page.length) {
-    box.innerHTML = '<div class="empty">没有符合条件的机构，试试放宽筛选条件</div>';
+    const hasCond = ['f_kw', 'f_district', 'f_level', 'f_cat', 'f_dept', 'f_net']
+      .some(k => { const e = $(k); return e && e.value; });
+    box.innerHTML = '<div class="empty">' +
+      '<svg class="eic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"'
+      + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      + '<circle cx="11" cy="11" r="7"/><path d="M16.4 16.4L21 21"/></svg>' +
+      '<div class="et">没有符合条件的机构</div>' +
+      '<div class="es">' + (hasCond
+        ? '当前条件组合偏窄，试着减少 1–2 个条件，或放宽关键词'
+        : '数据快照可能为空，请检查加载状态') + '</div>' +
+      (hasCond ? '<button class="btn ghost sm" id="btn_empty_clear" type="button">清除全部条件</button>' : '') +
+      '</div>';
+    const bec = $('btn_empty_clear');
+    if (bec) bec.addEventListener('click', clearConditions);
     return;
   }
   const baseNow = curBase();

@@ -254,9 +254,51 @@ function initFavs() {
 // ============================================================================
 const FLT_FIELDS = [
   ['f_kw', '关键词'], ['f_dept', '科室'], ['f_district', '区域'], ['f_level', '等级'],
-  ['f_cat', '类型'], ['f_net', '协作网络'], ['f_base', '距离基准点'],
+  ['f_cat', '类型'], ['f_net', '协作网络'], ['f_base', '距离基准点'], ['f_sort', '排序'],
 ];
 const FLT_DEFAULT = { f_base: '天安门', f_sort: 'score' };
+// 排序 = 维度 × 方向；距离维度的语义就是「近 → 远」，固定为升序
+const SORT_LABEL = { score: '综合评分', distance: '距离', level: '医院等级', depts: '科室数量', name: '机构名称' };
+const SORT_DIR_DEFAULT = { score: 'desc', distance: 'asc', level: 'desc', depts: 'desc', name: 'asc' };
+const SORT_FIXED_ASC = { distance: true };
+let SORT_DIR = 'desc';
+
+function curSort() { const e = $('f_sort'); return (e && e.value) || 'score'; }
+function curDir() { return SORT_FIXED_ASC[curSort()] ? 'asc' : SORT_DIR; }
+// 排序方向按钮：距离维度禁用（语义固定），其余维度一键升降序
+function syncDirUI() {
+  const b = $('f_dir'); if (!b) return;
+  const k = curSort(), fixed = !!SORT_FIXED_ASC[k], d = curDir();
+  b.textContent = d === 'asc' ? '\u2191' : '\u2193';
+  b.setAttribute('data-dir', d);
+  b.disabled = fixed;
+  b.title = fixed
+    ? '距离维度固定为「近 \u2192 远」，无需切换方向'
+    : ('当前 ' + SORT_LABEL[k] + (d === 'asc' ? ' 升序' : ' 降序') + '，点击切换');
+}
+function setSort(key, dir, silent) {
+  const e = $('f_sort'); if (e) e.value = key;
+  SORT_DIR = dir || SORT_DIR_DEFAULT[key] || 'desc';
+  syncDirUI();
+  if (!silent) { PAGE = 1; applyFilter(); }
+}
+// 预设生效后让被改动的控件脉冲高亮一次
+function flashControls(ids) {
+  (ids || []).forEach(id => {
+    const el = $(id); if (!el) return;
+    const box = el.closest('.rangebox') || el;
+    box.classList.remove('flash'); void box.offsetWidth; box.classList.add('flash');
+    setTimeout(() => box.classList.remove('flash'), 1900);
+  });
+}
+function syncKwClear() {
+  const i = $('f_kw'), b = i && i.closest('.kwbox');
+  if (b) b.classList.toggle('has-val', !!(i.value || '').trim());
+}
+function syncAiClear() {
+  const i = $('f_ai'), b = i && i.closest('.nlq-field');
+  if (b) b.classList.toggle('has-val', !!(i.value || '').trim());
+}
 const NET_LABEL = {
   ped_core: '儿科医联体·核心', ped_member: '儿科医联体·成员', stroke: '卒中中心',
   neonatal: '危重新生儿·市级', maternal: '危重孕产妇·市级',
@@ -275,22 +317,33 @@ function renderFilterChips() {
     const el = $(id); if (!el) return;
     const v = (el.value || '').trim();
     if (!v || (FLT_DEFAULT[id] && v === FLT_DEFAULT[id])) return;
-    const show = id === 'f_net' ? (NET_LABEL[v] || v) : v;
+    const show = id === 'f_net' ? (NET_LABEL[v] || v)
+      : id === 'f_sort' ? ((SORT_LABEL[v] || v) + (curDir() === 'asc' ? ' \u2191' : ' \u2193'))
+      : v;
     chips.push('<span class="fchip"><em>' + esc(label) + '</em><b>' + esc(trunc(show, 16)) +
       '</b><i data-fclear="' + id + '" title="移除该条件">×</i></span>');
   });
   box.innerHTML = chips.length
     ? '<span class="fl">已选条件 ' + chips.length + ' 项</span>' + chips.join('') +
-      '<button class="fclear" type="button" data-fclear="__all__" title="清除全部筛选条件，回到全量 9,789 家">一键清除全部</button>'
+      '<button class="freset" type="button" data-freset="1" title="恢复默认：清空全部条件，距离基准回到天安门，排序回到综合评分">\u21ba 恢复默认</button>' +
+      '<button class="fclear" type="button" data-fclear="__all__" title="只清空上方筛选条件，保留距离基准与排序设置">\u2715 清除条件</button>'
     : '';
   Array.prototype.forEach.call(box.querySelectorAll('[data-fclear]'), b =>
     b.addEventListener('click', () => {
       const k = b.getAttribute('data-fclear');
-      if (k === '__all__') { resetFilter(); return; }
+      if (k === '__all__') { clearConditions(); return; }
       const el = $(k); if (!el) return;
       el.value = FLT_DEFAULT[k] || '';
+      if (k === 'f_base') { BASE_NOW = BASE_POINTS.tiananmen; refreshBaseSummary(); }
+      if (k === 'f_kw') syncKwClear();
+      if (k === 'f_sort') setSort('score', 'desc', true);
       PAGE = 1; applyFilter();
     }));
+  const fr = box.querySelector('[data-freset]');
+  if (fr) fr.addEventListener('click', resetFilter);
+  // 有条件时，重置入口就放在条件条里，底部不再重复出现
+  const br = $('btn_reset');
+  if (br) br.style.display = chips.length ? 'none' : '';
   const cnt = $('flt_count');
   if (cnt) {
     const tot = DATA ? DATA.total.toLocaleString() : '—';
@@ -314,8 +367,11 @@ function applyPreset(key) {
   if (key === 'near3' && BASE_NOW === BASE_POINTS.geo &&
       (BASE_POINTS.geo.lng == null || BASE_POINTS.geo.lat == null)) locateMe();
   ['f_level', 'f_cat', 'f_dept', 'f_district', 'f_net'].forEach(k => { const e = $(k); if (e) e.value = ''; });
-  const s = $('f_sort'); if (s) s.value = 'score';
+  setSort('score', 'desc', true);
   Object.keys(spec).forEach(k => { const e = $(k); if (e) e.value = spec[k]; });
+  if (spec.f_sort) SORT_DIR = SORT_DIR_DEFAULT[spec.f_sort] || SORT_DIR;
+  syncDirUI();
+  flashControls(Object.keys(spec));   // 让用户看清系统改动了哪些控件
   PAGE = 1;
   track('preset', key);
   applyFilter();
@@ -330,12 +386,13 @@ const NLQ_EXAMPLES = [
 ];
 function initAiQuick() {
   const bar = $('ai_quick'); if (!bar) return;
-  bar.innerHTML = NLQ_EXAMPLES.map(function(p){
+  bar.innerHTML = '<span class="qlab">猜你想搜：</span>' + NLQ_EXAMPLES.map(function(p){
     return '<button class="qb" data-nlq="' + esc(p[1]) + '" title="' + esc(p[1]) + '">' + esc(p[0]) + '</button>';
   }).join('');
   Array.prototype.forEach.call(bar.querySelectorAll('[data-nlq]'), b =>
     b.addEventListener('click', () => {
       $('f_ai').value = b.getAttribute('data-nlq');
+      syncAiClear();
       applyNLQ();
     }));
 }
@@ -343,6 +400,151 @@ function initAiQuick() {
 function initPresets() {
   Array.prototype.forEach.call(document.querySelectorAll('[data-preset]'), b =>
     b.addEventListener('click', () => applyPreset(b.getAttribute('data-preset'))));
+}
+
+// ---- 排序控件：维度下拉 × 方向一键切换 ----
+function initSortCtl() {
+  const sel = $('f_sort'), btn = $('f_dir');
+  if (sel) sel.addEventListener('change', () => {
+    SORT_DIR = SORT_DIR_DEFAULT[sel.value] || 'desc';
+    syncDirUI();
+  });
+  if (btn) btn.addEventListener('click', () => {
+    if (SORT_FIXED_ASC[curSort()]) return;   // 距离固定近 → 远
+    SORT_DIR = curDir() === 'asc' ? 'desc' : 'asc';
+    syncDirUI();
+    PAGE = 1; applyFilter();
+  });
+  syncDirUI();
+}
+
+// ---- 距离基准摘要：把当前生效的基准点写进 title，便于随时核对 ----
+function refreshBaseSummary() {
+  const inp = $('f_base'); if (!inp) return;
+  const b = curBase();
+  const pos = (b.lng != null && b.lat != null)
+    ? (b.lng.toFixed(4) + ', ' + b.lat.toFixed(4)) : '尚未确定坐标';
+  inp.title = '当前距离基准：' + (b.name || '天安门') + '（' + pos + '）\n'
+    + '可输入 地标 / 区名 / 机构名 / 地址关键词，或点「定位」自动获取';
+}
+
+// ---- AI 面板折叠（状态本地记忆） ----
+const NLQ_FOLD_KEY = 'bjyy_nlq_fold_v1';
+function setNlqFold(fold, persist) {
+  const bar = $('nlqbar'), main = $('fltmain'), btn = $('btn_nlq_fold');
+  if (!bar) return;
+  bar.classList.toggle('collapsed', !!fold);
+  if (main) main.classList.toggle('nlq-folded', !!fold);
+  if (btn) {
+    btn.setAttribute('aria-expanded', fold ? 'false' : 'true');
+    btn.title = fold ? '展开 AI 面板' : '折叠 AI 面板';
+  }
+  if (persist) { try { localStorage.setItem(NLQ_FOLD_KEY, fold ? '1' : '0'); } catch (e) { } }
+  if (typeof resizeAll === 'function') setTimeout(resizeAll, 90);
+}
+function initNlqFold() {
+  const btn = $('btn_nlq_fold'); if (!btn) return;
+  let fold = false;
+  try { fold = localStorage.getItem(NLQ_FOLD_KEY) === '1'; } catch (e) { }
+  setNlqFold(fold, false);
+  btn.addEventListener('click', () => setNlqFold(!$('nlqbar').classList.contains('collapsed'), true));
+}
+
+// ============================================================================
+//  0.65 关键词输入联想（离线索引 9,789 家机构名 / 地址，零网络请求）
+// ============================================================================
+let AC_IDX = null, AC_ITEMS = [], AC_ACT = -1;
+function buildAcIndex() {
+  AC_IDX = ((DATA && DATA.institutions) || []).map(r => ({
+    n: r.name || '', a: r.addr || '', d: r.district || '',
+  }));
+}
+function acQuery(q) {
+  q = (q || '').trim().toLowerCase();
+  if (!q || !AC_IDX) return [];
+  const out = [];
+  for (let i = 0; i < AC_IDX.length && out.length < 320; i++) {
+    const r = AC_IDX[i];
+    if ((r.n + ' ' + r.a).toLowerCase().indexOf(q) < 0) continue;
+    out.push(r);
+  }
+  out.sort((x, y) => {
+    const xn = x.n.toLowerCase().indexOf(q) >= 0 ? 0 : 1;
+    const yn = y.n.toLowerCase().indexOf(q) >= 0 ? 0 : 1;
+    if (xn !== yn) return xn - yn;        // 名称命中排在地址命中之前
+    return x.n.length - y.n.length;       // 名称更短的更可能是目标
+  });
+  return out.slice(0, 8);
+}
+function acMark(name, q) {
+  if (!q) return esc(name);
+  const i = name.toLowerCase().indexOf(q);
+  if (i < 0) return esc(name);
+  return esc(name.slice(0, i)) + '<mark>' + esc(name.slice(i, i + q.length)) + '</mark>'
+    + esc(name.slice(i + q.length));
+}
+function acRender(list, q) {
+  const box = $('kw_ac'); if (!box) return;
+  AC_ITEMS = list; AC_ACT = -1;
+  if (!list.length) {
+    box.innerHTML = '<div class="acempty">没有匹配的机构，换个关键词试试</div>';
+    box.classList.add('show');
+    return;
+  }
+  box.innerHTML = list.map((r, i) =>
+    '<div class="acitem" data-i="' + i + '">' +
+      '<span class="an">' + acMark(r.n, q) + '</span>' +
+      '<span class="am">' + esc(r.d) + '</span>' +
+    '</div>').join('');
+  box.classList.add('show');
+}
+function acClose() {
+  const box = $('kw_ac');
+  if (box) { box.classList.remove('show'); box.innerHTML = ''; }
+  AC_ITEMS = []; AC_ACT = -1;
+}
+function acMove(d) {
+  const box = $('kw_ac'), n = AC_ITEMS.length;
+  if (!box || !n) return;
+  AC_ACT = (AC_ACT + d + n) % n;
+  Array.prototype.forEach.call(box.querySelectorAll('.acitem'), (el, i) =>
+    el.classList.toggle('act', i === AC_ACT));
+  const act = box.querySelector('.acitem.act');
+  if (act && act.scrollIntoView) act.scrollIntoView({ block: 'nearest' });
+}
+function acPick(i) {
+  const r = AC_ITEMS[i]; if (!r) return;
+  const inp = $('f_kw');
+  inp.value = r.n;
+  syncKwClear();
+  acClose();
+  PAGE = 1; applyFilter();
+}
+function initKwAC() {
+  const box = $('kw_ac'), inp = $('f_kw');
+  if (!box || !inp) return;
+  const openAc = () => {
+    const q = inp.value.trim();
+    if (!q) { acClose(); return; }
+    acRender(acQuery(q), q.toLowerCase());
+  };
+  inp.addEventListener('input', () => { if (inp.value.trim()) openAc(); else acClose(); });
+  inp.addEventListener('focus', () => { if (inp.value.trim()) openAc(); });
+  inp.addEventListener('keydown', e => {
+    if (!box.classList.contains('show')) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); acMove(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); acMove(-1); }
+    else if (e.key === 'Enter') {
+      if (AC_ACT >= 0) { e.preventDefault(); acPick(AC_ACT); } else acClose();
+    } else if (e.key === 'Escape') acClose();
+  });
+  inp.addEventListener('blur', () => setTimeout(acClose, 140));
+  box.addEventListener('mousedown', e => {
+    const it = e.target.closest ? e.target.closest('.acitem') : null;
+    if (!it) return;
+    e.preventDefault();
+    acPick(+it.getAttribute('data-i'));
+  });
 }
 
 // ============================================================================
@@ -463,7 +665,8 @@ function currentScopeMeta() {
   return {
     district: $('f_district').value || '', level: $('f_level').value || '',
     depts: $('f_dept').value ? [$('f_dept').value] : [],
-    kw: ($('f_kw').value || '').trim(), sort: $('f_sort').value,
+    kw: ($('f_kw').value || '').trim(),
+    sort: (SORT_LABEL[curSort()] || '综合评分') + (curDir() === 'asc' ? ' 升序' : ' 降序'),
     baseName: base.name, total: FILTERED.length,
   };
 }
@@ -571,6 +774,7 @@ function init() {
     setText('m_total', DATA.total.toLocaleString());
     setText('m_time', DATA.snapshot_time);
     setText('m_time2', DATA.snapshot_time);
+    buildAcIndex();                     // 关键词联想索引（离线）
 
     fillSelect('f_district', DATA.meta.districts.map(d => d.district), '全部 16 区');
     fillSelect('f_level', DATA.meta.levels.map(d => d.level), '全部等级');
@@ -591,11 +795,15 @@ function init() {
     initFavs();
     initPresets();
     initAiQuick();
+    initSortCtl();
+    initKwAC();
+    initNlqFold();
     initVoice('btn_voice_ai', 'f_ai', applyNLQ);
     initVoice('btn_voice_t', 't_in', sendTriage);
     initOverSummary();
     initAIState();
     initBase();
+    refreshBaseSummary();
     applyFilter();
     loadAbout();
   } catch (e) {
@@ -652,6 +860,7 @@ function bindEvents() {
   // 关键词输入做防抖埋点（不干扰实时筛选）
   const kwEl = $('f_kw');
   kwEl.addEventListener('input', () => {
+    syncKwClear();
     PAGE = 1; applyFilter();
     clearTimeout(_kwT);
     _kwT = setTimeout(() => { const v = kwEl.value.trim(); if (v.length >= 2) track('search', v); }, 1100);
@@ -659,9 +868,16 @@ function bindEvents() {
 
   $('btn_reset').addEventListener('click', resetFilter);
   $('btn_clear_pick').addEventListener('click', clearPicks);
+  const bkw = $('btn_kw_clear');
+  if (bkw) bkw.addEventListener('click', () => {
+    const e = $('f_kw'); e.value = ''; syncKwClear(); PAGE = 1; applyFilter(); e.focus();
+  });
 
   const aiInput = $('f_ai');
-  if (aiInput) aiInput.addEventListener('keydown', e => { if (e.key === 'Enter') applyNLQ(); });
+  if (aiInput) {
+    aiInput.addEventListener('input', syncAiClear);
+    aiInput.addEventListener('keydown', e => { if (e.key === 'Enter') applyNLQ(); });
+  }
   const bAi = $('btn_ai'); if (bAi) bAi.addEventListener('click', applyNLQ);
   const bAc = $('btn_ai_clear'); if (bAc) bAc.addEventListener('click', clearNLQ);
 
@@ -684,10 +900,20 @@ function bindEvents() {
   });
 }
 
+// 只清空筛选条件，保留距离基准与排序设置
+function clearConditionsSilent() {
+  ['f_kw', 'f_district', 'f_level', 'f_cat', 'f_dept', 'f_net']
+    .forEach(k => { const e = $(k); if (e) e.value = ''; });
+  syncKwClear();
+}
+function clearConditions() { clearConditionsSilent(); PAGE = 1; applyFilter(); }
+// 恢复默认视图：条件 + 距离基准 + 排序全部回到初始状态
 function resetFilter() {
-  $('f_kw').value = ''; $('f_district').value = ''; $('f_level').value = '';
-  $('f_cat').value = ''; $('f_dept').value = ''; $('f_net').value = '';
-  BASE_NOW = BASE_POINTS.tiananmen; $('f_base').value = '天安门'; $('f_sort').value = 'score';
+  clearConditionsSilent();
+  BASE_NOW = BASE_POINTS.tiananmen;
+  const fb = $('f_base'); if (fb) fb.value = '天安门';
+  setSort('score', 'desc', true);
+  refreshBaseSummary();
   PAGE = 1; applyFilter();
 }
 
@@ -704,14 +930,20 @@ function locateMe() {
     pos => {
       const lng = +pos.coords.longitude.toFixed(6), lat = +pos.coords.latitude.toFixed(6);
       const acc = Math.round(pos.coords.accuracy);
+      const hint = locateHint(lng, lat);
+      const area = hint ? ('北京市' + hint.district) : null;
       BASE_POINTS.geo.lng = lng; BASE_POINTS.geo.lat = lat;
-      BASE_POINTS.geo.name = '我的位置(±' + acc + 'm)';
+      BASE_POINTS.geo.name = '我的位置' + (area ? ' · ' + area : '') + '(±' + acc + 'm)';
       setBase(BASE_POINTS.geo, true);
+      refreshBaseSummary();
       btn.textContent = '已定位';
       setTimeout(() => { btn.textContent = '重新定位'; btn.disabled = false; }, 1300);
-      $('f_sort').value = 'distance';
+      setSort('distance', 'asc', true);
       applyFilter();
-      toast(svgIcon('location') + ' 已定位 ' + lng + ', ' + lat + '（±' + acc + 'm） · 已按距离升序排序', 5200);
+      const loc = hint
+        ? (area + ' · 最近机构 ' + hint.near + '（约 ' + hint.nearKm.toFixed(1) + ' km）')
+        : (lng + ', ' + lat);
+      toast(svgIcon('location') + ' 已定位到 ' + loc + ' · 精度 ±' + acc + 'm · 已按距离升序排序', 5600);
       track('locate', null, null, acc);
     },
     err => {
@@ -738,10 +970,10 @@ function setBase(p, silent) {
   BASE_NOW = p;
   const input = $('f_base');
   if (input) input.value = p.name;
+  refreshBaseSummary();
   try { localStorage.setItem(BASE_STORE_KEY, JSON.stringify({ name: p.name, lng: p.lng, lat: p.lat })); } catch (e) { }
   if (!silent) {
-    const s = $('f_sort');
-    if (s && s.value !== 'distance') s.value = 'distance';
+    if (curSort() !== 'distance') setSort('distance', 'asc', true); else syncDirUI();
     PAGE = 1; applyFilter();
   }
 }
@@ -918,12 +1150,15 @@ function applyNLQ() {
   if (!raw) { if (echo) echo.style.display = 'none'; return; }
   const r = parseNLQ(raw);
   if (window.__AI_LLM_ON__ && r.hits.length === 0) {
+    const abtn = $('btn_ai');
+    if (abtn) abtn.classList.add('loading');
     fetch('/api/ai/parse?q=' + encodeURIComponent(raw))
       .then(x => x.ok ? x.json() : null)
       .then(j => {
         if (j && j.ok && j.conditions) { Object.assign(r, j.conditions, { engine: 'llm' }); }
         commitNLQ(r, raw);
-      }).catch(() => commitNLQ(r, raw));
+      }).catch(() => commitNLQ(r, raw))
+      .then(() => { if (abtn) abtn.classList.remove('loading'); });
     return;
   }
   if (r.hits.length || r.kw) track('nlq', raw, null, r.hits.length);
@@ -934,8 +1169,10 @@ function commitNLQ(r, raw) {
   const echo = $('ai_echo');
   const setSel = (id, v) => { const el = $(id); if (el && v) el.value = v; };
   setSel('f_district', r.district); setSel('f_level', r.level); setSel('f_cat', r.cat);
-  setSel('f_dept', r.dept); setSel('f_sort', r.sort || 'score');
+  setSel('f_dept', r.dept);
+  if (r.sort) setSort(r.sort, SORT_DIR_DEFAULT[r.sort] || SORT_DIR, true); else syncDirUI();
   if (r.kw) $('f_kw').value = r.kw;
+  syncKwClear();
 
   const chips = [];
   if (r.district) chips.push('区域：' + r.district);
@@ -958,6 +1195,7 @@ function commitNLQ(r, raw) {
 }
 function clearNLQ() {
   $('f_ai').value = '';
+  syncAiClear();
   const e = $('ai_echo'); if (e) e.style.display = 'none';
   resetFilter();
 }
@@ -972,11 +1210,36 @@ function haversine(lng1, lat1, lng2, lat2) {
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+// 定位成功后反查所在区，把经纬度翻译成「北京市XX区」
+function locateHint(lng, lat) {
+  const rows = (DATA && DATA.institutions) || [];
+  let best = null, bd = Infinity;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.lng == null || r.lat == null) continue;
+    const d = (r.lng - lng) * (r.lng - lng) + (r.lat - lat) * (r.lat - lat);
+    if (d < bd) { bd = d; best = r; }
+  }
+  if (!best) return null;
+  let sx = 0, sy = 0, n = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.lng == null || r.district !== best.district) continue;
+    sx += r.lng; sy += r.lat; n++;
+  }
+  return {
+    district: best.district,
+    near: best.name,
+    nearKm: haversine(lng, lat, best.lng, best.lat),
+    centerKm: n ? haversine(lng, lat, sx / n, sy / n) : null,
+  };
+}
+
 function applyFilter() {
   if (!DATA) return;
   const kw = ($('f_kw').value || '').trim().toLowerCase();
   const district = $('f_district').value, level = $('f_level').value, cat = $('f_cat').value;
-  const dept = $('f_dept').value, net = $('f_net').value, sort = $('f_sort').value;
+  const dept = $('f_dept').value, net = $('f_net').value;
   let base = curBase();
   // 防御：选了「我的位置」但尚未定位成功（lng 为空）时回退到天安门，
   // 否则 haversine 会算出 NaN，导致距离列与排序全部失效。
@@ -1014,14 +1277,16 @@ function applyFilter() {
     r._score = W_LEVEL * lv + W_DIST * ds + W_DEPT * dp;
   });
 
-  const cmp = {
-    score:    (a, b) => b._score - a._score,
+  const ASC = {
+    score:    (a, b) => a._score - b._score,
     distance: (a, b) => (a._dist == null ? 9e9 : a._dist) - (b._dist == null ? 9e9 : b._dist),
-    level:    (a, b) => (LEVEL_RANK[b.level] || 0) - (LEVEL_RANK[a.level] || 0),
-    depts:    (a, b) => (b.dept_count || 0) - (a.dept_count || 0),
+    level:    (a, b) => (LEVEL_RANK[a.level] || 0) - (LEVEL_RANK[b.level] || 0),
+    depts:    (a, b) => (a.dept_count || 0) - (b.dept_count || 0),
     name:     (a, b) => String(a.name).localeCompare(String(b.name), 'zh-CN'),
-  }[sort] || ((a, b) => b._score - a._score);
-  FILTERED.sort(cmp);
+  };
+  const cmpAsc = ASC[curSort()] || ASC.score;
+  const dirMul = curDir() === 'asc' ? 1 : -1;
+  FILTERED.sort((a, b) => cmpAsc(a, b) * dirMul);
 
   renderKPI();
   renderList();
@@ -1033,6 +1298,8 @@ function applyFilter() {
 
 function renderKPI() {
   setText('v_match', FILTERED.length.toLocaleString());
+  const vmt = $('v_match');
+  if (vmt) { vmt.classList.remove('pop'); void vmt.offsetWidth; vmt.classList.add('pop'); }
   setText('v_l3', FILTERED.filter(r => r.level === '三级').length.toLocaleString());
   setText('v_coord', FILTERED.filter(r => r.lng != null).length.toLocaleString());
   const avg = FILTERED.length ? (FILTERED.reduce((s, r) => s + (r.dept_count || 0), 0) / FILTERED.length).toFixed(1) : '0';
@@ -1109,7 +1376,20 @@ function renderList() {
   $('pg_next').disabled = PAGE >= totalPg;
   const box = $('list');
   if (!page.length) {
-    box.innerHTML = '<div class="empty">没有符合条件的机构，试试放宽筛选条件</div>';
+    const hasCond = ['f_kw', 'f_district', 'f_level', 'f_cat', 'f_dept', 'f_net']
+      .some(k => { const e = $(k); return e && e.value; });
+    box.innerHTML = '<div class="empty">' +
+      '<svg class="eic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"'
+      + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      + '<circle cx="11" cy="11" r="7"/><path d="M16.4 16.4L21 21"/></svg>' +
+      '<div class="et">没有符合条件的机构</div>' +
+      '<div class="es">' + (hasCond
+        ? '当前条件组合偏窄，试着减少 1–2 个条件，或放宽关键词'
+        : '数据快照可能为空，请检查加载状态') + '</div>' +
+      (hasCond ? '<button class="btn ghost sm" id="btn_empty_clear" type="button">清除全部条件</button>' : '') +
+      '</div>';
+    const bec = $('btn_empty_clear');
+    if (bec) bec.addEventListener('click', clearConditions);
     return;
   }
   const baseNow = curBase();
