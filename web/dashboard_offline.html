@@ -253,12 +253,12 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 @media (max-width:1360px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:640px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .card{
-  position:relative;overflow:hidden;padding:15px 17px;border-radius:var(--r-l);
+  position:relative;overflow:hidden;padding:13px 16px;border-radius:var(--r-l);
   background:var(--panel);border:1px solid var(--line);box-shadow:var(--sh-1);transition:.18s
 }
 .card:hover{border-color:var(--line-2)}
 .card .l{color:var(--ink-3);font-size:11px;font-weight:600;letter-spacing:.03em;display:flex;align-items:center;gap:6px}
-.card .v{font-size:27px;font-weight:700;letter-spacing:-.02em;margin:8px 0 3px;color:var(--ink);line-height:1.04;font-variant-numeric:tabular-nums}
+.card .v{font-size:27px;font-weight:700;letter-spacing:-.02em;margin:6px 0 2px;color:var(--ink);line-height:1.04;font-variant-numeric:tabular-nums}
 /* 关键数字用最亮字色（暗色下纯白只留给核心数字，正文用 --ink 降眩光） */
 .card .v{color:var(--ink-strong)}
 .card .s{color:var(--ink-4);font-size:10.5px;line-height:1.45}
@@ -329,10 +329,10 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 
 /* ============================ 筛选区 ============================ */
 .filterbox{
-  margin:var(--gap) var(--pad-x) 0;padding:18px 20px 16px;border-radius:var(--r-l);
+  margin:var(--gap) var(--pad-x) 0;padding:16px 20px 14px;border-radius:var(--r-l);
   background:var(--panel);border:1px solid var(--line);box-shadow:var(--sh-1)
 }
-.filterbox .fh{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.filterbox .fh{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
 .filterbox .fh .t{font-size:13px;font-weight:650}
 .filterbox .fh .bar{width:3px;height:15px;border-radius:2px;background:var(--acc)}
 /* 技术参数退到次要层级，细节收进 tooltip */
@@ -342,9 +342,7 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 .rangebox{display:flex;gap:6px;align-items:stretch;flex-wrap:nowrap}
 .rangebox input,.rangebox select{flex:1;min-width:0}
 .rangebox .btn{height:36px}
-.actline{margin-top:14px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
-.actline .r{margin-left:auto;color:var(--ink-3);font-size:11px}
-.actline .r b{color:var(--ink-2);font-weight:600;font-variant-numeric:tabular-nums;margin-left:2px}
+.filterbox .fh .r b{color:var(--ink-2);font-weight:600;font-variant-numeric:tabular-nums}
 
 /* ============================ 列表 / 地图 ============================ */
 .split{display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,1.08fr);gap:var(--gap);padding:var(--gap) var(--pad-x);align-items:stretch}
@@ -668,11 +666,11 @@ body.has-pick{padding-bottom:84px}
 .fglabel i{width:3px;border-radius:2px;background:var(--line-2);display:block;flex:0 0 auto;align-self:stretch;min-height:12px}
 
 .rangebox .btn{padding:6px 10px!important;flex:none}
-.fltfoot{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
-.presetbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:0}
-.presetbar .plabel{color:var(--ink-4);font-size:11px;white-space:nowrap}
-.preset{background:var(--panel-2);border:1px solid var(--line);color:var(--ink-2);font-size:11.5px;
-  padding:4px 11px;border-radius:20px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:5px}
+.presetbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px}
+#btn_reset{margin-left:auto;flex:none}
+.presetbar .plabel{color:var(--ink-4);font-size:11px;white-space:nowrap;flex:none}
+.preset{background:var(--panel-2);border:1px solid var(--line);color:var(--ink-2);font-size:11px;
+  padding:3px 9px;border-radius:20px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:5px}
 .preset:hover{background:var(--panel-3);color:var(--ink);border-color:rgba(var(--acc-rgb),.34)}
 .preset.on{background:rgba(var(--acc-rgb),.14);border-color:rgba(var(--acc-rgb),.44);color:var(--acc)}
 /* 预设生效后，被改动的控件脉冲高亮一次，让用户看清系统做了什么 */
@@ -681,7 +679,7 @@ body.has-pick{padding-bottom:84px}
 .flash{animation:ctlflash .9s ease-out 2}
 
 /* ---------- 已选条件：压矮的浅条 + 温和的清除入口 ---------- */
-.fltchips{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px;
+.fltchips{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px;
   padding:6px 10px;border-radius:var(--r-m);background:rgba(var(--acc-rgb),.045);
   border:1px solid rgba(var(--acc-rgb),.13)}
 .fltchips:empty{display:none}
@@ -772,7 +770,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 :root[data-theme="light"] .themebtn .ic-moon{display:inline-block}
 
 /* ============================ 筛选区：左侧字段矩阵 + 右侧 AI 栏 ============================ */
-.fltmain{display:grid;grid-template-columns:minmax(0,920px) minmax(0,1fr);gap:22px;align-items:start}
+.fltmain{display:grid;grid-template-columns:minmax(0,1fr) minmax(272px,320px);gap:18px;align-items:stretch}
 /* 命中数作为核心反馈：放大加粗 */
 .filterbox .fh .ftag{font-size:12.5px;font-weight:700;padding:4px 12px}
 
@@ -936,7 +934,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     <div class="fh">
       <span class="bar"></span><span class="t">多维筛选</span>
       <span class="ftag" id="flt_count">—</span>
-      <span class="r" id="flt_meta" title="7 个筛选维度 · 6 种排序方式 · 加权评分（等级 0.5 / 距离 0.3 / 科室 0.2）· Haversine 球面距离公式">7 维筛选 · 6 种排序 · 加权评分</span>
+      <span class="r" id="flt_meta" title="7 个筛选维度 · 6 种排序方式 · 加权评分（等级 0.5 / 距离 0.3 / 科室 0.2）· Haversine 球面距离公式 · 快照为数据截止日（非实时）">7 维筛选 · 6 种排序 · 快照 <b id="m_time2">—</b></span>
     </div>
 
     <div class="fltmain" id="fltmain">
@@ -994,6 +992,17 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
         </div>
       </div>
       <div class="fltchips" id="flt_chips"></div>
+      <div class="presetbar" id="presetbar">
+        <span class="plabel">常用筛选</span>
+        <button class="preset" data-preset="l3">三级医院</button>
+        <button class="preset" data-preset="l2">二级医院</button>
+        <button class="preset" data-preset="l1">基层（一级）</button>
+        <button class="preset" data-preset="near3">离我最近的三级</button>
+        <button class="preset" data-preset="net">卒中中心</button>
+        <button class="preset" data-preset="depttop">科室覆盖最全</button>
+        <button class="btn ghost sm" id="btn_reset"
+          title="恢复默认视图：清空全部筛选条件、距离基准回到天安门、排序回到综合评分">↺ 恢复默认</button>
+      </div>
       </div>
 
       <div class="nlqbar" id="nlqbar">
@@ -1020,23 +1029,6 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
       </div>
     </div>
 
-    <div class="fltfoot">
-    <div class="presetbar" id="presetbar">
-      <span class="plabel">常用筛选</span>
-      <button class="preset" data-preset="l3">三级医院</button>
-      <button class="preset" data-preset="l2">二级医院</button>
-      <button class="preset" data-preset="l1">基层（一级）</button>
-      <button class="preset" data-preset="near3">离我最近的三级</button>
-      <button class="preset" data-preset="net">卒中中心</button>
-      <button class="preset" data-preset="depttop">科室覆盖最全</button>
-    </div>
-
-    <div class="actline">
-      <button class="btn ghost sm" id="btn_reset"
-        title="恢复默认视图：清空全部筛选条件、距离基准回到天安门、排序回到综合评分">↺ 恢复默认</button>
-      <span class="r" title="数据快照生成日期（数据截止日），非实时数据">数据快照 <b id="m_time2">—</b></span>
-      </div>
-    </div>
   </div>
 
   <div class="split">
