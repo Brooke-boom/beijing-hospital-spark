@@ -67,6 +67,8 @@ def build_ads_inst_search(inst_dwd, depts_dwd):
                     .otherwise(0))
         .select("id", "fk_cnt")
     )
+    # dept_count 口径：在线核实值（dept_count_online，官网口径）优先，
+    # 无在线值沿用源条目数（dwd_dept_relation_clean 计数）——见 govern_report_deptcount_online.md
     return (
         inst_dwd
         .join(inst_with_dept_count, inst_dwd["id"] == inst_with_dept_count["hospital_id"], "left")
@@ -75,7 +77,10 @@ def build_ads_inst_search(inst_dwd, depts_dwd):
         .withColumn("key_specialty_count",
                     F.when(F.col("fk_cnt").isNotNull() & (F.col("fk_cnt") > 0), F.col("fk_cnt"))
                     .otherwise(F.col("key_specialty_count")))
-        .drop("fk_cnt")
+        .withColumn("dept_count",
+                    F.when(F.col("dept_count_online").isNotNull(), F.col("dept_count_online"))
+                    .otherwise(F.col("dept_count")))
+        .drop("fk_cnt", "dept_count_online")  # dept_count_src 保留落库（前端标注口径）
         .na.fill({"dept_count": 0, "key_specialty_count": 0})
     )
 

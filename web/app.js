@@ -2032,7 +2032,12 @@ function paintDrawerLocal(r) {
       box('机构类型', esc(r.category || '—')) +
       box('医院等级', levelBadge(r.level) + '<div class="mini" style="color:' + FAINT + ';font-size:11px;margin-top:4px">' + esc(r.level === '不适用医院分级' ? '该类型不参加等级评审' : r.level) + '</div>') +
       box('办别性质', (r.ownership || '未标注') + (r.ownership_basis ? '<div style="color:' + FAINT + ';font-size:10px;margin-top:3px">依据 ' + esc(r.ownership_basis) + '</div>' : '')) +
-      box('科室数量', num(r.dept_count) + ' 个') +
+      box('科室数量', num(r.dept_count) + ' 个' +
+        (r.dept_count_src === 'baike_claim'
+          ? '<div style="color:' + FAINT + ';font-size:10px;margin-top:3px">官网口径 · 在线核实</div>'
+          : r.dept_count_src === 'baike_table'
+            ? '<div style="color:' + FAINT + ';font-size:10px;margin-top:3px">百科科室表 · 在线核实</div>'
+            : '')) +
       box('重点专科', num(r.key_specialty_count) + ' 项') +
       box('距' + (BASE_NOW ? base.name : '市中心'), dist) +
     '</div>' +

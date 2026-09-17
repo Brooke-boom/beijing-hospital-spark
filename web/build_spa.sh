@@ -16,6 +16,7 @@ def q(sql):
 rows = q("""SELECT a.id, a.name, a.district, a.level_norm AS level, a.category_norm AS category,
     a.category_sub, a.ownership, a.feature, a.feature_level,
     a.dept_count, a.key_specialty_count, a.lng, a.lat, a.coord_precision, a.key_depts, a.grade_scope,
+    a.dept_count_src,
     a.national_specialty, a.national_specialty_count,
     a.municipal_specialty, a.municipal_specialty_count,
     a.net_pediatric, a.net_stroke, a.net_neonatal, a.net_maternal,
@@ -29,7 +30,7 @@ for r in rows:
               'feature','feature_level','coord_precision','key_depts','grade_scope',
               'addr','phone',
               'national_specialty','municipal_specialty',
-              'net_pediatric','net_stroke','net_neonatal','net_maternal'):
+              'net_pediatric','net_stroke','net_neonatal','net_maternal','dept_count_src'):
         v = r.get(k); r[k] = ('' if v is None else v.strip() if isinstance(v, str) else v)
     for k in ('dept_count','key_specialty_count','lng','lat','national_specialty_count','municipal_specialty_count'):
         r[k] = None if r.get(k) in (None, '') else r[k]

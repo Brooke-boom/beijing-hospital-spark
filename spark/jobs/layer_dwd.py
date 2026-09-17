@@ -91,6 +91,8 @@ def build_institution_dwd(inst_ods, geo_ods):
             "net_pediatric", "net_stroke", "net_neonatal", "net_maternal",
             "lng_d", "lat_d", "coord_formatted", "coord_level", "coord_source", "coord_precision",
             "econ", "profit", "category_raw", "src_count_int", "source_files",
+            # 科室数量在线核实（build_deptcount_online.py 写入主表；空值=沿用源条目数口径）
+            "dept_count_online", "dept_count_src",
         )
         .withColumnRenamed("district_clean", "district")
         .withColumnRenamed("lng_d", "lng")
@@ -100,6 +102,8 @@ def build_institution_dwd(inst_ods, geo_ods):
                     F.coalesce(F.col("national_specialty_count").cast("int"), F.lit(0)))
         .withColumn("municipal_specialty_count",
                     F.coalesce(F.col("municipal_specialty_count").cast("int"), F.lit(0)))
+        .withColumn("dept_count_online",
+                    F.coalesce(F.col("dept_count_online").cast("int")))
     )
 
 
