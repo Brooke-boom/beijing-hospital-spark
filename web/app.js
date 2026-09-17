@@ -81,7 +81,7 @@ const SID = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 
 let MAP_CHART, CH1, CH2, CH3;
 let ROW_EL_BY_ID = {}, SCATTER_IDX = {}, HOVER_ID = null;   // 地图 ↔ 列表 悬停互指
 let CH_OWN, CH_FEAT, CH_NET, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD;
-let A_KW, A_DIST, A_TRIAGE, A_DAILY, A_DENSITY, A_LEVEL, A_SPEC, A_NET, A_OWN, A_CAT;
+let A_KW, A_DIST, A_TRIAGE, A_DAILY, A_DENSITY, A_LEVEL, A_SPEC, A_NET, A_OWN, A_CAT, A_FEAT;
 
 // ============================================================================
 //  0. 基础工具
@@ -805,9 +805,24 @@ function init() {
     initOverSummary();
     initAIState();
     initBase();
+    // URL 状态还原（deep link）：hash 携带的筛选 / 排序 / 基准优先于 localStorage
+    const st = readState();
+    _STATE_RESTORED = !!(st.kw || st.district || st.level || st.cat || st.dept || st.net || st.base || st.sort);
+    if (st.kw) $('f_kw').value = st.kw;
+    if (st.district) $('f_district').value = st.district;
+    if (st.level) $('f_level').value = st.level;
+    if (st.cat) $('f_cat').value = st.cat;
+    if (st.dept) $('f_dept').value = st.dept;
+    if (st.net) $('f_net').value = st.net;
+    if (st.sort) setSort(st.sort, st.dir || 'asc', true);
+    if (st.base) {
+      const m = /^([^|]+)\|(-?[\d.]+),(-?[\d.]+)$/.exec(st.base);
+      if (m) { BASE_POINTS.custom = { name: m[1], lng: +m[2], lat: +m[3] }; setBase(BASE_POINTS.custom, true); }
+    }
     refreshBaseSummary();
-    autoLocate();          // 进页默认自动定位（静默降级到市中心估算）
+    autoLocate();          // 进页默认自动定位（静默降级到市中心估算；deep link 携带状态时跳过）
     applyFilter();
+    if (st.v && st.v !== 'overview' && document.querySelector('.navtab[data-view="' + st.v + '"]')) switchView(st.v);
     loadAbout();
   } catch (e) {
     console.error('[init] 失败:', e);
@@ -977,7 +992,7 @@ function locateMe() {
 
 // 进页默认自动定位（仅 http://localhost 全栈环境；file:// 离线版与已拒绝授权时静默跳过）
 function autoLocate() {
-  if (AUTO_LOCATED || !ENV.http || !navigator.geolocation) return;
+  if (AUTO_LOCATED || _STATE_RESTORED || !ENV.http || !navigator.geolocation) return;
   try { if (localStorage.getItem(BASE_STORE_KEY)) return; } catch (e) { }  // 用户上次自选过起点则尊重
   AUTO_LOCATED = true;
   _geoRequest(
@@ -1364,6 +1379,7 @@ function applyFilter() {
   updateAnalyticsCharts();
   renderFilterChips();
   syncPresetUI();
+  writeState();   // 筛选状态写入 URL hash（deep link 可还原）
 }
 
 function renderKPI() {
@@ -1851,9 +1867,99 @@ function initNav() {
     const v = btn.getAttribute('data-view');
     Array.prototype.forEach.call(tabs, b => b.classList.toggle('active', b === btn));
     Array.prototype.forEach.call(document.querySelectorAll('.view'), s => s.classList.toggle('active', s.id === 'view-' + v));
+    CUR_VIEW = v;
     if (v === 'admin') renderAdmin();
+    if (v === 'network') renderNetwork();
+    writeState();
     setTimeout(resizeAll, 60);
   }));
+}
+
+// ============================================================================
+//  10.5 协作网络页：四大网络 KPI + 成员机构 chips（点击联动总览筛选）
+//       汇总数字来自 ads_network_summary（快照），成员列表由本地机构数据计算
+// ============================================================================
+let _netRendered = false;
+const NET_DEFS = {
+  pediatric: { pred: r => r.net_pediatric === '核心' || r.net_pediatric === '成员',
+               isCore: r => r.net_pediatric === '核心',
+               fnet: r => (r.net_pediatric === '核心' ? 'ped_core' : 'ped_member') },
+  stroke:    { pred: r => r.net_stroke === '1',     isCore: () => false, fnet: () => 'stroke' },
+  neonatal:  { pred: r => r.net_neonatal === '市级', isCore: () => false, fnet: () => 'neonatal' },
+  maternal:  { pred: r => r.net_maternal === '市级', isCore: () => false, fnet: () => 'maternal' },
+};
+function renderNetwork() {
+  if (_netRendered) return;
+  _netRendered = true;
+  const summaries = {};
+  ((DATA.overviews || {}).networks || []).forEach(n => { summaries[n.network_key] = n; });
+  Object.keys(NET_DEFS).forEach(key => {
+    const def = NET_DEFS[key];
+    const members = DATA.institutions.filter(def.pred)
+      .sort((a, b) => (def.isCore(b) - def.isCore(a)) || (LEVEL_RANK[b.level] || 0) - (LEVEL_RANK[a.level] || 0));
+    const s = summaries[key] || {};
+    setText('net_k_' + key, num(s.member_count != null ? s.member_count : members.length));
+    const core = key === 'pediatric' ? members.filter(def.isCore).length : (s.core_count || 0);
+    const districts = s.district_count != null ? s.district_count : new Set(members.map(r => r.district)).size;
+    const l3 = s.level_3_count != null ? s.level_3_count : members.filter(r => r.level === '三级').length;
+    const m = $('netm_' + key);
+    if (m) m.innerHTML =
+      '<span class="nm">成员 <b>' + num(members.length) + '</b></span>' +
+      (key === 'pediatric' ? '<span class="nm">核心 <b>' + num(core) + '</b></span>' : '') +
+      '<span class="nm">覆盖区县 <b>' + num(districts) + '</b></span>' +
+      '<span class="nm">三级医院 <b>' + num(l3) + '</b></span>';
+    const c = $('netc_' + key);
+    if (c) c.innerHTML = members.map(r =>
+      '<button class="chip acc pick" type="button" data-net="' + def.fnet(r) + '" data-name="' +
+      esc(r.name) + '" title="回总览按该网络筛选">' + esc(r.name) + '</button>').join('');
+  });
+  // 事件委托：成员 chips → 总览页按网络筛选
+  Array.prototype.forEach.call(document.querySelectorAll('#view-network .deptchips'), box => {
+    box.addEventListener('click', e => {
+      const b = e.target && e.target.closest ? e.target.closest('[data-net]') : null;
+      if (!b) return;
+      const sel = $('f_net');
+      if (sel) sel.value = b.getAttribute('data-net');
+      switchView('overview');
+      PAGE = 1; applyFilter();
+      toast(svgIcon('ok') + ' 已筛选「' + esc(b.getAttribute('data-name')) + '」所在网络');
+      track('network_jump', b.getAttribute('data-net'));
+    });
+  });
+}
+
+// ============================================================================
+//  10.6 URL 状态还原（deep link）：视图 / 筛选 / 排序 / 距离基准 写入 location.hash，
+//       刷新、分享、收藏链接均可还原现场。仅 replaceState，不产生历史记录。
+// ============================================================================
+let CUR_VIEW = 'overview';
+let _STATE_RESTORED = false;
+
+function writeState() {
+  try {
+    if (!DATA) return;
+    const p = new URLSearchParams();
+    p.set('v', CUR_VIEW || 'overview');
+    const g = id => { const el = $(id); return el ? (el.value || '').trim() : ''; };
+    ['kw', 'district', 'level', 'cat', 'dept', 'net'].forEach(k => { const v = g('f_' + k); if (v) p.set(k, v); });
+    if (curSort() !== 'score') p.set('sort', curSort());
+    if (curDir() !== 'asc') p.set('dir', curDir());
+    const b = BASE_NOW;
+    if (b && b.name && b.lng != null) p.set('base', b.name + '|' + b.lng + ',' + b.lat);
+    const h = '#' + p.toString();
+    if (location.hash !== h) history.replaceState(null, '', h);
+  } catch (e) { /* 状态写入失败不影响主流程 */ }
+}
+
+function readState() {
+  const st = {};
+  try {
+    if (!location.hash || location.hash.length < 2) return st;
+    const p = new URLSearchParams(location.hash.slice(1));
+    ['v', 'kw', 'district', 'level', 'cat', 'dept', 'net', 'sort', 'dir', 'base']
+      .forEach(k => { const v = p.get(k); if (v) st[k] = v; });
+  } catch (e) { }
+  return st;
 }
 function switchView(v) {
   const btn = document.querySelector('.navtab[data-view="' + v + '"]');
@@ -2670,12 +2776,13 @@ function initAdminCharts() {
   const mk = id => { const el = $(id); return el ? echarts.init(el) : null; };
   A_KW = mk('a_kw'); A_DIST = mk('a_dist'); A_TRIAGE = mk('a_triage'); A_DAILY = mk('a_daily');
   A_DENSITY = mk('a_density'); A_LEVEL = mk('a_level'); A_SPEC = mk('a_spec'); A_NET = mk('a_net');
-  A_OWN = mk('a_own'); A_CAT = mk('a_cat');
+  A_OWN = mk('a_own'); A_CAT = mk('a_cat'); A_FEAT = mk('a_feature');
 }
 
 let _adminBusy = false;
 function renderAdmin() {
   renderAdminResources();       // 资源热度：完全由本地真实数据算，离线也有内容
+  renderAdminEtl();             // 数据治理：ETL 批次时效 + 功能使用结构（快照驱动，离线可看）
   if (!ENV.api) {
     setText('ad_ev', '—'); setText('ad_ev30', '—'); setText('ad_kw_n', '—'); setText('ad_tbl', '—');
     setText('ad_note', '离线模式：用户行为分析需要本地 Flask 服务（行为日志存于 MySQL fact_user_event 表）');
@@ -2728,6 +2835,30 @@ function renderAdmin() {
     }).catch(() => { });
   }).catch(() => renderAdminEmpty('行为统计获取失败'))
     .then(() => { _adminBusy = false; });
+}
+
+// 数据治理区块：ETL 批次时效（表格）+ 功能使用结构（横向条形图）。
+// 均来自 Spark ADS 层结果（ads_etl_snapshot / ads_time_feature），随快照分发，离线可看。
+function renderAdminEtl() {
+  const ov = (DATA && DATA.overviews) || {};
+  const el = $('etl_tbl');
+  if (el) {
+    const rows = ov.etl_snapshots || [];
+    el.innerHTML = rows.length
+      ? '<table class="etltbl"><thead><tr><th>批次日期</th><th>机构数</th><th>三级</th><th>二级</th>' +
+        '<th>一级</th><th>未定级</th><th>覆盖区</th><th>坐标可用</th></tr></thead><tbody>' +
+        rows.map(r => '<tr><td>' + esc(r.batch_date) + '</td><td>' + num(r.inst_count) + '</td><td>' +
+          num(r.level_3) + '</td><td>' + num(r.level_2) + '</td><td>' + num(r.level_1) + '</td><td>' +
+          num(r.level_none) + '</td><td>' + num(r.district_count) + '</td><td>' + num(r.coord_ok) +
+          '</td></tr>').join('') + '</tbody></table>'
+      : '<div class="empty">暂无批次数据</div>';
+  }
+  const feats = ov.time_feature || [];
+  if (A_FEAT) {
+    A_FEAT.setOption(feats.length
+      ? barHOpt(feats.map(f => [trunc(f.feature, 12), f.event_count]), ACC2)
+      : emptyOpt('暂无行为数据'), !feats.length);
+  }
 }
 
 function emptyOpt(msg) {

@@ -42,6 +42,17 @@ overviews = {
                     " WHERE level_norm <> '不适用医院分级' ORDER BY inst_count DESC"),
     'categories': q("SELECT category_norm AS category, inst_count, level_3_count FROM dws_inst_by_category ORDER BY inst_count DESC"),
     'depts':      q("SELECT dept_name, hospital_count, key_specialty_count FROM dws_dept_coverage ORDER BY hospital_count DESC LIMIT 20"),
+    # 协作网络汇总（ads_network_summary）→ 协作网络独立页
+    'networks':   q("SELECT network_key, network_name, member_count, core_count,"
+                    " district_count, level_3_count FROM ads_network_summary ORDER BY member_count DESC"),
+    # 功能使用结构（ads_time_feature）→ 运营后台「功能使用结构」图
+    'time_feature': q("SELECT feature, event_count, session_count FROM ads_time_feature"
+                      " ORDER BY event_count DESC LIMIT 12"),
+    # ETL 批次时效（ads_etl_snapshot）→ 运营后台「数据批次时效」区块
+    'etl_snapshots': q("SELECT CAST(batch_date AS CHAR) AS batch_date, batch_ts, inst_count, level_3, level_2, level_1,"
+                       " level_none, district_count, coord_ok FROM ads_etl_snapshot"
+                       " ORDER BY batch_ts DESC LIMIT 6"),
+    # 注：ads_time_trend 目前仅 5 行测试数据，待行为日志积累后接入「行为日趋势」
 }
 meta = {
     'districts': overviews['districts'], 'levels': overviews['levels'],

@@ -493,6 +493,20 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 .aiadv.show{display:block;animation:vf .25s}
 .aiadv .who{color:var(--vio);font-weight:600;font-size:11px;display:flex;align-items:center;gap:6px;margin-bottom:6px}
 .deptchips{display:flex;flex-wrap:wrap;gap:6px}
+/* 协作网络页 / 运营后台数据治理区块 */
+.kpis.k4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:1360px){.kpis.k4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.netmeta{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 10px}
+.netmeta .nm{font-size:11.5px;color:var(--ink-2);background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:4px 9px;white-space:nowrap}
+.netmeta .nm b{color:var(--acc);font-weight:650}
+.etltbl{width:100%;border-collapse:collapse;font-size:12px}
+.etltbl th{font-weight:600;color:var(--ink-2);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line-2);white-space:nowrap}
+.etltbl td{text-align:right;padding:7px 8px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;color:var(--ink)}
+.etltbl th:first-child,.etltbl td:first-child{text-align:left}
+.etltbl tr:last-child td{border-bottom:none}
+/* 协作网络页：apanel 默认 height:314px 是为图表设计的，成员列表面板取消固定高、chips 内部滚动 */
+#view-network .apanel{height:auto;min-height:200px}
+#view-network .deptchips{max-height:330px;overflow:auto;padding-right:2px}
 .taglist{display:flex;flex-direction:column;gap:7px}
 .tagrow{display:flex;gap:9px;align-items:flex-start;padding:10px 12px;border-radius:var(--r-m);
   background:var(--panel);border:1px solid var(--line)}
@@ -842,6 +856,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   <nav class="navbar" id="navbar">
   <button class="navtab active" data-view="overview"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h7v7H4zM11 4h9v4h-9zM11 10h9v10h-9zM4 13h7v7H4z"/></svg></span><span class="lbl">综合看板</span></button>
   <button class="navtab" data-view="analytics"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-12"/></svg></span><span class="lbl">多维分析</span></button>
+  <button class="navtab" data-view="network"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="2.2"/><circle cx="18.5" cy="5.5" r="2.2"/><circle cx="18.5" cy="18.5" r="2.2"/><path d="M7 11l9.3-4.6M7 13l9.3 4.6"/></svg></span><span class="lbl">协作网络</span></button>
   <button class="navtab" data-view="triage"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg></span><span class="lbl">智能导诊</span></button>
   <button class="navtab" data-view="admin"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v12H3zM3 16l3 4h12l3-4M9 20h6"/></svg></span><span class="lbl">运营后台</span></button>
   </nav>
@@ -1027,6 +1042,32 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 </section>
 
 <!-- ============================ 智能导诊 ============================ -->
+<!-- ============================ 协作网络 ============================ -->
+<section id="view-network" class="view">
+  <div class="kpis k4" id="cards_net">
+    <div class="card"><div class="l">儿科医联体</div><div class="v" id="net_k_pediatric">—</div><div class="s">成员机构数 · 核心医院牵头</div></div>
+    <div class="card k2"><div class="l">卒中中心</div><div class="v" id="net_k_stroke">—</div><div class="s">脑卒中防治成员机构</div></div>
+    <div class="card k3"><div class="l">危重新生儿</div><div class="v" id="net_k_neonatal">—</div><div class="s">市级救治中心</div></div>
+    <div class="card k4"><div class="l">危重孕产妇</div><div class="v" id="net_k_maternal">—</div><div class="s">市级救治中心</div></div>
+  </div>
+  <div class="sec-title"><span class="bar"></span>四大协作网络 · 成员机构
+    <span class="hint">点击成员机构名 → 回总览按该网络筛选 · 汇总来自 <code style="color:var(--acc)">ads_network_summary</code></span></div>
+  <div class="agrid">
+    <div class="apanel"><h3>儿科医联体 <span class="tag">PEDIATRIC</span></h3>
+      <div class="netmeta" id="netm_pediatric"></div>
+      <div class="deptchips" id="netc_pediatric"></div></div>
+    <div class="apanel"><h3>卒中中心 <span class="tag">STROKE</span></h3>
+      <div class="netmeta" id="netm_stroke"></div>
+      <div class="deptchips" id="netc_stroke"></div></div>
+    <div class="apanel"><h3>危重新生儿救治网络 <span class="tag">NEONATAL</span></h3>
+      <div class="netmeta" id="netm_neonatal"></div>
+      <div class="deptchips" id="netc_neonatal"></div></div>
+    <div class="apanel"><h3>危重孕产妇救治网络 <span class="tag">MATERNAL</span></h3>
+      <div class="netmeta" id="netm_maternal"></div>
+      <div class="deptchips" id="netc_maternal"></div></div>
+  </div>
+</section>
+
 <section id="view-triage" class="view">
   <div class="triage-shell">
     <div class="chat">
@@ -1109,6 +1150,12 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     <div class="apanel"><h3>协作网络覆盖 <span class="tag">NETWORK</span></h3><div class="achart" id="a_net"></div></div>
     <div class="apanel"><h3>办别构成 <span class="tag">OWNERSHIP</span></h3><div class="achart" id="a_own"></div></div>
     <div class="apanel"><h3>机构类型构成 <span class="tag">CATEGORY</span></h3><div class="achart" id="a_cat"></div></div>
+  </div>
+  <div class="sec-title"><span class="bar"></span>数据治理与批次时效
+    <span class="hint">Spark ETL 构建批次沉淀 · 快照驱动，离线可看</span></div>
+  <div class="agrid">
+    <div class="apanel"><h3>ETL 批次快照 <span class="tag">ETL BATCHES</span></h3><div id="etl_tbl"></div></div>
+    <div class="apanel"><h3>功能使用结构 <span class="tag">FEATURE USAGE</span></h3><div class="achart" id="a_feature"></div></div>
   </div>
 </section>
 
