@@ -33,6 +33,20 @@ def build_institution_dwd(inst_ods, geo_ods):
         .filter(F.col("id").rlike("^\\d+$") & (F.length(F.col("id")) <= 6))
         .filter(F.col("name").isNotNull() & (F.length(F.col("name")) > 0))
         .dropDuplicates(["id"])
+        # 办别/等级在线核实（build_ownership_online.py 写入主表）：在线值优先、空值沿用源口径。
+        # 必须在 level_norm 派生前完成，保证等级修正能正确落入 level_norm 分桶
+        .withColumn("level",
+                    F.when(F.col("level_online").isNotNull() & (F.col("level_online") != ""),
+                           F.col("level_online"))
+                    .otherwise(F.col("level")))
+        .withColumn("level_sub",
+                    F.when((F.col("level_sub").isNull()) | (F.col("level_sub") == ""),
+                           F.coalesce(F.col("level_sub_online"), F.col("level_sub")))
+                    .otherwise(F.col("level_sub")))
+        .withColumn("ownership",
+                    F.when(F.col("ownership_online").isNotNull() & (F.col("ownership_online") != ""),
+                           F.col("ownership_online"))
+                    .otherwise(F.col("ownership")))
         .withColumn(
             "district_clean",
             F.when(F.col("district").startswith("北京"), F.substring(F.col("district"), 3, 20))
@@ -93,6 +107,8 @@ def build_institution_dwd(inst_ods, geo_ods):
             "econ", "profit", "category_raw", "src_count_int", "source_files",
             # 科室数量在线核实（build_deptcount_online.py 写入主表；空值=沿用源条目数口径）
             "dept_count_online", "dept_count_src",
+            # 办别/等级在线核实（build_ownership_online.py 写入主表；上方已 COALESCE 进主列，在线列留档）
+            "ownership_online", "ownership_src", "level_online", "level_sub_online", "level_src",
         )
         .withColumnRenamed("district_clean", "district")
         .withColumnRenamed("lng_d", "lng")

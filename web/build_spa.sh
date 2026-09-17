@@ -17,6 +17,7 @@ rows = q("""SELECT a.id, a.name, a.district, a.level_norm AS level, a.category_n
     a.category_sub, a.ownership, a.feature, a.feature_level,
     a.dept_count, a.key_specialty_count, a.lng, a.lat, a.coord_precision, a.key_depts, a.grade_scope,
     a.dept_count_src,
+    a.ownership_src, a.level_src,
     a.national_specialty, a.national_specialty_count,
     a.municipal_specialty, a.municipal_specialty_count,
     a.net_pediatric, a.net_stroke, a.net_neonatal, a.net_maternal,

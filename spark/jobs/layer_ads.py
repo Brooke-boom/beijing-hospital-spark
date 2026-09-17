@@ -80,7 +80,9 @@ def build_ads_inst_search(inst_dwd, depts_dwd):
         .withColumn("dept_count",
                     F.when(F.col("dept_count_online").isNotNull(), F.col("dept_count_online"))
                     .otherwise(F.col("dept_count")))
-        .drop("fk_cnt", "dept_count_online")  # dept_count_src 保留落库（前端标注口径）
+        .drop("fk_cnt", "dept_count_online",
+              "ownership_online", "level_online", "level_sub_online")
+        # 保留 *_src / dept_count_src / ownership_src / level_src 落库（前端标注在线核实口径）
         .na.fill({"dept_count": 0, "key_specialty_count": 0})
     )
 
