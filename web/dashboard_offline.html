@@ -331,7 +331,7 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 /* 技术参数退到次要层级，细节收进 tooltip */
 .railcard .fh .r{margin-left:auto;color:var(--ink-4);font-size:10.5px;opacity:.6;cursor:help}
 .railcard .fh .r:hover{opacity:1;color:var(--ink-3)}
-.filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px 10px;align-items:end}
+.filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px 10px;align-items:end}
 .rangebox{display:flex;gap:6px;align-items:stretch;flex-wrap:nowrap}
 .rangebox input,.rangebox select{flex:1;min-width:0}
 .rangebox .btn{height:36px}
@@ -345,8 +345,8 @@ select{cursor:pointer;appearance:none;padding-right:28px;
   background:var(--panel-2);border:1px solid var(--line);padding:3px 8px;border-radius:999px;white-space:nowrap}
 .railcard .fh{margin:13px 0 10px}
 .railcard .nlqbar{margin-bottom:0}
-.railcard .field.wide{grid-column:1/-1}
-.split{display:grid;grid-template-columns:minmax(396px,448px) minmax(0,1fr);gap:var(--gap);padding:var(--gap) var(--pad-x);align-items:start}
+.railcard .field.wide{grid-column:span 2}
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,420px);gap:var(--gap);padding:var(--gap) var(--pad-x);align-items:start}
 .listhead{display:flex;justify-content:space-between;align-items:center;padding:0 0 9px;color:var(--ink-3);font-size:11px;border-bottom:1px solid var(--line);margin-bottom:7px;gap:10px;flex-wrap:wrap}
 .pager{display:flex;gap:6px;align-items:center}
 .pager button{background:var(--panel-2);color:var(--ink-2);border:1px solid var(--line);padding:4px 9px;border-radius:7px;cursor:pointer;font-size:11px;transition:.15s}
@@ -749,10 +749,10 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 @keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}
 .aibox.ovsum{margin:0 0 10px}
 @media (max-width:1260px){
-  .split{grid-template-columns:minmax(352px,420px) minmax(0,1fr)}
+  .split{grid-template-columns:minmax(0,1fr) minmax(330px,380px)}
 }
 @media (max-width:900px){
-  .split{grid-template-columns:minmax(320px,380px) minmax(0,1fr)}
+  .split{grid-template-columns:minmax(0,1fr) minmax(300px,340px)}
 }
 @media (max-width:560px){
   .filters{grid-template-columns:minmax(0,1fr)}
@@ -859,8 +859,9 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 @media (max-width:900px){.filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:700px){
   .split{grid-template-columns:minmax(0,1fr)}
-  .mapwrap{position:static;height:auto;min-height:520px}
+  .mapwrap{position:static;height:auto;min-height:480px}
   .list{max-height:520px}
+  .filters{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width:560px){
   .filters{grid-template-columns:minmax(0,1fr)}
@@ -992,7 +993,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
             <button class="btn sm" id="btn_locate" type="button" onclick="locateMe()" title="定位我的位置（需浏览器授权，http://localhost 下可用）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.5 7-12a7 7 0 10-14 0c0 5.5 7 12 7 12zM12 9a3 3 0 100 6 3 3 0 000-6z"/></svg> 定位</button>
           </div>
         </div>
-        <div class="field wide"><label for="f_sort">排序方式</label>
+        <div class="field"><label for="f_sort">排序方式</label>
           <div class="rangebox">
             <select id="f_sort" title="排序维度">
               <option value="score">综合评分</option>
