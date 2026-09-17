@@ -325,24 +325,28 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 :root[data-theme="light"] select:not(:focus):hover{border-color:#a9b1c2}
 
 /* ============================ 筛选区 ============================ */
-.filterbox{
-  margin:var(--gap) var(--pad-x) 0;padding:16px 20px 14px;border-radius:var(--r-l);
-  background:var(--panel);border:1px solid var(--line);box-shadow:var(--sh-1)
-}
-.filterbox .fh{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
-.filterbox .fh .t{font-size:13px;font-weight:650}
-.filterbox .fh .bar{width:3px;height:15px;border-radius:2px;background:var(--acc)}
+.railcard .fh{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.railcard .fh .t{font-size:13px;font-weight:650}
+.railcard .fh .bar{width:3px;height:15px;border-radius:2px;background:var(--acc)}
 /* 技术参数退到次要层级，细节收进 tooltip */
-.filterbox .fh .r{margin-left:auto;color:var(--ink-4);font-size:10.5px;opacity:.6;cursor:help}
-.filterbox .fh .r:hover{opacity:1;color:var(--ink-3)}
-.filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:end}
+.railcard .fh .r{margin-left:auto;color:var(--ink-4);font-size:10.5px;opacity:.6;cursor:help}
+.railcard .fh .r:hover{opacity:1;color:var(--ink-3)}
+.filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px 10px;align-items:end}
 .rangebox{display:flex;gap:6px;align-items:stretch;flex-wrap:nowrap}
 .rangebox input,.rangebox select{flex:1;min-width:0}
 .rangebox .btn{height:36px}
-.filterbox .fh .r b{color:var(--ink-2);font-weight:600;font-variant-numeric:tabular-nums}
+.railcard .fh .r b{color:var(--ink-2);font-weight:600;font-variant-numeric:tabular-nums}
 
 /* ============================ 列表 / 地图 ============================ */
-.split{display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,1.08fr);gap:var(--gap);padding:var(--gap) var(--pad-x);align-items:stretch}
+.raildiv{height:1px;background:var(--line);margin:13px 0 11px}
+.railhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.railhead h3{font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0}
+.railhead h3 .tag{color:var(--ink-4);font-size:9.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  background:var(--panel-2);border:1px solid var(--line);padding:3px 8px;border-radius:999px;white-space:nowrap}
+.railcard .fh{margin:13px 0 10px}
+.railcard .nlqbar{margin-bottom:0}
+.railcard .field.wide{grid-column:1/-1}
+.split{display:grid;grid-template-columns:minmax(396px,448px) minmax(0,1fr);gap:var(--gap);padding:var(--gap) var(--pad-x);align-items:start}
 .listhead{display:flex;justify-content:space-between;align-items:center;padding:0 0 9px;color:var(--ink-3);font-size:11px;border-bottom:1px solid var(--line);margin-bottom:7px;gap:10px;flex-wrap:wrap}
 .pager{display:flex;gap:6px;align-items:center}
 .pager button{background:var(--panel-2);color:var(--ink-2);border:1px solid var(--line);padding:4px 9px;border-radius:7px;cursor:pointer;font-size:11px;transition:.15s}
@@ -350,7 +354,7 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 .pager button:disabled{opacity:.32;cursor:not-allowed}
 .pager .pg{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 .pager select{width:auto;padding:4px 22px 4px 9px;font-size:11px;border-radius:7px;background-color:var(--panel-2);border-color:var(--line)}
-.list{flex:1;overflow-y:auto;max-height:560px;padding-right:3px}
+.list{flex:1;overflow-y:auto;max-height:640px;padding-right:3px}
 .row{
   position:relative;padding:12px 14px;border-radius:var(--r-m);margin-bottom:7px;cursor:pointer;
   display:flex;gap:12px;align-items:center;
@@ -397,7 +401,7 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 .b-pri{background:rgba(var(--warn-rgb),.12);color:var(--warn);border-color:rgba(var(--warn-rgb),.28)}
 .empty{padding:44px 20px;text-align:center;color:var(--ink-3);font-size:12.5px}
 
-.mapwrap{display:flex;flex-direction:column}
+.mapwrap{display:flex;flex-direction:column;position:sticky;top:74px;height:calc(100vh - 92px);min-height:560px}
 .mapstage{position:relative;flex:1;min-height:480px;display:flex}
 #map{flex:1;border-radius:var(--r-m);overflow:hidden;background:var(--bg-soft);border:1px solid var(--line);position:relative}
 .maplg{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:10px;font-size:10px;color:var(--ink-3)}
@@ -413,7 +417,7 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 .apanel{background:var(--panel);border:1px solid var(--line);
   border-radius:var(--r-l);padding:13px 15px;display:flex;flex-direction:column;height:314px;min-width:0;box-shadow:var(--sh-1)}
 /* 暗色卡片轮廓增强：统一叠加顶部微高光（亮色主题该令牌为 no-op） */
-.card,.panel,.apanel,.filterbox{box-shadow:var(--sh-1),var(--lift)}
+.card,.panel,.apanel{box-shadow:var(--sh-1),var(--lift)}
 .apanel > h3{font-size:12.5px;display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;gap:10px}
 .apanel > h3 .tag{color:var(--ink-4);font-size:9.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
 .achart{flex:1;width:100%;min-height:0}
@@ -654,7 +658,7 @@ body.has-pick{padding-bottom:84px}
 #toast 
 
 /* ============================ 多维筛选区增强 ============================ */
-.filterbox .fh .ftag{margin-left:2px;background:rgba(var(--acc-rgb),.13);color:var(--acc);
+.railcard .fh .ftag{margin-left:2px;background:rgba(var(--acc-rgb),.13);color:var(--acc);
   border:1px solid rgba(var(--acc-rgb),.3);font-size:11px;font-weight:650;padding:3px 10px;border-radius:20px;
   font-variant-numeric:tabular-nums;white-space:nowrap}
 .fglabel{grid-column:1;display:flex;align-items:flex-start;gap:8px;color:var(--ink-2);font-size:11px;
@@ -745,11 +749,10 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 @keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}
 .aibox.ovsum{margin:0 0 10px}
 @media (max-width:1260px){
-  .fltmain{grid-template-columns:minmax(0,1fr)}
-  .fltmain .nlqbar{order:-1}
+  .split{grid-template-columns:minmax(352px,420px) minmax(0,1fr)}
 }
 @media (max-width:900px){
-  .filters{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .split{grid-template-columns:minmax(320px,380px) minmax(0,1fr)}
 }
 @media (max-width:560px){
   .filters{grid-template-columns:minmax(0,1fr)}
@@ -767,9 +770,8 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 :root[data-theme="light"] .themebtn .ic-moon{display:inline-block}
 
 /* ============================ 筛选区：左侧字段矩阵 + 右侧 AI 栏 ============================ */
-.fltmain{display:grid;grid-template-columns:minmax(0,1fr) minmax(272px,320px);gap:18px;align-items:stretch}
 /* 命中数作为核心反馈：放大加粗 */
-.filterbox .fh .ftag{font-size:12.5px;font-weight:700;padding:4px 12px}
+.railcard .fh .ftag{font-size:12.5px;font-weight:700;padding:4px 12px}
 
 /* ---------- 关键词：内嵌搜索图标 + 清空 + 输入联想 ---------- */
 .kwbox{position:relative;display:flex;align-items:center}
@@ -854,19 +856,15 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   padding:3px 9px;border-radius:20px;cursor:pointer;transition:.15s;font-family:inherit}
 .quickbar .qb:hover{color:var(--acc);border-color:rgba(var(--acc-rgb),.42);border-style:solid}
 
-@media (max-width:1260px){
-  .fltmain{grid-template-columns:minmax(0,1fr)}
-  .fltmain .nlqbar{order:-1;margin-bottom:6px}
-}
 @media (max-width:900px){.filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:700px){
+  .split{grid-template-columns:minmax(0,1fr)}
+  .mapwrap{position:static;height:auto;min-height:520px}
+  .list{max-height:520px}
+}
 @media (max-width:560px){
   .filters{grid-template-columns:minmax(0,1fr)}
-  .fltmain{gap:16px}
 }
-
-/* 折叠 AI 面板后：整块升到顶部横条，字段矩阵独占整行 */
-.fltmain.nlq-folded{grid-template-columns:minmax(0,1fr)}
-.fltmain.nlq-folded .nlqbar{order:-1;margin-bottom:6px}
 
 /* 筛选结果变化时，命中数做一次轻微反馈 */
 @keyframes vpop{0%{opacity:.3;transform:translateY(-4px)}100%{opacity:1;transform:none}}
@@ -926,15 +924,36 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     <div class="card k6"><div class="l">协作网络覆盖</div><div class="v" id="v_net">0</div><div class="s">纳入任一市级协作网络</div></div>
   </div>
 
-  <div class="filterbox">
-    <div class="fh">
+    <div class="split">
+    <div class="panel railcard">
+<div class="nlqbar" id="nlqbar">
+        <div class="nlq-head">
+          <span class="nlq-badge"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4zM18 15.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg>AI 智能筛选</span>
+          <span class="nlq-sub">说人话就行</span>
+          <button class="nlq-fold" id="btn_nlq_fold" type="button" aria-expanded="true" title="折叠 / 展开 AI 面板" aria-label="折叠或展开 AI 面板">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+          </button>
+        </div>
+        <div class="nlq-body" id="nlq_body">
+          <div class="nlq-field">
+            <button class="nlq-ic" id="btn_voice_ai" type="button"
+              title="语音输入：点一下说出需求（需在 http://localhost:5001 下使用）" aria-label="语音输入"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11a7 7 0 0014 0M12 18v3M8.5 21h7"/></svg></button>
+            <input id="f_ai" type="text" autocomplete="off" spellcheck="false"
+                   placeholder="朝阳区看心脏病的三级医院"
+                   title="支持口语化描述：区域 / 科室 / 等级 / 类型 / 距离 / 排序，可一次说全">
+            <button class="nlq-x" id="btn_ai_clear" type="button" title="清空输入" aria-label="清空输入">×</button>
+            <button class="nlq-send" id="btn_ai" type="button" title="解析（也可直接按回车）" aria-label="解析"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+          </div>
+          <div class="quickbar" id="ai_quick"></div>
+          <div id="ai_echo" class="ai-echo" style="margin-top:9px;font-size:11.5px;color:var(--ink-3);line-height:1.8;display:none"></div>
+        </div>
+      </div>
+
+      <div class="fh railfh">
       <span class="bar"></span><span class="t">多维筛选</span>
       <span class="ftag" id="flt_count">—</span>
-      <span class="r" id="flt_meta" title="7 个筛选维度 · 6 种排序方式 · 加权评分（等级 0.5 / 距离 0.3 / 科室 0.2）· Haversine 球面距离公式 · 快照为数据截止日（非实时）">7 维筛选 · 6 种排序 · 快照 <b id="m_time2">—</b></span>
-    </div>
+      <span class="r" id="flt_meta" title="7 个筛选维度 · 6 种排序方式 · 加权评分（等级 0.5 / 距离 0.3 / 科室 0.2）· Haversine 球面距离公式 · 快照为数据截止日（非实时）">快照 <b id="m_time2">—</b></span></div>
 
-    <div class="fltmain" id="fltmain">
-      <div class="fltcol">
       <div class="filters">
         <div class="field"><label for="f_kw">关键词</label>
           <div class="kwbox">
@@ -957,7 +976,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
           <option value="neonatal">危重新生儿救治 · 市级</option>
           <option value="maternal">危重孕产妇救治 · 市级</option>
         </select></div>
-        <div class="field"><label for="f_base">距离基准</label>
+        <div class="field wide"><label for="f_base">距离基准</label>
           <div class="rangebox">
             <input id="f_base" type="text" list="base_list" autocomplete="off" spellcheck="false" value="天安门"
                    title="距离排序与「离家最近」的参照点：点「定位」自动获取；或输入 地标 / 区名 / 机构名 / 地址关键词">
@@ -973,7 +992,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
             <button class="btn sm" id="btn_locate" type="button" onclick="locateMe()" title="定位我的位置（需浏览器授权，http://localhost 下可用）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.5 7-12a7 7 0 10-14 0c0 5.5 7 12 7 12zM12 9a3 3 0 100 6 3 3 0 000-6z"/></svg> 定位</button>
           </div>
         </div>
-        <div class="field"><label for="f_sort">排序方式</label>
+        <div class="field wide"><label for="f_sort">排序方式</label>
           <div class="rangebox">
             <select id="f_sort" title="排序维度">
               <option value="score">综合评分</option>
@@ -999,44 +1018,10 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
         <button class="btn ghost sm" id="btn_reset"
           title="恢复默认视图：清空全部筛选条件、距离基准回到天安门、排序回到综合评分">↺ 恢复默认</button>
       </div>
-      </div>
 
-      <div class="nlqbar" id="nlqbar">
-        <div class="nlq-head">
-          <span class="nlq-badge"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4zM18 15.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg>AI 智能筛选</span>
-          <span class="nlq-sub">说人话就行</span>
-          <button class="nlq-fold" id="btn_nlq_fold" type="button" aria-expanded="true" title="折叠 / 展开 AI 面板" aria-label="折叠或展开 AI 面板">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
-          </button>
-        </div>
-        <div class="nlq-body" id="nlq_body">
-          <div class="nlq-field">
-            <button class="nlq-ic" id="btn_voice_ai" type="button"
-              title="语音输入：点一下说出需求（需在 http://localhost:5001 下使用）" aria-label="语音输入"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11a7 7 0 0014 0M12 18v3M8.5 21h7"/></svg></button>
-            <input id="f_ai" type="text" autocomplete="off" spellcheck="false"
-                   placeholder="朝阳区看心脏病的三级医院"
-                   title="支持口语化描述：区域 / 科室 / 等级 / 类型 / 距离 / 排序，可一次说全">
-            <button class="nlq-x" id="btn_ai_clear" type="button" title="清空输入" aria-label="清空输入">×</button>
-            <button class="nlq-send" id="btn_ai" type="button" title="解析（也可直接按回车）" aria-label="解析"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
-          </div>
-          <div class="quickbar" id="ai_quick"></div>
-          <div id="ai_echo" class="ai-echo" style="margin-top:9px;font-size:11.5px;color:var(--ink-3);line-height:1.8;display:none"></div>
-        </div>
-      </div>
-    </div>
-
-  </div>
-
-  <div class="split">
-    <div class="panel">
-      <h3>机构列表 <span class="tag" id="listTag">LIST · 共 0 家</span></h3>
-      <div class="listhead">
-        <div class="lh-l">
-          <span>点行看详情 · 悬停行可在地图定位 · <b style="color:var(--warn)">★</b> 收藏 · 左侧方块加入对比</span>
-          <button class="favbtn" id="btn_favs" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6l2.62 5.31 5.86.86-4.24 4.13 1 5.84L12 17.02l-5.24 2.72 1-5.84L3.52 9.77l5.86-.86z"/></svg> 收藏夹 <b id="fav_n">0</b></button>
-          <button class="favbtn" id="btn_clear_pick" type="button" title="清空已勾选的对比机构（保留筛选条件）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg> 清空已选 <b id="pick_n">0</b></button>
-          <button class="favbtn" id="btn_ov_sum" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 9h6v6H9zM4 10v4M20 10v4M10 4h4M10 20h4M6.5 7.5L4 9M17.5 7.5L20 9M6.5 16.5L4 15M17.5 16.5L20 15"/></svg> AI 总结当前结果</button>
-        </div>
+      <div class="raildiv"></div>
+      <div class="railhead">
+        <h3>机构列表 <span class="tag" id="listTag">LIST · 共 0 家</span></h3>
         <div class="pager">
           <button id="pg_prev">‹ 上一页</button>
           <span class="pg" id="pg_info">— / —</span>
@@ -1048,10 +1033,18 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
           </select>
         </div>
       </div>
+      <div class="listhead">
+      <div class="lh-l">
+          <span>点行看详情 · 悬停行可在地图定位 · <b style="color:var(--warn)">★</b> 收藏 · 左侧方块加入对比</span>
+          <button class="favbtn" id="btn_favs" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6l2.62 5.31 5.86.86-4.24 4.13 1 5.84L12 17.02l-5.24 2.72 1-5.84L3.52 9.77l5.86-.86z"/></svg> 收藏夹 <b id="fav_n">0</b></button>
+          <button class="favbtn" id="btn_clear_pick" type="button" title="清空已勾选的对比机构（保留筛选条件）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg> 清空已选 <b id="pick_n">0</b></button>
+          <button class="favbtn" id="btn_ov_sum" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 9h6v6H9zM4 10v4M20 10v4M10 4h4M10 20h4M6.5 7.5L4 9M17.5 7.5L20 9M6.5 16.5L4 15M17.5 16.5L20 15"/></svg> AI 总结当前结果</button>
+        </div>
+      </div>
       <div class="aibox ovsum" id="ov_sum" style="display:none"></div>
       <div class="list" id="list"></div>
     </div>
-    <div class="panel mapwrap">
+<div class="panel mapwrap">
       <h3>北京地图散点 <span class="tag">MAP · 16 区 · 区县着色 + 机构散点</span></h3>
       <div class="mapstage">
         <div id="map"></div>
