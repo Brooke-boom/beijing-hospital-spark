@@ -931,18 +931,10 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
         </select></div>
         <div class="field wide"><label for="f_base">距离基准</label>
           <div class="rangebox">
-            <input id="f_base" type="text" list="base_list" autocomplete="off" spellcheck="false" value="天安门"
-                   title="距离排序与「离家最近」的参照点：点「定位」自动获取；或输入 地标 / 区名 / 机构名 / 地址关键词">
-            <datalist id="base_list">
-              <option value="天安门"></option><option value="首都机场"></option><option value="大兴机场"></option>
-              <option value="东城区"></option><option value="西城区"></option><option value="朝阳区"></option>
-              <option value="海淀区"></option><option value="丰台区"></option><option value="石景山区"></option>
-              <option value="门头沟区"></option><option value="房山区"></option><option value="通州区"></option>
-              <option value="顺义区"></option><option value="昌平区"></option><option value="大兴区"></option>
-              <option value="怀柔区"></option><option value="平谷区"></option><option value="密云区"></option>
-              <option value="延庆区"></option>
-            </datalist>
-            <button class="btn sm" id="btn_locate" type="button" onclick="locateMe()" title="定位我的位置（需浏览器授权，http://localhost 下可用）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.5 7-12a7 7 0 10-14 0c0 5.5 7 12 7 12zM12 9a3 3 0 100 6 3 3 0 000-6z"/></svg> 定位</button>
+            <input id="f_base" type="text" autocomplete="off" spellcheck="false" value=""
+                   placeholder="输入起始地址，如：中关村大街27号 · 回龙观"
+                   title="距离按此起点计算：进页自动定位；或输入任意地址回车解析（也支持 地标 / 区名 / 机构名）">
+            <button class="btn sm" id="btn_locate" type="button" onclick="locateMe()" title="自动定位我的位置作为起点（需浏览器授权，http://localhost 下可用）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.5 7-12a7 7 0 10-14 0c0 5.5 7 12 7 12zM12 9a3 3 0 100 6 3 3 0 000-6z"/></svg> 定位</button>
           </div>
         </div>
         <div class="field"><label for="f_sort">排序方式</label>
@@ -969,7 +961,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
         <button class="preset" data-preset="net">卒中中心</button>
         <button class="preset" data-preset="depttop">科室覆盖最全</button>
         <button class="btn ghost sm" id="btn_reset"
-          title="恢复默认视图：清空全部筛选条件、距离基准回到天安门、排序回到综合评分">↺ 恢复默认</button>
+          title="恢复默认视图：清空全部筛选条件、距离基准回到市中心、排序回到综合评分">↺ 恢复默认</button>
       </div>
 
       <div class="raildiv"></div>
@@ -1207,7 +1199,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     <div class="cb"><table class="cmp" id="cmp_table"><thead></thead><tbody></tbody></table></div>
     <div class="cmpfoot">
       <span class="legend"><span><span class="dot" style="background:#46c08a"></span>绿色为该行最优值</span></span>
-      <span style="margin-left:auto">距离统一以天安门为基准，保证横向可比 · 数据来自 <code style="color:var(--acc)">ads_inst_search</code></span>
+      <span style="margin-left:auto">对比距离以各自当前距离基准计算，保证横向可比 · 数据来自 <code style="color:var(--acc)">ads_inst_search</code></span>
     </div>
   </div>
 </div>

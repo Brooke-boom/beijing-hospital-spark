@@ -256,7 +256,7 @@ const FLT_FIELDS = [
   ['f_kw', '关键词'], ['f_dept', '科室'], ['f_district', '区域'], ['f_level', '等级'],
   ['f_cat', '类型'], ['f_net', '协作网络'], ['f_base', '距离基准点'], ['f_sort', '排序'],
 ];
-const FLT_DEFAULT = { f_base: '天安门', f_sort: 'score' };
+const FLT_DEFAULT = { f_base: '', f_sort: 'score' };   // 距离基准默认空：进页自动定位，或输入任意地址
 // 排序 = 维度 × 方向；距离维度的语义就是「近 → 远」，固定为升序
 const SORT_LABEL = { score: '综合评分', distance: '距离', level: '医院等级', depts: '科室数量', name: '机构名称' };
 const SORT_DIR_DEFAULT = { score: 'desc', distance: 'asc', level: 'desc', depts: 'desc', name: 'asc' };
@@ -325,7 +325,7 @@ function renderFilterChips() {
   });
   box.innerHTML = chips.length
     ? '<span class="fl">已选条件 ' + chips.length + ' 项</span>' + chips.join('') +
-      '<button class="freset" type="button" data-freset="1" title="恢复默认：清空全部条件，距离基准回到天安门，排序回到综合评分">\u21ba 恢复默认</button>' +
+      '<button class="freset" type="button" data-freset="1" title="恢复默认：清空全部条件，距离基准回到市中心，排序回到综合评分">\u21ba 恢复默认</button>' +
       '<button class="fclear" type="button" data-fclear="__all__" title="只清空上方筛选条件，保留距离基准与排序设置">\u2715 清除条件</button>'
     : '';
   Array.prototype.forEach.call(box.querySelectorAll('[data-fclear]'), b =>
@@ -334,7 +334,7 @@ function renderFilterChips() {
       if (k === '__all__') { clearConditions(); return; }
       const el = $(k); if (!el) return;
       el.value = FLT_DEFAULT[k] || '';
-      if (k === 'f_base') { BASE_NOW = BASE_POINTS.tiananmen; refreshBaseSummary(); }
+      if (k === 'f_base') { BASE_NOW = null; refreshBaseSummary(); }   // 清空基准 → 回落市中心
       if (k === 'f_kw') syncKwClear();
       if (k === 'f_sort') setSort('score', 'desc', true);
       PAGE = 1; applyFilter();
@@ -418,14 +418,16 @@ function initSortCtl() {
   syncDirUI();
 }
 
-// ---- 距离基准摘要：把当前生效的基准点写进 title，便于随时核对 ----
+// ---- 距离基准摘要：当前生效基准写进 title，便于随时核对 ----
 function refreshBaseSummary() {
   const inp = $('f_base'); if (!inp) return;
   const b = curBase();
   const pos = (b.lng != null && b.lat != null)
     ? (b.lng.toFixed(4) + ', ' + b.lat.toFixed(4)) : '尚未确定坐标';
-  inp.title = '当前距离基准：' + (b.name || '天安门') + '（' + pos + '）\n'
-    + '可输入 地标 / 区名 / 机构名 / 地址关键词，或点「定位」自动获取';
+  inp.title = (BASE_NOW
+      ? '当前距离基准：' + b.name + '（' + pos + '）'
+      : '距离基准未设置 —— 默认按市中心（天安门）估算；点「定位」自动获取，或直接输入地址')
+    + '\n支持任意地址（如：海淀区中关村大街27号 / 回龙观 / 潘家园）回车解析';
 }
 
 // ---- AI 面板折叠（状态本地记忆） ----
@@ -667,7 +669,7 @@ function currentScopeMeta() {
     depts: $('f_dept').value ? [$('f_dept').value] : [],
     kw: ($('f_kw').value || '').trim(),
     sort: (SORT_LABEL[curSort()] || '综合评分') + (curDir() === 'asc' ? ' 升序' : ' 降序'),
-    baseName: base.name, total: FILTERED.length,
+    baseName: BASE_NOW ? base.name : '市中心', total: FILTERED.length,
   };
 }
 function ovFacts(rows, meta) {
@@ -804,6 +806,7 @@ function init() {
     initAIState();
     initBase();
     refreshBaseSummary();
+    autoLocate();          // 进页默认自动定位（静默降级到市中心估算）
     applyFilter();
     loadAbout();
   } catch (e) {
@@ -907,52 +910,82 @@ function clearConditionsSilent() {
   syncKwClear();
 }
 function clearConditions() { clearConditionsSilent(); PAGE = 1; applyFilter(); }
-// 恢复默认视图：条件 + 距离基准 + 排序全部回到初始状态
+// 恢复默认视图：条件 + 距离基准 + 排序全部回到初始状态（基准空 → 按市中心估算）
 function resetFilter() {
   clearConditionsSilent();
-  BASE_NOW = BASE_POINTS.tiananmen;
-  const fb = $('f_base'); if (fb) fb.value = '天安门';
+  BASE_NOW = null;
+  const fb = $('f_base'); if (fb) fb.value = '';
   setSort('score', 'desc', true);
   refreshBaseSummary();
   PAGE = 1; applyFilter();
 }
 
 // ============================================================================
-//  4. 地理定位
+//  4. 地理定位：进页自动定位（默认起点），「定位」按钮随时重定位
 // ============================================================================
+let AUTO_LOCATED = false;   // 本次会话只自动请求一次，避免反复弹授权
+
+function _applyGeoFix(lng, lat, acc, opts) {
+  // opts: {manual:bool} —— 自动定位与手动定位共用同一落地逻辑
+  const manual = !!(opts && opts.manual);
+  const hint = locateHint(lng, lat);
+  const area = hint ? ('北京市' + hint.district) : null;
+  BASE_POINTS.geo.lng = lng; BASE_POINTS.geo.lat = lat;
+  BASE_POINTS.geo.name = '我的位置' + (area ? ' · ' + area : '') + '(±' + acc + 'm)';
+  setBase(BASE_POINTS.geo, true);   // silent：统一由下方 setSort+applyFilter 触发一次重算
+  refreshBaseSummary();
+  setSort('distance', 'asc', true);
+  applyFilter();
+  const loc = hint
+    ? (area + ' · 最近机构 ' + hint.near + '（约 ' + hint.nearKm.toFixed(1) + ' km）')
+    : (lng + ', ' + lat);
+  toast(svgIcon('location') + (manual ? ' 已定位到 ' : ' 已自动定位到 ') + loc +
+    ' · 精度 ±' + acc + 'm · 已按距离升序排序（可输入任意地址替换起点）', 5600);
+  track(manual ? 'locate' : 'locate_auto', null, null, acc);
+}
+
+function _geoRequest(onOk, onErr, opts) {
+  navigator.geolocation.getCurrentPosition(
+    pos => onOk(pos, opts),
+    err => {
+      const m = { 1: '用户拒绝授权', 2: '位置不可用', 3: '请求超时' }[err.code] || err.message;
+      onErr(m, err);
+    },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+  );
+}
+
 function locateMe() {
   const btn = $('btn_locate');
   if (!navigator.geolocation) { toast(svgIcon('warn') + ' 当前浏览器不支持定位 API'); return; }
   if (!ENV.http) { toast(svgIcon('warn') + ' 需通过 http://localhost:5001 打开才能授权定位（file:// 被浏览器禁止）', 5200); return; }
   const old = btn.textContent;
   btn.disabled = true; btn.textContent = '⏳ 定位中…';
-  navigator.geolocation.getCurrentPosition(
-    pos => {
+  _geoRequest(
+    (pos) => {
       const lng = +pos.coords.longitude.toFixed(6), lat = +pos.coords.latitude.toFixed(6);
       const acc = Math.round(pos.coords.accuracy);
-      const hint = locateHint(lng, lat);
-      const area = hint ? ('北京市' + hint.district) : null;
-      BASE_POINTS.geo.lng = lng; BASE_POINTS.geo.lat = lat;
-      BASE_POINTS.geo.name = '我的位置' + (area ? ' · ' + area : '') + '(±' + acc + 'm)';
-      setBase(BASE_POINTS.geo, true);
-      refreshBaseSummary();
+      _applyGeoFix(lng, lat, acc, { manual: true });
       btn.textContent = '已定位';
       setTimeout(() => { btn.textContent = '重新定位'; btn.disabled = false; }, 1300);
-      setSort('distance', 'asc', true);
-      applyFilter();
-      const loc = hint
-        ? (area + ' · 最近机构 ' + hint.near + '（约 ' + hint.nearKm.toFixed(1) + ' km）')
-        : (lng + ', ' + lat);
-      toast(svgIcon('location') + ' 已定位到 ' + loc + ' · 精度 ±' + acc + 'm · 已按距离升序排序', 5600);
-      track('locate', null, null, acc);
     },
-    err => {
+    (m) => {
       btn.textContent = old; btn.disabled = false;
-      const m = { 1: '用户拒绝授权', 2: '位置不可用', 3: '请求超时' }[err.code] || err.message;
-      toast(svgIcon('warn') + ' 定位失败：' + m + ' —— 请确认浏览器允许位置权限', 5200);
+      toast(svgIcon('warn') + ' 定位失败：' + m + ' —— 也可直接在框内输入起始地址', 5200);
+    });
+}
+
+// 进页默认自动定位（仅 http://localhost 全栈环境；file:// 离线版与已拒绝授权时静默跳过）
+function autoLocate() {
+  if (AUTO_LOCATED || !ENV.http || !navigator.geolocation) return;
+  try { if (localStorage.getItem(BASE_STORE_KEY)) return; } catch (e) { }  // 用户上次自选过起点则尊重
+  AUTO_LOCATED = true;
+  _geoRequest(
+    (pos) => {
+      const lng = +pos.coords.longitude.toFixed(6), lat = +pos.coords.latitude.toFixed(6);
+      _applyGeoFix(lng, lat, Math.round(pos.coords.accuracy), { manual: false });
     },
-    { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
-  );
+    () => { /* 静默降级：保持「市中心」估算，不打扰 */ });
 }
 
 // ============================================================================
@@ -989,9 +1022,9 @@ function initBase() {
 function resolveBase(q) {
   q = (q || '').trim();
   const input = $('f_base');
-  const cur = BASE_NOW || BASE_POINTS.tiananmen;
-  const revert = () => { if (input) input.value = cur.name; };
-  if (!q || q === cur.name) { revert(); return; }
+  const cur = BASE_NOW;
+  const revert = () => { if (input) input.value = cur ? cur.name : ''; };
+  if (!q || (cur && q === cur.name)) { revert(); return; }
   // 1) 内置地标
   for (const k in BASE_POINTS) {
     if (k !== 'geo' && BASE_POINTS[k].name === q) { setBase(BASE_POINTS[k]); return; }
@@ -1014,7 +1047,18 @@ function resolveBase(q) {
     track('base_custom', q);
     return;
   }
-  // 4) 机构名 / 地址关键词 → 取等级最高的一家
+  // 4) 任意地址/小区/街道 → 后端高德地理编码（http://localhost 全栈可用，服务端缓存）；
+  //    失败（无 Key / 超额 / 断网）或 file:// 离线时，降级为机构名匹配
+  if (ENV.http) { geocodeAddress(q, function () { matchInstitutionBase(q, ok); }); return; }
+  matchInstitutionBase(q, ok);
+}
+
+// 机构名 / 地址关键词本地匹配（离线兜底，file:// 也可用）→ 取等级最高的一家
+function matchInstitutionBase(q, ok) {
+  const input = $('f_base');
+  const cur = BASE_NOW;
+  const revert = () => { if (input) input.value = cur ? cur.name : ''; };
+  if (!DATA || !DATA.institutions || !DATA.institutions.length) { revert(); return; }
   const ql = q.toLowerCase();
   let hits = DATA.institutions.filter(r => ok(r) && r.name === q);
   if (!hits.length) hits = DATA.institutions.filter(r => ok(r) && r.name.toLowerCase().indexOf(ql) === 0);
@@ -1028,8 +1072,34 @@ function resolveBase(q) {
     track('base_custom', r.name);
     return;
   }
-  toast(svgIcon('warn') + ' 没找到「' + trunc(q, 16) + '」—— 可输入 地标名 / 区名 / 机构名 / 地址关键词', 5200);
+  toast(svgIcon('warn') + ' 没找到「' + trunc(q, 16) + '」—— 可输入 地址 / 区名 / 机构名，或点「定位」', 5200);
   revert();
+}
+
+// 任意地址解析（主路径）：调 /api/geocode（高德 Web 服务，结果服务端缓存）。
+// 成功 → 设为基准点；失败（无 Key/超额/断网）→ onFail 兜底（机构名本地匹配），不白屏不卡死。
+function geocodeAddress(q, onFail) {
+  const input = $('f_base');
+  const cur = BASE_NOW;
+  const revert = () => { if (input) input.value = cur ? cur.name : ''; };
+  if (input) input.disabled = true;
+  fetch('/api/geocode?address=' + encodeURIComponent(q))
+    .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+    .then(d => {
+      if (!d || d.lng == null || d.lat == null) throw new Error((d && d.error) || 'empty');
+      const name = (d.formatted && d.formatted.length <= 26) ? d.formatted : q;
+      setBase({ name: name, lng: d.lng, lat: d.lat });
+      toast(svgIcon('location') + ' 已解析「' + trunc(q, 16) + '」→ ' + (d.formatted || name) +
+        (d.district ? '（' + d.district + '）' : '') + ' · 已按距离升序', 5200);
+      track('base_geocode', q);
+    })
+    .catch(() => {
+      if (onFail) { onFail(); return; }
+      toast(svgIcon('warn') + ' 「' + trunc(q, 16) + '」地址解析失败 —— 可改用 机构名 / 区名，'
+        + '或点「定位」自动获取', 5200);
+      revert();
+    })
+    .then(() => { if (input) input.disabled = false; });
 }
 
 // ============================================================================
@@ -1393,7 +1463,7 @@ function renderList() {
     return;
   }
   const baseNow = curBase();
-  const distLabel = '距' + baseNow.name;
+  const distLabel = '距' + (BASE_NOW ? baseNow.name : '市中心');
 
   box.innerHTML = page.map(r => {
     const dist = r._dist == null ? '—' : r._dist.toFixed(1) + ' km';
@@ -1858,7 +1928,7 @@ function paintDrawerLocal(r) {
       box('办别性质', (r.ownership || '未标注') + (r.ownership_basis ? '<div style="color:' + FAINT + ';font-size:10px;margin-top:3px">依据 ' + esc(r.ownership_basis) + '</div>' : '')) +
       box('科室数量', num(r.dept_count) + ' 个') +
       box('重点专科', num(r.key_specialty_count) + ' 项') +
-      box('距' + base.name, dist) +
+      box('距' + (BASE_NOW ? base.name : '市中心'), dist) +
     '</div>' +
     '<div class="blk"><h4><span class="bar"></span>实时状态 <span class="r">演示模拟数据</span></h4>' + statusHTML(mockStatus(r)) + '</div>' +
     '<div class="blk"><h4><span class="bar"></span>协作网络</h4><div class="deptchips">' +

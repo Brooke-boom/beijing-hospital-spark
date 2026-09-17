@@ -1203,6 +1203,65 @@ def _around_cached(lng, lat, kind, keywords, radius=2000, limit=5):
     return res
 
 
+def _amap_geocode(address):
+    """高德「地理编码」：任意地址文本 → 坐标（距离基准自定义起点用）。
+
+    失败（无 Key / 超额 / 断网 / 未命中）一律返回 None，由调用方降级为
+    前端本地匹配（区中心 / 机构名 / 地址关键词）。
+    """
+    if not AMAP_KEY:
+        return None
+    qs = urllib.parse.urlencode({
+        "key": AMAP_KEY, "address": address, "city": "北京",
+        "citylimit": "true", "output": "json",
+    })
+    try:
+        req = urllib.request.Request(
+            "https://restapi.amap.com/v3/geocode/geo?" + qs,
+            headers={"User-Agent": "hospital-dashboard/1.0"})
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            data = _json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+    if str(data.get("status")) != "1":
+        return None
+    gs = data.get("geocodes") or []
+    if not gs:
+        return None
+    g = gs[0]
+    loc = (g.get("location") or "").split(",")
+    if len(loc) != 2:
+        return None
+    try:
+        lng, lat = float(loc[0]), float(loc[1])
+    except ValueError:
+        return None
+    return {
+        "lng": lng, "lat": lat,
+        "formatted": g.get("formatted_address") or address,
+        "district": g.get("district") or "",
+        "level": g.get("level") or "",
+    }
+
+
+@app.route("/api/geocode")
+def api_geocode():
+    """地址文本 → 坐标。成功结果写 dim_poi_cache（kind=geocode），失败不缓存可重试。"""
+    address = (request.args.get("address") or "").strip()
+    if not address:
+        return jsonify({"error": "address required"}), 400
+    address = address[:60]
+    key = "geocode|" + address
+    hit = _poi_cache_get(key)
+    if hit is not None:
+        return jsonify(hit)
+    out = _amap_geocode(address)
+    if out is None:
+        return jsonify({"error": "geocode failed"}), 502
+    _poi_cache_put(key, "geocode", out)
+    return jsonify(out)
+
+
 def _mock_status(inst_id, level):
     """就诊实时状态（**演示模拟数据**，非真实候诊信息）。
 
