@@ -59,10 +59,11 @@ def build_ads_inst_search(inst_dwd, depts_dwd):
         )
     )
     # 重点专科数权威口径 = feature 三级分级中的 L1（重点专科/重点科室）科系数
+    # 注意：feature 源数据混用半角「;」与全角「；」，切分需两者兼容
     inst_feature_cnt = (
         inst_dwd.select("id", "feature", "feature_level")
         .withColumn("fk_cnt",
-                    F.when(F.col("feature_level") == "1", F.size(F.split(F.col("feature"), ";")))
+                    F.when(F.col("feature_level") == "1", F.size(F.split(F.col("feature"), "[;；]")))
                     .otherwise(0))
         .select("id", "fk_cnt")
     )
