@@ -170,7 +170,7 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
   display:flex;flex-direction:column;gap:0;width:188px;flex:0 0 188px;
   padding:12px 12px 12px;background:var(--bg-soft);border-right:1px solid var(--line);z-index:57}
 .sidebar .navbar{position:static;display:flex;flex-direction:column;gap:6px;padding:0;
-  background:transparent;border:0;overflow:visible}
+  background:transparent;border:0;overflow:visible;align-items:stretch}
 .sidebar .navtab{flex:none;justify-content:flex-start;max-width:none;padding:9px 13px;
   font-size:13.5px;gap:10px;border-radius:10px;font-weight:500}
 .sidebar .navtab:active{transform:scale(.98)}
@@ -845,6 +845,44 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 /* 语音 / 解析的进行态 */
 .nlq-ic.off{opacity:.4;cursor:not-allowed}
 .nlq-send.loading{animation:recpulse .9s ease-in-out infinite;cursor:progress}
+
+/* ============================ 七视图改版：总览来源条 / 智能筛选 / 数据整合 / 数据质量 ============================ */
+.mono{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+
+/* 数据总览·数据来源与质量概览条 */
+.srcbar{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}
+.src-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;
+  background:var(--panel-2);border:1px solid var(--line);font-size:11.5px;color:var(--ink-2)}
+.src-chip b{color:var(--acc);font-variant-numeric:tabular-nums;font-size:12.5px;font-weight:700}
+
+/* 智能筛选·排序单选组 */
+.sort-radios{display:flex;flex-wrap:wrap;gap:16px;margin-top:10px}
+
+/* 数据整合·三栏（数据源 / 处理流程 / 处理结果） */
+.integ-grid{display:grid;grid-template-columns:minmax(280px,.9fr) minmax(320px,1.1fr) minmax(330px,1.2fr);
+  gap:var(--gap);padding:var(--gap) var(--pad-x) 22px;align-items:start}
+.integ-col{min-width:0}
+.integ-list{display:flex;flex-direction:column;gap:9px;margin-top:10px}
+.integ-item{border:1px solid var(--line);border-radius:var(--r-m);padding:11px 13px;background:var(--bg-soft)}
+.integ-item.total{border-color:rgba(var(--acc-rgb),.35);background:rgba(var(--acc-rgb),.06)}
+.ii-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.ii-name{font-size:12.5px;font-weight:650;color:var(--ink);line-height:1.5}
+.ii-count{font-size:17px;font-weight:700;color:var(--acc);font-variant-numeric:tabular-nums;white-space:nowrap}
+.integ-item.total .ii-count{color:var(--teal)}
+.ii-count em{font-style:normal;font-size:10px;font-weight:500;color:var(--ink-4);margin-left:2px}
+.ii-desc{font-size:11px;color:var(--ink-3);line-height:1.65;margin-top:5px}
+
+/* 数据质量·字段完整率表 / 类别构成表 */
+.qtable{width:100%;border-collapse:collapse;font-size:12px}
+.qtable th{font-weight:600;color:var(--ink-2);padding:6px 8px;border-bottom:1px solid var(--line-2);
+  font-size:10.5px;letter-spacing:.05em;text-align:left}
+.qtable td{padding:7px 8px;border-bottom:1px solid var(--line);color:var(--ink);vertical-align:middle}
+.qtable tr:last-child td{border-bottom:none}
+.qbar{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.qbar i{height:7px;border-radius:4px;display:inline-block;min-width:3px;width:120px}
+.qbar b{font-variant-numeric:tabular-nums;color:var(--ink-2);font-size:11.5px;min-width:48px;text-align:right}
+
+@media (max-width:1180px){.integ-grid{grid-template-columns:1fr}}
 </style>
 <script>/* 首帧前落定主题，避免明暗闪烁 */(function(){try{var t=localStorage.getItem("bjyy_theme");if(t==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
 </head>
@@ -854,13 +892,14 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 <div class="layout">
 <aside class="sidebar">
   <nav class="navbar" id="navbar">
-  <button class="navtab active" data-view="overview"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h7v7H4zM11 4h9v4h-9zM11 10h9v10h-9zM4 13h7v7H4z"/></svg></span><span class="lbl">综合看板</span></button>
-  <button class="navtab" data-view="analytics"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-12"/></svg></span><span class="lbl">多维分析</span></button>
-  <button class="navtab" data-view="network"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="2.2"/><circle cx="18.5" cy="5.5" r="2.2"/><circle cx="18.5" cy="18.5" r="2.2"/><path d="M7 11l9.3-4.6M7 13l9.3 4.6"/></svg></span><span class="lbl">协作网络</span></button>
-  <button class="navtab" data-view="triage"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg></span><span class="lbl">智能导诊</span></button>
-  <button class="navtab" data-view="admin"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v12H3zM3 16l3 4h12l3-4M9 20h6"/></svg></span><span class="lbl">运营后台</span></button>
+  <button class="navtab active" data-view="overview"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg></span><span class="lbl">数据总览</span></button>
+  <button class="navtab" data-view="analytics"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-12"/></svg></span><span class="lbl">医疗资源分析</span></button>
+  <button class="navtab" data-view="institutions"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.4 16.4L21 21"/></svg></span><span class="lbl">机构查询</span></button>
+  <button class="navtab" data-view="filter"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4zM18 15.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg></span><span class="lbl">智能筛选</span></button>
+  <button class="navtab" data-view="integration"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg></span><span class="lbl">数据整合</span></button>
+  <button class="navtab" data-view="quality"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></span><span class="lbl">数据质量</span></button>
   </nav>
-  <button class="navtab navaux" data-view="about"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 10v6M12 7.5h.01"/></svg></span><span class="lbl">关于</span></button>
+  <button class="navtab navaux" data-view="about"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 10v6M12 7.5h.01"/></svg></span><span class="lbl">系统说明</span></button>
   <div class="sidefoot"><span class="navnote">7 维筛选 · 地图与列表悬停互指<br>勾选 2–3 家横向对比</span></div>
 </aside>
 <div class="maincol">
@@ -881,8 +920,73 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 </header>
 
 
-<!-- ============================ 综合看板 ============================ -->
+<!-- ============================ 数据总览 ============================ -->
 <section id="view-overview" class="view active">
+  <div class="kpis" id="cards">
+    <div class="card hero"><div class="l">医疗机构总数</div><div class="v" id="v_total">—</div><div class="s">整合后主表口径（ads_inst_search）</div></div>
+    <div class="card k2"><div class="l">医院数量</div><div class="v" id="v_hospitals">—</div><div class="s">综合 / 专科 / 中医医院合计</div></div>
+    <div class="card k3"><div class="l">社区机构</div><div class="v" id="v_community">—</div><div class="s">社区卫生服务中心 + 站</div></div>
+    <div class="card k4"><div class="l">数据源数量</div><div class="v" id="v_sources">—</div><div class="s">去重后公开数据文件</div></div>
+  </div>
+
+  <div class="split">
+    <div class="panel mapwrap">
+      <h3>北京市医疗机构区域分布 <span class="tag">MAP · 16 区 · 点击联动筛选</span></h3>
+      <div class="mapstage">
+        <div id="map"></div>
+        <div id="map_diag">⏳ 等待地图初始化…</div>
+      </div>
+      <div class="maplg"><span>机构少</span><i></i><span>机构多</span></div>
+    </div>
+    <div class="panel">
+      <h3>医疗机构类型构成 <span class="tag">CATEGORIES</span></h3>
+      <div id="ch2" style="height:340px"></div>
+    </div>
+  </div>
+
+  <div class="grid3">
+    <div class="panel sm"><h3>各区机构数 TOP <span class="tag">DISTRICTS</span></h3><div id="ch3"></div></div>
+    <div class="panel sm"><h3>医院等级分布 <span class="tag">LEVELS</span></h3><div id="ch1"></div></div>
+    <div class="panel sm"><h3>办别构成 <span class="tag">OWNERSHIP</span></h3><div id="ch_ov_own"></div></div>
+  </div>
+
+  <div class="panel" style="margin:var(--gap) var(--pad-x) 0">
+    <h3>数据来源与数据质量概览 <span class="tag">DATA SOURCES</span></h3>
+    <div class="srcbar" id="ov_src_bar">
+      <span class="src-chip">医保局定点机构 <b>4,876</b></span>
+      <span class="src-chip">社区卫生服务机构 <b>1,972</b></span>
+      <span class="src-chip">区级卫健委及专题公开数据 <b>6,955</b></span>
+      <span class="src-chip">共 <b>70</b> 个源文件</span>
+      <span class="src-chip">原始记录 <b>13,803</b></span>
+      <span class="src-chip">去重合并后 <b>9,791</b></span>
+      <span class="src-chip">坐标补全率 <b>99.98%</b></span>
+    </div>
+    <div class="notice" style="margin-top:11px">数据来源覆盖医保局定点机构、社区卫生服务机构、各区卫健委公开名录与重点专科公示名单；详细字段完整率、去重统计与清洗流程见 <button class="btn ghost sm" type="button" onclick="switchView('integration')">数据整合</button> 与 <button class="btn ghost sm" type="button" onclick="switchView('quality')">数据质量</button> 页。</div>
+  </div>
+</section>
+
+<!-- ============================ 多维分析 ============================ -->
+<section id="view-analytics" class="view">
+  <div class="kpis" id="cards2">
+    <div class="card"><div class="l">公立机构占比</div><div class="v" id="ak_pub">0</div><div class="s">占当前筛选结果比例</div></div>
+    <div class="card k2"><div class="l">三级医院占比</div><div class="v" id="ak_l3">0</div><div class="s">占当前筛选结果比例</div></div>
+    <div class="card k3"><div class="l">重点专科机构</div><div class="v" id="ak_feat">0</div><div class="s">含国家 / 市级重点专科</div></div>
+    <div class="card k4"><div class="l">协作网络机构</div><div class="v" id="ak_net">0</div><div class="s">纳入任一市级协作网络</div></div>
+  </div>
+  <div class="agrid">
+    <div class="apanel"><h3>办别分布（公立 / 民营） <span class="tag">OWNERSHIP</span></h3><div class="achart" id="ch_own"></div></div>
+    <div class="apanel"><h3>重点专科分级 <span class="tag">FEATURE LEVEL</span></h3><div class="achart" id="ch_feat"></div></div>
+    <div class="apanel"><h3>协作网络覆盖 <span class="tag">NETWORKS</span></h3><div class="achart" id="ch_net"></div></div>
+    <div class="apanel"><h3>等级 × 办别 <span class="tag">LEVEL × OWNER</span></h3><div class="achart" id="ch_lvown"></div></div>
+    <div class="apanel"><h3>专科能力 TOP10 <span class="tag">KEY SPECIALTY</span></h3><div class="achart" id="ch_topsp"></div></div>
+    <div class="apanel"><h3>区域 × 等级 <span class="tag">DISTRICT × LEVEL</span></h3><div class="achart" id="ch_distlv"></div></div>
+    <div class="apanel"><h3>坐标精度（数据质量） <span class="tag">COORD PRECISION</span></h3><div class="achart" id="ch_coord"></div></div>
+    <div class="apanel"><h3>科室覆盖 TOP15 <span class="tag">DEPT COVERAGE</span></h3><div class="achart" id="ch_deptop"></div></div>
+  </div>
+</section>
+
+<!-- ============================ 机构查询 ============================ -->
+<section id="view-institutions" class="view">
   <div class="kpis" id="cards">
     <div class="card hero"><div class="l">筛选结果</div><div class="v" id="v_match">0</div><div class="s">符合当前条件的机构</div></div>
     <div class="card k2"><div class="l">三级医院</div><div class="v" id="v_l3">0</div><div class="s">筛选结果中的三级机构</div></div>
@@ -892,31 +996,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     <div class="card k6"><div class="l">协作网络覆盖</div><div class="v" id="v_net">0</div><div class="s">纳入任一市级协作网络</div></div>
   </div>
 
-    <div class="split">
-    <div class="panel railcard">
-<div class="nlqbar" id="nlqbar">
-        <div class="nlq-head">
-          <span class="nlq-badge"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4zM18 15.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg>AI 智能筛选</span>
-          <span class="nlq-sub">说人话就行</span>
-          <button class="nlq-fold" id="btn_nlq_fold" type="button" aria-expanded="true" title="折叠 / 展开 AI 面板" aria-label="折叠或展开 AI 面板">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
-          </button>
-        </div>
-        <div class="nlq-body" id="nlq_body">
-          <div class="nlq-field">
-            <button class="nlq-ic" id="btn_voice_ai" type="button"
-              title="语音输入：点一下说出需求（需在 http://localhost:5001 下使用）" aria-label="语音输入"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11a7 7 0 0014 0M12 18v3M8.5 21h7"/></svg></button>
-            <input id="f_ai" type="text" autocomplete="off" spellcheck="false"
-                   placeholder="朝阳区看心脏病的三级医院"
-                   title="支持口语化描述：区域 / 科室 / 等级 / 类型 / 距离 / 排序，可一次说全">
-            <button class="nlq-x" id="btn_ai_clear" type="button" title="清空输入" aria-label="清空输入">×</button>
-            <button class="nlq-send" id="btn_ai" type="button" title="解析（也可直接按回车）" aria-label="解析"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
-          </div>
-          <div class="quickbar" id="ai_quick"></div>
-          <div id="ai_echo" class="ai-echo" style="margin-top:9px;font-size:11.5px;color:var(--ink-3);line-height:1.8;display:none"></div>
-        </div>
-      </div>
-
+  <div class="panel railcard" style="margin:var(--gap) var(--pad-x) 0">
       <div class="fh railfh">
       <span class="bar"></span><span class="t">多维筛选</span>
       <span class="ftag" id="flt_count">—</span>
@@ -955,7 +1035,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
         <div class="field"><label for="f_sort">排序方式</label>
           <div class="rangebox">
             <select id="f_sort" title="排序维度">
-              <option value="score">综合评分</option>
+              <option value="score">条件匹配度</option>
               <option value="distance">距离（近 → 远）</option>
               <option value="level">医院等级</option>
               <option value="depts">科室数量</option>
@@ -976,7 +1056,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
         <button class="preset" data-preset="net">卒中中心</button>
         <button class="preset" data-preset="depttop">科室覆盖最全</button>
         <button class="btn ghost sm" id="btn_reset"
-          title="恢复默认视图：清空全部筛选条件、距离基准回到市中心、排序回到综合评分">↺ 恢复默认</button>
+          title="恢复默认视图：清空全部筛选条件、距离基准回到市中心、排序回到条件匹配度">↺ 恢复默认</button>
       </div>
 
       <div class="raildiv"></div>
@@ -1003,159 +1083,97 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
       </div>
       <div class="aibox ovsum" id="ov_sum" style="display:none"></div>
       <div class="list" id="list"></div>
-    </div>
-<div class="panel mapwrap">
-      <h3>北京地图散点 <span class="tag">MAP · 16 区 · 区县着色 + 机构散点</span></h3>
-      <div class="mapstage">
-        <div id="map"></div>
-        <div id="map_diag">⏳ 等待地图初始化…</div>
-      </div>
-      <div class="maplg"><span>机构少</span><i></i><span>机构多</span></div>
-    </div>
-  </div>
-
-  <div class="grid3">
-    <div class="panel sm"><h3>等级分布 <span class="tag">LEVELS</span></h3><div id="ch1"></div></div>
-    <div class="panel sm"><h3>类型分布 <span class="tag">CATEGORIES</span></h3><div id="ch2"></div></div>
-    <div class="panel sm"><h3>各区机构数 <span class="tag">DISTRICTS</span></h3><div id="ch3"></div></div>
   </div>
 </section>
 
-<!-- ============================ 多维分析 ============================ -->
-<section id="view-analytics" class="view">
-  <div class="kpis" id="cards2">
-    <div class="card"><div class="l">公立机构占比</div><div class="v" id="ak_pub">0</div><div class="s">占当前筛选结果比例</div></div>
-    <div class="card k2"><div class="l">三级医院占比</div><div class="v" id="ak_l3">0</div><div class="s">占当前筛选结果比例</div></div>
-    <div class="card k3"><div class="l">重点专科机构</div><div class="v" id="ak_feat">0</div><div class="s">含国家 / 市级重点专科</div></div>
-    <div class="card k4"><div class="l">协作网络机构</div><div class="v" id="ak_net">0</div><div class="s">纳入任一市级协作网络</div></div>
-  </div>
-  <div class="agrid">
-    <div class="apanel"><h3>办别分布（公立 / 民营） <span class="tag">OWNERSHIP</span></h3><div class="achart" id="ch_own"></div></div>
-    <div class="apanel"><h3>重点专科分级 <span class="tag">FEATURE LEVEL</span></h3><div class="achart" id="ch_feat"></div></div>
-    <div class="apanel"><h3>协作网络覆盖 <span class="tag">NETWORKS</span></h3><div class="achart" id="ch_net"></div></div>
-    <div class="apanel"><h3>等级 × 办别 <span class="tag">LEVEL × OWNER</span></h3><div class="achart" id="ch_lvown"></div></div>
-    <div class="apanel"><h3>专科能力 TOP10 <span class="tag">KEY SPECIALTY</span></h3><div class="achart" id="ch_topsp"></div></div>
-    <div class="apanel"><h3>区域 × 等级 <span class="tag">DISTRICT × LEVEL</span></h3><div class="achart" id="ch_distlv"></div></div>
-    <div class="apanel"><h3>坐标精度（数据质量） <span class="tag">COORD PRECISION</span></h3><div class="achart" id="ch_coord"></div></div>
-    <div class="apanel"><h3>科室覆盖 TOP15 <span class="tag">DEPT COVERAGE</span></h3><div class="achart" id="ch_deptop"></div></div>
-  </div>
-</section>
+<!-- ============================ 智能筛选 ============================ -->
+<section id="view-filter" class="view">
+  <div class="sec-title"><span class="bar"></span>🔎 医疗机构智能筛选
+    <span class="hint">基于规则解析的自然语言筛选条件转换 · 大模型仅在本地零命中时兜底</span></div>
 
-<!-- ============================ 智能导诊 ============================ -->
-<!-- ============================ 协作网络 ============================ -->
-<section id="view-network" class="view">
-  <div class="kpis k4" id="cards_net">
-    <div class="card"><div class="l">儿科医联体</div><div class="v" id="net_k_pediatric">—</div><div class="s">成员机构数 · 核心医院牵头</div></div>
-    <div class="card k2"><div class="l">卒中中心</div><div class="v" id="net_k_stroke">—</div><div class="s">脑卒中防治成员机构</div></div>
-    <div class="card k3"><div class="l">危重新生儿</div><div class="v" id="net_k_neonatal">—</div><div class="s">市级救治中心</div></div>
-    <div class="card k4"><div class="l">危重孕产妇</div><div class="v" id="net_k_maternal">—</div><div class="s">市级救治中心</div></div>
-  </div>
-  <div class="sec-title"><span class="bar"></span>四大协作网络 · 成员机构
-    <span class="hint">点击成员机构名 → 回总览按该网络筛选 · 汇总来自 <code style="color:var(--acc)">ads_network_summary</code></span></div>
-  <div class="agrid">
-    <div class="apanel"><h3>儿科医联体 <span class="tag">PEDIATRIC</span></h3>
-      <div class="netmeta" id="netm_pediatric"></div>
-      <div class="deptchips" id="netc_pediatric"></div></div>
-    <div class="apanel"><h3>卒中中心 <span class="tag">STROKE</span></h3>
-      <div class="netmeta" id="netm_stroke"></div>
-      <div class="deptchips" id="netc_stroke"></div></div>
-    <div class="apanel"><h3>危重新生儿救治网络 <span class="tag">NEONATAL</span></h3>
-      <div class="netmeta" id="netm_neonatal"></div>
-      <div class="deptchips" id="netc_neonatal"></div></div>
-    <div class="apanel"><h3>危重孕产妇救治网络 <span class="tag">MATERNAL</span></h3>
-      <div class="netmeta" id="netm_maternal"></div>
-      <div class="deptchips" id="netc_maternal"></div></div>
-  </div>
-</section>
-
-<section id="view-triage" class="view">
-  <div class="triage-shell">
-    <div class="chat">
-      <div class="chat-hd">
-        <div class="av"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg></div>
-        <div>
-          <div class="t">智能导诊助手</div>
-          <div class="s">描述病情 → 追问澄清 → 推荐医院并给出可解释理由</div>
-        </div>
-        <div class="r">
-          <span class="chip eng" id="eng_tag">本地知识库</span>
-          <button class="btn ghost sm" id="btn_triage_clear">重新开始</button>
-        </div>
+  <div class="panel railcard" style="margin:0 var(--pad-x)">
+    <div class="nlqbar" id="nlqbar">
+      <div class="nlq-head">
+        <span class="nlq-badge"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4zM18 15.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg>自然语言筛选</span>
+        <span class="nlq-sub">说人话就行</span>
+        <button class="nlq-fold" id="btn_nlq_fold" type="button" aria-expanded="true" title="折叠 / 展开 AI 面板" aria-label="折叠或展开 AI 面板">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+        </button>
       </div>
-      <div class="chat-body" id="chat_body"></div>
-      <div class="chat-ft">
-        <div class="chips" id="t_quick" style="margin-bottom:9px"></div>
-        <div class="line">
-          <input id="t_in" type="text" placeholder="如：反复胸痛两天 / 孩子发烧咳嗽 / 摔了一跤膝盖疼">
-          <button class="btn ghost sm iconbtn" id="btn_voice_t" type="button"
-            title="语音输入：点一下说出病情（需在 http://localhost:5001 下使用）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11a7 7 0 0014 0M12 18v3M8.5 21h7"/></svg></button>
-          <button class="btn vio" id="t_send">发送</button>
+      <div class="nlq-body" id="nlq_body">
+        <div class="nlq-field">
+          <button class="nlq-ic" id="btn_voice_ai" type="button"
+            title="语音输入：点一下说出需求（需在 http://localhost:5001 下使用）" aria-label="语音输入"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11a7 7 0 0014 0M12 18v3M8.5 21h7"/></svg></button>
+          <input id="f_ai" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="朝阳区的三级综合医院，床位500张以上"
+                 title="支持口语化描述：区域 / 科室 / 等级 / 类型 / 距离 / 排序，可一次说全">
+          <button class="nlq-x" id="btn_ai_clear" type="button" title="清空输入" aria-label="清空输入">×</button>
+          <button class="nlq-send" id="btn_ai" type="button" title="解析（也可直接按回车）" aria-label="解析"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
         </div>
-        <div class="hint" style="color:var(--ink-4);font-size:10.5px;margin-top:8px" id="triage_hint">
-          示例：头痛伴呕吐 · 骨折 · 高血压复诊 · 儿童反复发烧 · 孕早期产检 · 牙痛
-        </div>
+        <div class="quickbar" id="ai_quick"></div>
+        <div id="ai_echo" class="ai-echo" style="margin-top:9px;font-size:11.5px;color:var(--ink-3);line-height:1.8;display:none"></div>
       </div>
     </div>
-    <div class="chat-side">
-      <div class="panel">
-        <h3>导诊条件 <span class="tag">OPTIONS</span></h3>
-        <div style="display:grid;gap:11px">
-          <div class="field"><label>限定区域</label><select id="t_district"><option value="">全部区域</option></select></div>
-          <div class="field"><label>限定等级</label><select id="t_level"><option value="">全部等级</option></select></div>
-          <div class="field"><label>返回数量</label><select id="t_topn"><option value="6">Top 6</option><option value="10" selected>Top 10</option><option value="20">Top 20</option></select></div>
-          <label class="check"><input type="checkbox" id="t_use_geo"> 以我的位置计算距离</label>
-        </div>
-      </div>
-      <div class="panel">
-        <h3>评分口径 <span class="tag">SCORING</span></h3>
-        <div style="font-size:11.5px;color:var(--ink-3);line-height:1.9">
-          推荐排序采用加权评分，每一项都会在结果里摊开给用户核对：
-          <div style="margin-top:9px;display:grid;gap:6px">
-            <div class="barrow"><span class="bk">医院等级</span><span class="bt"><i style="width:100%;background:#e0697e"></i></span><span class="bv">权重 0.50</span></div>
-            <div class="barrow"><span class="bk">距离</span><span class="bt"><i style="width:60%;background:#6b8cff"></i></span><span class="bv">权重 0.30</span></div>
-            <div class="barrow"><span class="bk">科室匹配</span><span class="bt"><i style="width:40%;background:#9a8cf0"></i></span><span class="bv">权重 0.20</span></div>
-            <div class="barrow"><span class="bk">重点专科</span><span class="bt"><i style="width:10%;background:#46c08a"></i></span><span class="bv">加成 0.05</span></div>
-          </div>
-          <div style="margin-top:10px;color:var(--ink-4);font-size:10.5px">
-            急诊相关科室自动置顶；命中科室越精准、等级越高、距离越近，得分越高。
-          </div>
-        </div>
-      </div>
+  </div>
+
+  <div class="panel" style="margin:var(--gap) var(--pad-x) 0">
+    <h3>排序方式 <span class="tag">SORT</span></h3>
+    <div class="sort-radios" id="filter_sort_group">
+      <label class="check"><input type="radio" name="filter_sort" value="score" checked> 条件匹配度</label>
+      <label class="check"><input type="radio" name="filter_sort" value="distance"> 距离（近 → 远）</label>
+      <label class="check"><input type="radio" name="filter_sort" value="level"> 医院等级</label>
+      <label class="check"><input type="radio" name="filter_sort" value="depts"> 科室数量</label>
+      <label class="check"><input type="radio" name="filter_sort" value="name"> 机构名称</label>
+    </div>
+    <div class="notice" style="margin-top:11px">条件匹配度 = 0.5×等级 + 0.3×距离归一 + 0.2×科室归一；公式与「机构查询」页一致，仅在智能筛选页以单选形式呈现便于口语化选择。</div>
+  </div>
+
+  <div class="panel" style="margin:var(--gap) var(--pad-x) 0">
+    <div class="railhead">
+      <h3>筛选结果 <span class="tag" id="filter_count_tag">— 家</span></h3>
+      <button class="btn pri sm" id="btn_filter_goto" type="button">在机构查询查看完整结果 →</button>
+    </div>
+    <div class="listhead"><div class="lh-l"><span>Top 5 预览 · 点击行看详情 · 完整列表与对比/收藏功能在「机构查询」页</span></div></div>
+    <div class="list" id="filter_preview" style="max-height:520px"></div>
+  </div>
+</section>
+
+<!-- ============================ 数据整合 ============================ -->
+<section id="view-integration" class="view">
+  <div class="sec-title"><span class="bar"></span>多源数据整合中心
+    <span class="hint">Spark 数仓分层 ODS → DWD → DWS → ADS · 处理结果全部来自真实 ETL</span></div>
+  <div class="integ-grid">
+    <div class="panel integ-col">
+      <h3>数据源 <span class="tag">SOURCES</span></h3>
+      <div id="integration_sources" class="integ-list"></div>
+    </div>
+    <div class="panel integ-col">
+      <h3>数据处理流程 <span class="tag">PIPELINE</span></h3>
+      <div id="integration_pipeline" class="timeline"></div>
+    </div>
+    <div class="panel integ-col">
+      <h3>处理结果 <span class="tag">RESULTS</span></h3>
+      <div id="integration_results" class="infogrid"></div>
+      <div class="blk" style="margin-top:14px"><h4><span class="bar"></span>ETL 批次时效</h4><div id="integration_etl_tbl"></div></div>
     </div>
   </div>
 </section>
 
-<!-- ============================ 运营后台 ============================ -->
-<section id="view-admin" class="view">
-  <div class="kpis" id="cards3">
-    <div class="card"><div class="l">累计行为事件</div><div class="v" id="ad_ev">0</div><div class="s">自系统上线以来记录的操作</div></div>
-    <div class="card k2"><div class="l">近 30 天事件</div><div class="v" id="ad_ev30">0</div><div class="s">当前统计窗口</div></div>
-    <div class="card k3"><div class="l">热门搜索词</div><div class="v" id="ad_kw_n">0</div><div class="s">去重后的检索关键词数</div></div>
-    <div class="card k4"><div class="l">数据表数量</div><div class="v" id="ad_tbl">0</div><div class="s">MySQL 数仓表</div></div>
+<!-- ============================ 数据质量 ============================ -->
+<section id="view-quality" class="view">
+  <div class="sec-title"><span class="bar"></span>数据质量治理
+    <span class="hint">字段完整率 · 去重统计 · 来源分布 · 全部由治理脚本真实计算</span></div>
+  <div class="kpis">
+    <div class="card hero"><div class="l">源文件数</div><div class="v" id="q_sources">70</div><div class="s">去重后公开数据文件</div></div>
+    <div class="card k2"><div class="l">原始记录</div><div class="v" id="q_raw">13,803</div><div class="s">合并前累计记录</div></div>
+    <div class="card k3"><div class="l">最终机构</div><div class="v" id="q_final">9,791</div><div class="s">去重合并后主表</div></div>
+    <div class="card k4"><div class="l">去重名</div><div class="v" id="q_dup">3,139</div><div class="s">多源重复机构名</div></div>
   </div>
-  <div class="sec-title"><span class="bar"></span>用户行为分析
-    <span class="hint" id="ad_note">埋点实时记录 · 数据来源为真实操作日志</span></div>
-  <div class="agrid">
-    <div class="apanel"><h3>热门搜索关键词 TOP10 <span class="tag">TOP KEYWORDS</span></h3><div class="achart" id="a_kw"></div></div>
-    <div class="apanel"><h3>最常筛选的区域 TOP10 <span class="tag">TOP DISTRICTS</span></h3><div class="achart" id="a_dist"></div></div>
-    <div class="apanel"><h3>热门导诊病情 TOP10 <span class="tag">TOP SYMPTOMS</span></h3><div class="achart" id="a_triage"></div></div>
-    <div class="apanel"><h3>每日行为趋势（近 14 天） <span class="tag">DAILY TREND</span></h3><div class="achart" id="a_daily"></div></div>
-  </div>
-  <div class="sec-title"><span class="bar"></span>资源热度分析
-    <span class="hint">完全由 9,789 家真实机构数据计算，与用户行为无关</span></div>
-  <div class="agrid">
-    <div class="apanel"><h3>各区机构密度 TOP16 <span class="tag">DISTRICT DENSITY</span></h3><div class="achart" id="a_density"></div></div>
-    <div class="apanel"><h3>等级构成（应参评机构） <span class="tag">LEVEL MIX</span></h3><div class="achart" id="a_level"></div></div>
-    <div class="apanel"><h3>科室覆盖 TOP12 <span class="tag">DEPT COVERAGE</span></h3><div class="achart" id="a_spec"></div></div>
-    <div class="apanel"><h3>协作网络覆盖 <span class="tag">NETWORK</span></h3><div class="achart" id="a_net"></div></div>
-    <div class="apanel"><h3>办别构成 <span class="tag">OWNERSHIP</span></h3><div class="achart" id="a_own"></div></div>
-    <div class="apanel"><h3>机构类型构成 <span class="tag">CATEGORY</span></h3><div class="achart" id="a_cat"></div></div>
-  </div>
-  <div class="sec-title"><span class="bar"></span>数据治理与批次时效
-    <span class="hint">Spark ETL 构建批次沉淀 · 快照驱动，离线可看</span></div>
-  <div class="agrid">
-    <div class="apanel"><h3>ETL 批次快照 <span class="tag">ETL BATCHES</span></h3><div id="etl_tbl"></div></div>
-    <div class="apanel"><h3>功能使用结构 <span class="tag">FEATURE USAGE</span></h3><div class="achart" id="a_feature"></div></div>
+  <div class="agrid" style="padding:var(--gap) var(--pad-x) 0">
+    <div class="apanel"><h3>关键字段完整率 <span class="tag">FIELD COMPLETENESS</span></h3><div id="qual_field_table"></div></div>
+    <div class="apanel"><h3>坐标精度分布 <span class="tag">COORD PRECISION</span></h3><div class="achart" id="ch_qcoord"></div></div>
+    <div class="apanel"><h3>去重与多源验证 <span class="tag">DEDUPLICATION</span></h3><div id="qual_dup_stats"></div></div>
+    <div class="apanel"><h3>机构类别构成（清洗后） <span class="tag">CATEGORY MIX</span></h3><div id="qual_cat_table"></div></div>
   </div>
 </section>
 

@@ -63,3 +63,6 @@ etl/api_commit_*.py
 
 # Spark Maven 依赖缓存（本地解析产物，不入库）
 spark/.ivy2/
+
+# 另一 IDE（Trae）的规划文档目录，非项目代码；且其中题目与定版不一致，不入库
+.trae/

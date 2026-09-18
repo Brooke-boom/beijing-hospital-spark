@@ -96,6 +96,7 @@ let MAP_CHART, CH1, CH2, CH3;
 let ROW_EL_BY_ID = {}, SCATTER_IDX = {}, HOVER_ID = null;   // 地图 ↔ 列表 悬停互指
 let CH_OWN, CH_FEAT, CH_NET, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD;
 let A_KW, A_DIST, A_TRIAGE, A_DAILY, A_DENSITY, A_LEVEL, A_SPEC, A_NET, A_OWN, A_CAT, A_FEAT;
+let OV_OWN_CHART, QCOORD_CHART;   // 数据总览·办别构成 / 数据质量·坐标精度（七视图改版新增）
 
 // ============================================================================
 //  0. 基础工具
@@ -272,7 +273,7 @@ const FLT_FIELDS = [
 ];
 const FLT_DEFAULT = { f_base: '', f_sort: 'score' };   // 距离基准默认空：进页自动定位，或输入任意地址
 // 排序 = 维度 × 方向；距离维度的语义就是「近 → 远」，固定为升序
-const SORT_LABEL = { score: '综合评分', distance: '距离', level: '医院等级', depts: '科室数量', name: '机构名称' };
+const SORT_LABEL = { score: '条件匹配度', distance: '距离', level: '医院等级', depts: '科室数量', name: '机构名称' };
 const SORT_DIR_DEFAULT = { score: 'desc', distance: 'asc', level: 'desc', depts: 'desc', name: 'asc' };
 const SORT_FIXED_ASC = { distance: true };
 let SORT_DIR = 'desc';
@@ -339,7 +340,7 @@ function renderFilterChips() {
   });
   box.innerHTML = chips.length
     ? '<span class="fl">已选条件 ' + chips.length + ' 项</span>' + chips.join('') +
-      '<button class="freset" type="button" data-freset="1" title="恢复默认：清空全部条件，距离基准回到市中心，排序回到综合评分">\u21ba 恢复默认</button>' +
+      '<button class="freset" type="button" data-freset="1" title="恢复默认：清空全部条件，距离基准回到市中心，排序回到条件匹配度">\u21ba 恢复默认</button>' +
       '<button class="fclear" type="button" data-fclear="__all__" title="只清空上方筛选条件，保留距离基准与排序设置">\u2715 清除条件</button>'
     : '';
   Array.prototype.forEach.call(box.querySelectorAll('[data-fclear]'), b =>
@@ -668,7 +669,7 @@ function localSummary(rows, meta) {
   const p = [];
   p.push('在<b>' + esc(scope) + '</b>条件下共匹配到 <b>' + meta.total + '</b> 家机构，' +
          '当前页等级构成为 ' + esc(lvTxt) + '。');
-  if (top) p.push('综合评分最高的是<b>' + esc(top.name) + '</b>（' + esc(top.district || '—') +
+  if (top) p.push('条件匹配度最高的是<b>' + esc(top.name) + '</b>（' + esc(top.district || '—') +
     ' · ' + (top._score || 0).toFixed(3) + ' 分）' +
     (top.key_specialty_count ? '，含 ' + top.key_specialty_count + ' 项重点专科' : '') + '。');
   if (near && near._dist != null) p.push('距' + esc(meta.baseName || '基准点') + '最近的是<b>' +
@@ -682,7 +683,7 @@ function currentScopeMeta() {
     district: $('f_district').value || '', level: $('f_level').value || '',
     depts: $('f_dept').value ? [$('f_dept').value] : [],
     kw: ($('f_kw').value || '').trim(),
-    sort: (SORT_LABEL[curSort()] || '综合评分') + (curDir() === 'asc' ? ' 升序' : ' 降序'),
+    sort: (SORT_LABEL[curSort()] || '条件匹配度') + (curDir() === 'asc' ? ' 升序' : ' 降序'),
     baseName: BASE_NOW ? base.name : '市中心', total: FILTERED.length,
   };
 }
@@ -836,6 +837,8 @@ function init() {
     refreshBaseSummary();
     autoLocate();          // 进页默认自动定位（静默降级到市中心估算；deep link 携带状态时跳过）
     applyFilter();
+    renderOverviewKPI();   // 数据总览 4 张 KPI + 办别构成图（全量口径，不随筛选变化）
+    renderFilterPreview(); // 智能筛选页 Top 5 预览（默认全量排序结果）
     if (st.v && st.v !== 'overview' && document.querySelector('.navtab[data-view="' + st.v + '"]')) switchView(st.v);
     loadAbout();
   } catch (e) {
@@ -855,7 +858,7 @@ function initAIState() {
       if (el) el.innerHTML = ENV.api
         ? ('后端连接 <b>正常</b> · ' + num(j.institutions) + ' 家')
         : '后端 <b>未连接</b>';
-      if (ENV.api) renderAdmin();     // 后端可用才拉行为统计
+      // 运营后台视图已在七视图改版中移除，不再启动拉取行为统计（renderAdmin 保留为死代码）
     })
     .catch(() => { if (el) el.innerHTML = '后端 <b>未连接</b>'; });
 }
@@ -923,6 +926,19 @@ function bindEvents() {
     fb.addEventListener('change', () => resolveBase(fb.value));
     fb.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); resolveBase(fb.value); } });
   }
+
+  // 智能筛选页：排序单选组与「机构查询」页 f_sort 双向同步（共用同一筛选状态）
+  const sortGroup = $('filter_sort_group');
+  if (sortGroup) {
+    sortGroup.addEventListener('change', e => {
+      const v = e.target && e.target.value;
+      if (!v) return;
+      setSort(v, SORT_DIR_DEFAULT[v] || SORT_DIR);
+      renderFilterPreview();
+    });
+  }
+  const bfg = $('btn_filter_goto');
+  if (bfg) bfg.addEventListener('click', () => switchView('institutions'));
 
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
@@ -1279,18 +1295,21 @@ function commitNLQ(r, raw) {
   if (r.cat) chips.push('类型：' + r.cat);
   if (r.dept) chips.push('科室：' + r.dept);
   if (r.kw) chips.push('关键词：' + r.kw);
-  if (r.sort) chips.push('排序：' + ({ score: '综合评分', distance: '距离最近', level: '等级优先', depts: '科室最多', name: '名称' }[r.sort] || r.sort));
+  if (r.sort) chips.push('排序：' + ({ score: '条件匹配度', distance: '距离最近', level: '等级优先', depts: '科室最多', name: '名称' }[r.sort] || r.sort));
 
   const tip = r.engine === 'llm' ? '（大模型解析）' : '（规则引擎解析 · 离线可用）';
   if (echo) {
     echo.style.display = 'block';
     echo.innerHTML = chips.length === 0
       ? '<span style="color:' + WARN + '">' + svgIcon('warn') + ' 没识别出筛选条件。</span>可以试试：<b>朝阳区看心脏病的三级医院</b> / <b>海淀区儿科诊所</b> / <b>离家最近的二甲医院</b>'
-      : '<b style="color:' + INK + '">我理解为</b> <span style="color:' + DIM + '">' + tip + '</span><br>' +
+      : '<b style="color:' + INK + '">已识别 ' + chips.length + ' 个筛选条件</b> <span style="color:' + DIM + '">' + tip + '</span><br>' +
         chips.map(c => '<span class="chip">' + esc(c) + '</span>').join('') +
-        '<br><span style="color:' + FAINT + '">解析结果已填入下方筛选项，可直接手工修改纠错。</span>';
+        '<br><span style="color:' + FAINT + '">解析结果已填入「机构查询」页筛选项；即将跳转查看完整结果，可在该页手工修改纠错。</span>';
   }
   PAGE = 1; applyFilter();
+  renderFilterPreview();
+  // 跳转到机构查询页查看完整结果，避免在智能筛选页维护重复的列表 DOM
+  setTimeout(() => { if (CUR_VIEW === 'filter') switchView('institutions'); }, 600);
 }
 function clearNLQ() {
   $('f_ai').value = '';
@@ -1589,6 +1608,7 @@ function initCharts() {
     });
 
     CH1 = echarts.init($('ch1')); CH2 = echarts.init($('ch2')); CH3 = echarts.init($('ch3'));
+    if ($('ch_ov_own')) OV_OWN_CHART = echarts.init($('ch_ov_own'));
     window.addEventListener('resize', () => resizeAll());
 
     setMapDiag('', svgIcon('ok') + ' 地图就绪 · ' + (DATA.geojson.features || []).length + ' 个行政区 · 点击区名可直接筛选');
@@ -1601,7 +1621,8 @@ function initCharts() {
 
 function resizeAll() {
   [MAP_CHART, CH1, CH2, CH3, CH_OWN, CH_FEAT, CH_NET, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD,
-   A_KW, A_DIST, A_TRIAGE, A_DAILY, A_DENSITY, A_LEVEL, A_SPEC, A_NET, A_OWN, A_CAT, DW_CHART
+   A_KW, A_DIST, A_TRIAGE, A_DAILY, A_DENSITY, A_LEVEL, A_SPEC, A_NET, A_OWN, A_CAT, DW_CHART,
+   OV_OWN_CHART, QCOORD_CHART
   ].forEach(c => { if (c) { try { c.resize(); } catch (e) { } } });
 }
 
@@ -1628,6 +1649,11 @@ function applyTheme(name) {
   try {
     const va = $('view-admin');
     if (va && va.classList.contains('active')) renderAdmin();
+  } catch (e) { }
+  try { drawOverviewOwn(); } catch (e) { }
+  try {
+    const vq = $('view-quality');
+    if (vq && vq.classList.contains('active')) renderQuality(true);
   } catch (e) { }
   setTimeout(resizeAll, 40);
 }
@@ -1882,8 +1908,9 @@ function initNav() {
     Array.prototype.forEach.call(tabs, b => b.classList.toggle('active', b === btn));
     Array.prototype.forEach.call(document.querySelectorAll('.view'), s => s.classList.toggle('active', s.id === 'view-' + v));
     CUR_VIEW = v;
-    if (v === 'admin') renderAdmin();
-    if (v === 'network') renderNetwork();
+    if (v === 'integration') renderIntegration();
+    if (v === 'quality') renderQuality();
+    if (v === 'filter') renderFilterPreview();
     writeState();
     setTimeout(resizeAll, 60);
   }));
@@ -2494,6 +2521,9 @@ function closeCompare() { $('cmpwrap').classList.remove('show'); }
 const TRIAGE_STATE = { ctx: [], extra: [], turn: 0, lastDepts: [], done: false, noClarify: false };
 
 function initTriageChat() {
+  // 防御 guard：HTML 已移除 view-triage 后此函数在 init() 中仍被调用。
+  // 函数体保留为死代码以最小化爆炸半径；后端 /api/triage 路由不受影响。
+  if (!$('t_in')) return;
   const input = $('t_in');
   input.addEventListener('keydown', e => { if (e.key === 'Enter') sendTriage(); });
   $('t_send').addEventListener('click', sendTriage);
@@ -2913,6 +2943,258 @@ function renderAdminResources() {
     A_OWN.setOption(pieOpt([['公立', own['公立'] || 0, ACC2], ['民营', own['民营'] || 0, WARN], ['未标注', own['未标注'] || 0, DIM]]));
   }
   if (A_CAT) A_CAT.setOption(barHOpt((m.categories || []).slice(0, 10).map(c => [trunc(c.category, 10), c.inst_count]), VIO));
+}
+
+// ============================================================================
+//  14.6 七视图改版：数据总览 KPI / 智能筛选预览 / 数据整合 / 数据质量
+//        本屏所有汇总数字均来自真实治理结果（data/processed/data_quality_report.md
+//        由 etl 治理脚本对 70 个源文件真实计算），不使用演示数据。
+// ============================================================================
+
+// 多源数据整合真实口径（医保局 4,876 / 社区 1,972 为用户确认的来源口径，
+// 其余 6,955 条为区级卫健委名录与重点专科 / 协作网络公示等专题文件；三者合计 13,803）
+// 运行时优先使用快照 DATA.overviews.data_quality（build_spa.sh 注入），DQ 仅为离线兜底常量。
+const DQ = {
+  sourceFiles: 70,          // 去重后源文件数（含 3 个统计表 / 排除文件，读取失败 0）
+  rawRecords: 13803,        // 合并前累计原始记录
+  finalInst: 9791,          // 去重合并后主表机构数（治理报告口径）
+  dupNames: 3139,           // 涉及多来源重复的机构名
+  dupMaxSources: 9,         // 单个机构最多被 9 个来源重复收录
+  crossVerified: 657,       // src_count>=3 的多源交叉验证机构
+  keyDeptInst: 20,          // 临床重点专科覆盖机构数
+  sources: [
+    { name: '市 / 区医保局定点医疗机构名单', count: 4876, desc: '市医保局及东城、平谷、延庆、顺义等区定点医药机构文件' },
+    { name: '社区卫生服务机构名录', count: 1972, desc: '社区卫生服务中心与社区卫生服务站名单' },
+    { name: '区级卫健委及专题公开数据', count: 6955, desc: '密云 / 通州 / 房山 / 朝阳 / 怀柔等区医疗机构名录、重点专科与协作网络公示、业务统计表' },
+  ],
+  // 完整率以主表 9,791 家为分母；快照 data_quality.fields 同构覆盖
+  fields: [
+    { field: 'district', label: '行政区', nonnull: 9749, pct: 99.6 },
+    { field: 'addr', label: '地址', nonnull: 8762, pct: 89.5 },
+    { field: 'profit', label: '经济类型（办别）', nonnull: 8328, pct: 85.1 },
+    { field: 'key_depts', label: '重点专科 / 擅长科室', nonnull: 831, pct: 8.5 },
+    { field: 'level', label: '医院等级', nonnull: 1172, pct: 12.0 },
+    { field: 'phone', label: '联系电话', nonnull: 570, pct: 5.8 },
+    { field: 'beds', label: '床位数', nonnull: 35, pct: 0.4 },
+    { field: 'traffic', label: '交通导引', nonnull: 17, pct: 0.2 },
+  ],
+};
+// 快照注入的蛇形 / 不同结构字段归一到 DQ 同构形式
+function dqv() {
+  const snap = (DATA && DATA.overviews && DATA.overviews.data_quality) || null;
+  if (!snap) return DQ;
+  const fields = (snap.fields || []).map(f =>
+    Array.isArray(f) ? { field: f[0], label: f[1], nonnull: f[2], pct: f[3] } : f);
+  return {
+    sourceFiles: snap.source_files != null ? snap.source_files : DQ.sourceFiles,
+    rawRecords: snap.raw_records != null ? snap.raw_records : DQ.rawRecords,
+    finalInst: snap.final_inst != null ? snap.final_inst : DQ.finalInst,
+    dupNames: snap.dup_names != null ? snap.dup_names : DQ.dupNames,
+    dupMaxSources: snap.dup_max_sources != null ? snap.dup_max_sources : DQ.dupMaxSources,
+    crossVerified: snap.cross_verified != null ? snap.cross_verified : DQ.crossVerified,
+    keyDeptInst: snap.key_dept_inst != null ? snap.key_dept_inst : DQ.keyDeptInst,
+    sources: snap.sources && snap.sources.length ? snap.sources : DQ.sources,
+    fields: fields.length ? fields : DQ.fields,
+  };
+}
+function dqFieldColor(p) {
+  return p >= 85 ? ACC2 : p >= 50 ? ACC : p >= 15 ? WARN : CRIT;
+}
+
+// ---------- 数据总览：4 张 KPI（全量口径，不随筛选变化）+ 办别构成环形图 ----------
+function renderOverviewKPI() {
+  if (!DATA) return;
+  setText('v_total', num(DATA.total));
+  const inst = DATA.institutions || [];
+  // 医院：category_norm 已把综合 / 专科 / 中医医院归一为「医院」（真实快照口径 732 家）；
+  // 社区机构：归一类别里没有单独口径，按机构名称真实匹配社区卫生服务中心 / 站
+  // （部分原始行是「中心+下属站」合并名，按主表一行一家计）
+  const hospN = inst.filter(r => r.category === '医院').length;
+  const commN = inst.filter(r => /社区卫生服务(站|中心)/.test(r.name || '')).length;
+  setText('v_hospitals', num(hospN));
+  setText('v_community', num(commN));
+  setText('v_sources', num(dqv().sourceFiles));
+  drawOverviewOwn();
+}
+function drawOverviewOwn() {
+  if (!OV_OWN_CHART || !DATA) return;
+  const own = {};
+  DATA.institutions.forEach(r => { const k = r.ownership || '未标注'; own[k] = (own[k] || 0) + 1; });
+  OV_OWN_CHART.setOption(pieOpt([
+    ['公立', own['公立'] || 0, ACC2],
+    ['民营', own['民营'] || 0, WARN],
+    ['未标注', own['未标注'] || 0, DIM],
+  ]));
+}
+
+// ---------- 智能筛选：筛选结果 Top 5 预览（完整列表在「机构查询」页） ----------
+function renderFilterPreview() {
+  const tag = $('filter_count_tag');
+  if (tag) tag.textContent = '共 ' + num(FILTERED.length) + ' 家符合条件';
+  // 进入本页时让单选组与机构查询页的 f_sort 保持一致（共用同一筛选状态）
+  const group = $('filter_sort_group');
+  const sortSel = $('f_sort');
+  if (group && sortSel) {
+    const rad = group.querySelector('input[value="' + (sortSel.value || 'score') + '"]');
+    if (rad) rad.checked = true;
+  }
+  const el = $('filter_preview');
+  if (!el) return;
+  const rows = FILTERED.slice(0, 5);
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty"><div class="et">没有符合条件的机构</div>' +
+      '<div class="es">请在上方换一种说法，或到「机构查询」页减少 1–2 个条件</div></div>';
+    return;
+  }
+  const baseNow = curBase();
+  const distLabel = '距' + (BASE_NOW ? baseNow.name : '市中心');
+  el.innerHTML = rows.map(r => {
+    const dist = r._dist == null ? '—' : r._dist.toFixed(1) + ' km';
+    return '<div class="row" data-id="' + esc(r.id) + '">' +
+      '<div class="body">' +
+        '<div class="name">' + esc(r.name) + '</div>' +
+        '<div class="meta">' + levelBadge(r.level) + catBadge(r.category) + ownBadge(r.ownership) +
+          '<span>' + esc(r.district) + '</span><span style="color:' + FAINT + '">·</span><span>' + (r.dept_count || 0) + ' 个科室</span></div>' +
+        featLine(r) + netLine(r) +
+      '</div>' +
+      '<div class="side">' +
+        '<div class="dist">' + dist + '<div style="color:' + DIM + ';font-size:10px;font-weight:400">' + esc(distLabel) + '</div></div>' +
+        '<div class="score">' + (r._score || 0).toFixed(3) + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  Array.prototype.forEach.call(el.querySelectorAll('.row'), row => {
+    row.addEventListener('click', () => openDrawer(row.getAttribute('data-id')));
+    const rid = String(row.getAttribute('data-id'));
+    row.addEventListener('mouseenter', () => hoverRowToMap(rid, true));
+    row.addEventListener('mouseleave', () => hoverRowToMap(rid, false));
+  });
+}
+
+// ---------- 数据整合中心：数据源 + Spark 处理流程 + 处理结果 + ETL 批次时效 ----------
+let _integRendered = false;
+function renderIntegration() {
+  if (_integRendered) return;
+  _integRendered = true;
+  const Q = dqv();
+
+  const srcEl = $('integration_sources');
+  if (srcEl) {
+    srcEl.innerHTML = Q.sources.map(s =>
+      '<div class="integ-item"><div class="ii-top"><span class="ii-name">' + esc(s.name) + '</span>' +
+      '<span class="ii-count">' + num(s.count) + ' <em>条</em></span></div>' +
+      '<div class="ii-desc">' + esc(s.desc) + '</div></div>').join('') +
+      '<div class="integ-item total"><div class="ii-top"><span class="ii-name">合计原始记录</span>' +
+      '<span class="ii-count">' + num(Q.rawRecords) + ' <em>条</em></span></div>' +
+      '<div class="ii-desc">共 ' + Q.sourceFiles + ' 个去重源文件（含 3 个无机构名称列的统计表，已排除出主表）</div></div>';
+  }
+
+  // 复用关于页同一套 PIPELINE 真实清洗步骤（8 步）
+  const pipeEl = $('integration_pipeline');
+  if (pipeEl) {
+    pipeEl.innerHTML = PIPELINE.map(p =>
+      '<div class="tstep"><div class="num">' + p.step + '</div><div class="tc">' +
+      '<div class="tn">' + esc(p.name) + '</div><div class="tt">' + esc(p.tool) + '</div>' +
+      '<div class="td">' + esc(p.desc) + '</div></div></div>').join('');
+  }
+
+  const resEl = $('integration_results');
+  if (resEl) {
+    resEl.innerHTML =
+      box('源文件数', num(Q.sourceFiles) + ' 个') +
+      box('原始记录', num(Q.rawRecords) + ' 条') +
+      box('重复机构名', num(Q.dupNames) + ' 个') +
+      box('多源交叉验证', '≥3 源 · ' + num(Q.crossVerified) + ' 家') +
+      box('去重后主表', num(Q.finalInst) + ' 家') +
+      box('重点专科覆盖', num(Q.keyDeptInst) + ' 家');
+  }
+
+  // ETL 批次时效：来自 Spark ADS 层 ads_etl_snapshot 快照，离线同样可看
+  const etlEl = $('integration_etl_tbl');
+  if (etlEl) {
+    const rows = ((DATA.overviews || {}).etl_snapshots || []);
+    etlEl.innerHTML = rows.length
+      ? '<table class="etltbl"><thead><tr><th>批次日期</th><th>机构数</th><th>三级</th><th>二级</th>' +
+        '<th>一级</th><th>未定级</th><th>覆盖区</th><th>坐标可用</th></tr></thead><tbody>' +
+        rows.map(r => '<tr><td>' + esc(r.batch_date) + '</td><td>' + num(r.inst_count) + '</td><td>' +
+          num(r.level_3) + '</td><td>' + num(r.level_2) + '</td><td>' + num(r.level_1) + '</td><td>' +
+          num(r.level_none) + '</td><td>' + num(r.district_count) + '</td><td>' + num(r.coord_ok) +
+          '</td></tr>').join('') + '</tbody></table>'
+      : '<div class="empty">暂无批次数据</div>';
+  }
+}
+
+// ---------- 数据质量：字段完整率 + 坐标精度 + 去重统计 + 类别构成 ----------
+let _qualRendered = false;
+function renderQuality(force) {
+  if (_qualRendered && !force) return;
+  _qualRendered = true;
+  const Q = dqv();
+
+  // 1) 关键字段完整率（治理脚本真实计算；分母为主表 9,791 家）
+  const ft = $('qual_field_table');
+  if (ft) {
+    ft.innerHTML =
+      '<table class="qtable"><thead><tr><th>字段</th><th style="text-align:right">非空数</th>' +
+      '<th style="text-align:right">完整率</th></tr></thead><tbody>' +
+      Q.fields.map(f =>
+        '<tr><td><span class="mono">' + esc(f.field) + '</span> ' + esc(f.label) + '</td>' +
+        '<td style="text-align:right">' + num(f.nonnull) + '</td>' +
+        '<td style="text-align:right"><div class="qbar"><i style="width:' + Math.max(f.pct, 1.5) +
+          '%;background:' + dqFieldColor(f.pct) + '"></i><b>' + f.pct.toFixed(1) + '%</b></div></td></tr>').join('') +
+      '</tbody></table>' +
+      '<div class="notice" style="margin-top:10px">电话 / 床位 / 交通导引在公开数据中覆盖率极低，系统遵循「宁缺勿伪」原则：' +
+      '床位数已从展示与评分中移除，不以估算值填充；等级字段仅医院参加评审，基层机构按「不适用分级」展示。</div>';
+  }
+
+  // 2) 坐标精度分布（全量真实数据，与医疗资源分析页同口径）
+  const qc = $('ch_qcoord');
+  if (qc) {
+    if (!QCOORD_CHART) QCOORD_CHART = echarts.init(qc);
+    const cp = { high: 0, rough: 0, missing: 0 };
+    (DATA.institutions || []).forEach(r => { cp[r.coord_precision || 'missing']++; });
+    QCOORD_CHART.setOption(pieOpt([
+      ['高精度', cp.high, ACC2], ['粗略', cp.rough, WARN], ['缺失', cp.missing, CRIT],
+    ]));
+    setTimeout(() => { if (QCOORD_CHART) QCOORD_CHART.resize(); }, 0);
+  }
+
+  // 3) 去重与多源交叉验证
+  const ds = $('qual_dup_stats');
+  if (ds) {
+    const reduced = Q.rawRecords - Q.finalInst;
+    ds.innerHTML =
+      '<div class="infogrid">' +
+        box('多源重复机构名', num(Q.dupNames) + ' 个') +
+        box('单机构最多来源数', num(Q.dupMaxSources) + ' 个') +
+        box('多源交叉验证机构', num(Q.crossVerified) + ' 家') +
+        box('合并压缩记录', num(reduced) + ' 条') +
+      '</div>' +
+      '<div class="notice" style="margin-top:11px">同一机构被多个来源重复收录时，按<b>名称标准化 → 实体匹配 → 属性合并</b>去重；' +
+      '被 3 个及以上来源同时收录的 ' + num(Q.crossVerified) + ' 家机构经多源交叉验证，可信度最高。' +
+      '原始 ' + num(Q.rawRecords) + ' 条记录去重后形成 ' + num(Q.finalInst) + ' 家主表；' +
+      'ADS 在线服务表当前为 ' + num(DATA.total) + ' 家，差额 ' + (Q.finalInst - DATA.total) +
+      ' 家为治理后未入表的少量样本，两口径均可在数据整合页核验。</div>';
+  }
+
+  // 4) 机构类别构成（按当前 ADS 服务表真实快照，随数据更新自动重算）
+  const ct = $('qual_cat_table');
+  if (ct) {
+    const cats = (DATA.meta && DATA.meta.categories || []).slice().sort((a, b) => b.inst_count - a.inst_count);
+    const denom = DATA.total || cats.reduce((s, c) => s + c.inst_count, 0);
+    ct.innerHTML = cats.length
+      ? '<table class="qtable"><thead><tr><th>类别</th><th style="text-align:right">数量</th>' +
+        '<th style="text-align:right">占比</th></tr></thead><tbody>' +
+        cats.map(c => {
+          const p = denom ? (c.inst_count / denom * 100) : 0;
+          return '<tr><td>' + esc(c.category) + '</td><td style="text-align:right">' + num(c.inst_count) +
+            '</td><td style="text-align:right"><div class="qbar"><i style="width:' + Math.max(p, 1.5) +
+            '%;background:' + VIO + '"></i><b>' + p.toFixed(1) + '%</b></div></td></tr>';
+        }).join('') + '</tbody></table>' +
+        '<div class="notice" style="margin-top:10px">口径：ADS 服务表 ' + num(DATA.total) + ' 家（快照日期 ' +
+        esc(DATA.snapshot_time || '—') + '）。</div>'
+      : '<div class="empty">暂无类别数据</div>';
+  }
 }
 
 // ============================================================================

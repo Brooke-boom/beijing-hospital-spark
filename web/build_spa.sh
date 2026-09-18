@@ -54,6 +54,31 @@ overviews = {
     'etl_snapshots': q("SELECT CAST(batch_date AS CHAR) AS batch_date, batch_ts, inst_count, level_3, level_2, level_1,"
                        " level_none, district_count, coord_ok FROM ads_etl_snapshot"
                        " ORDER BY batch_ts DESC LIMIT 6"),
+    # 数据整合 / 数据质量页口径：来自 etl 治理脚本真实输出
+    # （data/processed/data_quality_report.md，70 个源文件 → 13,803 条 → 去重 9,791 家），
+    # 不依赖额外 ETL 表，随快照分发；前端 dqv() 优先读此对象。
+    'data_quality': {
+        'source_files': 70, 'raw_records': 13803, 'final_inst': 9791,
+        'dup_names': 3139, 'dup_max_sources': 9, 'cross_verified': 657, 'key_dept_inst': 20,
+        'sources': [
+            {'name': '市 / 区医保局定点医疗机构名单', 'count': 4876,
+             'desc': '市医保局及东城、平谷、延庆、顺义等区定点医药机构文件'},
+            {'name': '社区卫生服务机构名录', 'count': 1972,
+             'desc': '社区卫生服务中心与社区卫生服务站名单'},
+            {'name': '区级卫健委及专题公开数据', 'count': 6955,
+             'desc': '密云 / 通州 / 房山 / 朝阳 / 怀柔等区医疗机构名录、重点专科与协作网络公示、业务统计表'},
+        ],
+        'fields': [
+            {'field': 'district', 'label': '行政区', 'nonnull': 9749, 'pct': 99.6},
+            {'field': 'addr', 'label': '地址', 'nonnull': 8762, 'pct': 89.5},
+            {'field': 'profit', 'label': '经济类型（办别）', 'nonnull': 8328, 'pct': 85.1},
+            {'field': 'key_depts', 'label': '重点专科 / 擅长科室', 'nonnull': 831, 'pct': 8.5},
+            {'field': 'level', 'label': '医院等级', 'nonnull': 1172, 'pct': 12.0},
+            {'field': 'phone', 'label': '联系电话', 'nonnull': 570, 'pct': 5.8},
+            {'field': 'beds', 'label': '床位数', 'nonnull': 35, 'pct': 0.4},
+            {'field': 'traffic', 'label': '交通导引', 'nonnull': 17, 'pct': 0.2},
+        ],
+    },
     # 注：ads_time_trend 目前仅 5 行测试数据，待行为日志积累后接入「行为日趋势」
 }
 meta = {
