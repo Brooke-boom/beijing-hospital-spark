@@ -12,7 +12,7 @@ DWD 层：清洗 + 坐标关联
   4. 关联 geocode 坐标缓存（按 id 去重防 join 膨胀）+ 坐标精度分桶
 
 运行（单独）：
-  spark-submit --master spark://spark-master:7077 jobs/layer_dwd.py
+  spark-submit --master 'local[*]' jobs/layer_dwd.py
 """
 
 import os

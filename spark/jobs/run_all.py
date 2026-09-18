@@ -13,13 +13,14 @@
   time     时间维度分析        行为日志+DWD → DWS/time（含批次快照）
   ads      服务层落库          HDFS 结果 → MySQL（业务库）
 
-用法（容器内）：
-  spark-submit --master spark://spark-master:7077 \
-    --conf spark.jars.ivy=/opt/workspace/.ivy2 \
+用法（容器内，单机模式）：
+  spark-submit --master 'local[*]' \
+    --conf spark.jars.ivy=/opt/workspace/jobs/.ivy2 \
     --packages com.mysql:mysql-connector-j:8.4.0 \
     /opt/workspace/jobs/jobs/run_all.py [--only ads] [--from space]
 
 宿主机封装：bash spark/run_all.sh [同上参数]
+  （默认单机 local[*]；SPARK_MASTER=spark://spark-master:7077 可切集群模式）
 """
 
 import argparse
@@ -75,7 +76,8 @@ def main():
     print("  HDFS 根: %s" % common.HDFS_ROOT)
 
     spark = common.get_spark("HospitalDW-Pipeline")
-    print("  ✅ Spark %s 已启动（集群模式：spark://spark-master:7077）" % spark.version)
+    print("  ✅ Spark %s 已启动（运行模式 master=%s）"
+          % (spark.version, spark.sparkContext.master))
 
     timings = []
     try:

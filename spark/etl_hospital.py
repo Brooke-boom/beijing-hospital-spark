@@ -35,7 +35,7 @@
 
 运行：
   docker exec spark-master /opt/spark/bin/spark-submit \
-    --master spark://spark-master:7077 \
+    --master 'local[*]' \
     --jars /opt/workspace/jobs/mysql-connector-j-8.4.0.jar \
     --driver-class-path /opt/workspace/jobs/mysql-connector-j-8.4.0.jar \
     /opt/workspace/jobs/etl_hospital.py

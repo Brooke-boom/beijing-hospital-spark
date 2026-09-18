@@ -23,7 +23,7 @@ import os
 import re
 
 import pymysql
-from flask import Flask, g, jsonify, render_template, request, make_response
+from flask import Flask, g, jsonify, render_template, request, make_response, send_from_directory
 
 # ============== 配置 ==============
 DB_CONFIG = {
@@ -80,6 +80,26 @@ def index():
     return resp
 
 
+# ============== Vue 单页应用（前后端分离形态）==============
+# web/vue/dist 由 `bash web/vue/build.sh` 构建产出；Flask 只负责静态托管，
+# 业务数据一律仍走 /api/* 从 MySQL 取——前后端通过 JSON 接口解耦，不共享模板。
+# 与原有单文件大屏（/）并存：/ 是零依赖离线兜底，/spa/ 是 Vue 在线形态。
+SPA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vue", "dist")
+
+
+@app.route("/spa/")
+@app.route("/spa/<path:sub>")
+def spa(sub=""):
+    """托管 Vue 构建产物。hash 路由模式，任意深链都回退到 index.html。"""
+    if not os.path.isdir(SPA_DIR):
+        return ("Vue 前端尚未构建：请先执行  bash web/vue/build.sh", 503)
+    target = sub if sub and os.path.isfile(os.path.join(SPA_DIR, sub)) else "index.html"
+    resp = make_response(send_from_directory(SPA_DIR, target))
+    if target.endswith(".html"):
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp
+
+
 # ============== API：多维筛选与排序 ==============
 @app.route("/api/institutions")
 def api_institutions():
@@ -93,7 +113,8 @@ def api_institutions():
       dept      科室名（如 口腔科）
       net       协作网络（ped_core/ped_member/stroke/neonatal/maternal）
       lng/lat   参考点坐标（默认天安门），用于距离计算与排序
-      sort      排序策略：distance | level | depts | score（默认 score）
+      sort      排序策略：score（条件匹配度加权）| distance（近→远）| level（等级优先）
+                          | depts（科室数量多→少）| name（机构名称，默认 score）
       page      页码（默认 1）
       page_size 每页条数（默认 20，最大 100）
     返回：{total, page, page_size, items[], meta{}}
@@ -173,6 +194,10 @@ def api_institutions():
         )
     elif sort == "depts":
         order_sql = "dept_count DESC"
+    elif sort == "name":
+        # 机构名称（MySQL utf8mb4_0900_ai_ci 排序规则下对中文按 Unicode 码位排序，
+        # 与单文件大屏的本地 localeCompare 结果可能存在细微差异，但同一批数据下稳定可复现）
+        order_sql = "name ASC"
     else:
         sort = "score"
         order_sql = "score DESC, distance_km ASC"
@@ -1638,10 +1663,12 @@ def api_about():
             {"name": "高德开放平台", "url": "https://lbs.amap.com/",
              "desc": "地理编码与周边配套（地铁站/停车场）POI 查询"},
         ],
-        "updated_at": "2026-09-08",
+        "updated_at": "2026-09-18",
         "update_log": [
             {"date": "2026-09-08", "desc": "快照数据更新（9,789 家机构）；修正机构更名与别名映射"},
             {"date": "2026-09-11", "desc": "新增智能导诊、多维分析、详情抽屉、机构对比、运营后台模块"},
+            {"date": "2026-09-17", "desc": "多维分析数据联网完善：办别与等级在线核实（公立 3,085 / 民营 5,323 / 未标注 1,381）；352 家等级缺失经核实确为数据边界"},
+            {"date": "2026-09-18", "desc": "信息架构重构为七视图；新增 Vue 3 + Flask 前后端分离形态（/spa/），与零依赖离线单文件并存"},
         ],
     })
 

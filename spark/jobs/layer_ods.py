@@ -9,7 +9,7 @@ ODS 只做"搬运 + 列式化"，不做任何清洗：schema 与源文件一致�
 保证原始数据可回溯（数据血缘最低层）。
 
 运行（单独）：
-  spark-submit --master spark://spark-master:7077 jobs/layer_ods.py
+  spark-submit --master 'local[*]' jobs/layer_ods.py
 """
 
 import os

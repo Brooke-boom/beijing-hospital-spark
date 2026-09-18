@@ -13,7 +13,7 @@
   4. dws_level_category     等级 × 类型 交叉表（结构分析的二维视角）
 
 运行（单独）：
-  spark-submit --master spark://spark-master:7077 jobs/dim_category.py
+  spark-submit --master 'local[*]' jobs/dim_category.py
 """
 
 import os

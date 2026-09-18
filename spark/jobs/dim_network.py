@@ -12,7 +12,7 @@
 输出：HDFS /hospital/dws/network/*
 
 运行（单独）：
-  spark-submit --master spark://spark-master:7077 jobs/dim_network.py
+  spark-submit --master 'local[*]' jobs/dim_network.py
 """
 
 import os

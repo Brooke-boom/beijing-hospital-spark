@@ -14,7 +14,7 @@
       HDFS /hospital/meta/snapshots/（追加，Parquet）
 
 运行（单独）：
-  spark-submit --master spark://spark-master:7077 jobs/dim_time.py
+  spark-submit --master 'local[*]' jobs/dim_time.py
 """
 
 import os

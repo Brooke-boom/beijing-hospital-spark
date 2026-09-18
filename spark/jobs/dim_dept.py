@@ -12,7 +12,7 @@
   3. dws_dept_density       每区科室种类密度（区级科室丰富度）
 
 运行（单独）：
-  spark-submit --master spark://spark-master:7077 jobs/dim_dept.py
+  spark-submit --master 'local[*]' jobs/dim_dept.py
 """
 
 import os

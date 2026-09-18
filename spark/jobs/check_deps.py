@@ -5,12 +5,12 @@
 验证三件事：
   1. Maven 坐标（--packages）能否解析到 MySQL 驱动 → JDBC 连通性
   2. HDFS 数仓各分层目录是否可读、行数是否符合预期
-  3. Spark 是否运行在 Standalone 集群（而非 local[*]）
+  3. Spark 运行模式（单机 local[*] 或 Standalone 集群，两者均合法）
 
 运行：
   bash spark/run_all.sh --only deps     # 走 run_all 的封装
-  或容器内直接：
-  spark-submit --master spark://spark-master:7077 \
+  或容器内直接（单机模式，默认）：
+  spark-submit --master 'local[*]' \
     --conf spark.jars.ivy=/opt/workspace/jobs/.ivy2 \
     --packages com.mysql:mysql-connector-j:8.4.0 \
     /opt/workspace/jobs/jobs/check_deps.py
@@ -44,9 +44,13 @@ def main(spark=None):
     print_section("1. Spark 运行模式")
     master = spark.sparkContext.master
     print("  master = %s" % master)
-    if not master.startswith("spark://"):
+    if master.startswith("spark://"):
+        print("  ✓ Standalone 集群模式")
+    elif master.startswith("local"):
+        print("  ✓ 单机模式 local[*]（复盘标准④：Maven 单机模式，依赖同样由 Maven 坐标解析）")
+    else:
         ok = False
-        print("  ⚠️  未运行在 Standalone 集群模式")
+        print("  ⚠️  未识别的运行模式（应为 local[*] 或 spark://host:port）")
 
     print_section("2. HDFS 数仓分层可读性与行数")
     for base, tables in LAYERS:

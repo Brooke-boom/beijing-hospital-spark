@@ -48,6 +48,13 @@ web/flask.log
 # 线上发布目录（静态站点，6MB 不入仓库）
 web/dist/
 
+# Vue 工程依赖（node_modules 是本机软链到受管 Node 工作区的绝对路径，绝不能入库）
+# 注意：web/vue/dist 构建产物体积可控（约 1.2MB）且已入库，
+#       目的是让 clone 后不装 Node 也能直接访问 /spa/；改前端源码后务必重跑 web/vue/build.sh
+web/vue/node_modules/
+web/vue/.vite/
+web/vue/npm-debug.log*
+
 # 开题报告/答辩材料（答辩前防抄袭不入库）
 *开题报告*.docx
 刘佳鑫-*

@@ -19,7 +19,7 @@ ADS 层（服务层）：HDFS 分析结果 → MySQL 业务库
      ads_time_feature（功能使用结构）/ ads_etl_snapshot（批次时效性）
 
 运行（单独）：
-  spark-submit --master spark://spark-master:7077 --packages com.mysql:mysql-connector-j:8.4.0 jobs/layer_ads.py
+  spark-submit --master 'local[*]' --packages com.mysql:mysql-connector-j:8.4.0 jobs/layer_ads.py
 """
 
 import os

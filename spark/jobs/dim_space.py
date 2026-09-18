@@ -13,7 +13,7 @@
   4. dws_district_distance  16×16 区间 Haversine 球面距离矩阵（空间可达性基础）
 
 运行（单独）：
-  spark-submit --master spark://spark-master:7077 jobs/dim_space.py
+  spark-submit --master 'local[*]' jobs/dim_space.py
 """
 
 import os

@@ -1,0 +1,23 @@
+{
+  "name": "hospital-spark-spa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "北京市医疗机构资源整合与多维筛选可视化系统 —— Vue 3 前端（前后端分离）",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "echarts": "^5.5.1",
+    "pinia": "^2.3.0",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.0.7"
+  }
+}

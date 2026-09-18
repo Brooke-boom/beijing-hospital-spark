@@ -4,7 +4,7 @@ Spark 环境验证脚本：读取医院主表，做一次真实的分布式计�
 =========================================================
 在容器内提交：
   docker compose exec spark-master /opt/spark/bin/spark-submit \
-      --master spark://spark-master:7077 /opt/workspace/jobs/verify_spark.py
+      --master 'local[*]' /opt/workspace/jobs/verify_spark.py
 
 验证点：
   1. SparkSession 能创建（集群连通）

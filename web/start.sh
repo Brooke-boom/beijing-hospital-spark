@@ -23,8 +23,15 @@ if ! nc -z 127.0.0.1 3307 2>/dev/null; then
 fi
 
 # 启动 Flask
-echo "=== 启动 Flask 大屏服务（端口 $PORT）==="
-echo "  浏览器请打开: http://localhost:$PORT"
+echo "=== 启动 Flask 服务（端口 $PORT）==="
+echo "  Vue 在线形态（前后端分离）: http://localhost:$PORT/spa/"
+echo "  单文件离线兜底大屏:         http://localhost:$PORT/"
+if [ -d web/vue/dist ]; then
+  echo "  ✓ 检测到 Vue 构建产物 web/vue/dist（/spa/ 可用）"
+else
+  echo "  ⚠️  未找到 web/vue/dist，/spa/ 会返回 503。"
+  echo "     如需 Vue 形态请先构建：bash web/vue/build.sh"
+fi
 echo "  注意：定位功能需要 http:// 协议，file:// 协议下浏览器拒绝授权"
 echo "  停止服务: Ctrl+C"
 echo ""

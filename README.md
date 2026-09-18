@@ -6,11 +6,11 @@
 
 | 层 | 技术 |
 |---|---|
-| 数据处理 | PySpark 3.5.3（Standalone 集群，Docker 原生 arm64） |
+| 数据处理 | PySpark 3.5.3（默认 `local[*]` 单机模式，可用 `SPARK_MASTER` 切回 Standalone 集群；Docker 原生 arm64） |
 | 存储 | **HDFS 3.3.6**（ODS/DWD/DWS 分层 Parquet）+ **MySQL 8.0**（ADS 服务层结果） |
 | 依赖管理 | Maven 坐标（`spark-submit --packages`，见 `spark/pom.xml`） |
-| 服务 | Flask RESTful API |
-| 前端 | ECharts 5（北京地图散点 + 柱状 + 环形图） |
+| 服务 | Flask RESTful API（22 个接口） |
+| 前端 | **Vue 3 + Vite**（前后端分离，`/spa/`）+ ECharts 5；另保留零依赖单文件离线大屏 |
 | 部署 | Docker Compose |
 
 ## 目录结构
@@ -24,11 +24,15 @@
 │   ├── run_all.sh      # 全链路一键跑批（宿主机）
 │   └── pom.xml         # 依赖清单（Maven 坐标）
 ├── docker/hadoop/      # 自建 arm64 HDFS 镜像（官方镜像仅 amd64，M1 上起不来）
-├── web/                # Flask 应用（API + 可视化前端）
-│   ├── app.py          # RESTful API（筛选/详情/概览）
-│   ├── templates/      # 单页前端
+├── web/                # Flask 应用（API）+ 两种前端形态
+│   ├── app.py          # RESTful API（22 个接口：筛选/排序/详情/概览/对比/地理编码/导诊/埋点）
+│   ├── vue/            # Vue 3 前端工程（前后端分离形态，构建产物挂载在 /spa/）
+│   │   ├── src/        # 源码：7 视图 + 6 组件 + api/store/charts
+│   │   ├── build.sh    # 一键构建 / 启动 dev server
+│   │   └── dist/       # 构建产物（已入库，Flask 挂载点）
+│   ├── templates/      # 单文件大屏（Flask 渲染版，离线兜底）
 │   └── static/         # ECharts、北京 geoJSON、样式
-├── docs/               # 开发日志等文档
+├── docs/               # 开发日志、项目说明书、功能点代码地图等文档
 └── docker-compose.yml  # hdfs(namenode+datanode) + spark(master+worker) + mysql
 ```
 
@@ -85,9 +89,13 @@ python etl/load_disease_dept.py          # 写入 MySQL 维度表 dim_disease_de
 # 6. 重新生成快照与离线大屏
 bash web/build_spa.sh
 
-# 7. 启动 Web 服务
+# 7. 构建 Vue 前端（前后端分离形态，产物挂载在 /spa/）
+bash web/vue/build.sh
+
+# 8. 启动 Web 服务
 bash web/start.sh
-# 浏览器访问 http://localhost:5001
+# Vue 在线形态   → http://localhost:5001/spa/
+# 单文件离线形态 → http://localhost:5001/
 ```
 
 HDFS 分层结果可现场核验：
@@ -100,12 +108,14 @@ docker exec hdfs-namenode hdfs dfs -du -s -h /hospital/ods /hospital/dwd /hospit
 验证服务是否就绪：`curl -s http://127.0.0.1:5001/api/health`
 正常返回 `{"institutions":9789,"status":"ok"}`。
 
-- 系统界面: http://localhost:5001
+- Vue 在线形态（前后端分离）: http://localhost:5001/spa/
+- 单文件离线大屏: http://localhost:5001/
 - HDFS NameNode UI: http://localhost:9870
 - Spark Master UI: http://localhost:8080
 - Spark Worker UI: http://localhost:8081
 - MySQL: localhost:3307（root/hospital123，应用账号 app/app123）
 
+> Vue 工程说明（技术选型、目录结构、构建与排错）见 [`web/vue/README.md`](web/vue/README.md)。
 > 更多运行方式（数据更新链路、常见坑、环境说明）见 [`docs/系统运行流程.md`](docs/系统运行流程.md)。
 
 ## API 一览
