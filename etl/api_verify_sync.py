@@ -22,6 +22,7 @@
 
 退出码：0 = 完全同步；1 = 存在未推送改动 / 新增未提交文件；2 = 执行出错。
 """
+import fnmatch
 import hashlib
 import json
 import os
@@ -34,6 +35,31 @@ REPO = "Brooke-boom/beijing-hospital-spark"
 ROOT = "/Users/brooke/Desktop/毕设"
 API = "https://api.github.com"
 BRANCH = "main"
+
+# 与 api_commit_*.py 的 IGNORE_GLOBS / IGNORE_DIRS 同口径。
+# 不这么做的话，按入库规则"永不提交"的文件（截图、脚手架、node_modules 软链）
+# 每次都会被算成"本地新增未提交"，把校验结果染成 ❌，真问题就被淹了。
+IGNORE_GLOBS = [
+    "*.pyc", "*.key", "*.log", "*.bak", "*.jar", "*.docx", "*.xlsx", "*.xls",
+    ".DS_Store", "*.icloud", "*.png", "*.jpg",
+    "etl/api_commit_*.py", "etl/api_commit_*.sh", "etl/patch_*.py", ".env",
+    "*开题报告*.docx", "刘佳鑫-*",
+]
+IGNORE_DIRS = [
+    ".git", ".trae", ".venv", "__pycache__", "node_modules",
+    "web/dist", "web/vendor", "web/vue/node_modules", "spark/.ivy2", "data",
+]
+
+
+def ignored(rel):
+    parts = rel.split("/")
+    for d in IGNORE_DIRS:
+        if d in parts or rel == d or rel.startswith(d + "/"):
+            return True
+    for g in IGNORE_GLOBS:
+        if fnmatch.fnmatch(rel, g) or fnmatch.fnmatch(parts[-1], g):
+            return True
+    return False
 
 QUIET = "--quiet" in sys.argv
 
@@ -108,8 +134,9 @@ def main():
     # 注意：`git ls-files` 读的是本地索引，而本项目用 API 提交后本地索引不会更新，
     # 因此「未跟踪」清单里会混入大量其实早已在远端的文件。这里以远端 tree 为权威
     # 清单做二次过滤，只保留「远端确实没有」的新文件，避免误报。
-    new_local = [rel for rel in untracked if rel not in remote]
+    new_local = [rel for rel in untracked if rel not in remote and not ignored(rel)]
     index_stale = [rel for rel in untracked if rel in remote]
+    skipped = [rel for rel in untracked if rel not in remote and ignored(rel)]
 
     # 远端有、本地已跟踪清单里没有的（索引过期或已删除/改名的残留）
     gone = sorted(set(remote) - set(tracked))
@@ -129,6 +156,10 @@ def main():
                 print("    + %s" % rel)
         if index_stale:
             print("ℹ️  %d 个文件已在远端但不在本地索引（API 提交后索引未更新，属正常）：" % len(index_stale))
+        if skipped:
+            print("ℹ️  %d 个本地文件按入库规则排除，不计入同步判定：" % len(skipped))
+            for rel in skipped[:12]:
+                print("    … %s" % rel)
         if missing_local:
             print("ℹ️  本地索引有但磁盘已无（%d，索引过期或文件已删除，非远端问题）：" % len(missing_local))
             for rel in missing_local:
