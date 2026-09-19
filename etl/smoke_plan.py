@@ -22,6 +22,33 @@ from playwright.sync_api import sync_playwright
 BASE = "http://127.0.0.1:5001/spa/"
 
 
+def run_plan(pg, q, tries=30):
+    """填需求 → 生成方案 → 等候选渲染；返回是否出现候选卡"""
+    pg.fill(".ask", q)
+    time.sleep(0.3)
+    pg.evaluate("""() => {
+      const b = [...document.querySelectorAll('button')].find(x => /生成就医方案/.test(x.innerText));
+      if (b) b.click();
+    }""")
+    for _ in range(tries):
+        time.sleep(0.8)
+        if pg.evaluate("() => document.querySelectorAll('.cand').length") > 0:
+            time.sleep(0.6)
+            return True
+    return False
+
+
+def home_state(pg):
+    """读取"是否处于起始页"的可观测量"""
+    return pg.evaluate("""() => ({
+      hash: location.hash,
+      onStep1: !!document.querySelector('.ask'),
+      q: (document.querySelector('.ask') || {}).value || '',
+      cand: document.querySelectorAll('.cand').length,
+      homeDisabled: (document.querySelector('.pl-home') || {}).disabled === true
+    })""")
+
+
 def main():
     errors = []
     checks = []
@@ -198,6 +225,86 @@ def main():
                    step: document.querySelectorAll('.step.on').length };
         }""")
         checks.append(("刷新后能读回我的方案", hist["n"] >= 1, "n=%s %s" % (hist["n"], hist["first"][:80])))
+
+        # ---- 6.5 回到起始页：页内「重新开始」+ 侧栏「就医决策」（2026-09-19 晚新增） ----
+        # 起因：用户反馈"选择就医决策进入后，没有返回到起始页的入口"——
+        # 跑过一轮后库存着 step/result，再点侧栏主任务没有任何反应，页内也只在步骤 4 底部有个按钮。
+        pg.reload(wait_until="networkidle", timeout=45000)
+        time.sleep(2.5)
+        checks.append(("刷新后落在干净起始页（无残留候选）", home_state(pg)["cand"] == 0,
+                       str(home_state(pg))))
+
+        # 制造"进行中"状态
+        ok_run = run_plan(pg, "腰疼想做检查")
+        busy = pg.evaluate("""() => ({
+          cand: document.querySelectorAll('.cand').length,
+          home: !!document.querySelector('.pl-home'),
+          homeDisabled: (document.querySelector('.pl-home') || {}).disabled === true
+        })""")
+        checks.append(("进行中出现「重新开始」入口且可用",
+                       ok_run and busy["home"] and busy["homeDisabled"] is False and busy["cand"] > 0,
+                       str(busy)))
+
+        # (a) 页内「重新开始」→ 回到起始页且清空输入
+        pg.evaluate("() => { const b = document.querySelector('.pl-home'); if (b) b.click(); }")
+        time.sleep(1.0)
+        a = home_state(pg)
+        checks.append(("页内「重新开始」回到起始页（清空输入与候选）",
+                       a["onStep1"] and a["q"] == "" and a["cand"] == 0 and a["homeDisabled"],
+                       str(a)))
+
+        # (b) 侧栏「就医决策」：停在步骤 2 时点它也要回起始页（原来点了没反应）
+        ok_run = run_plan(pg, "孩子发烧")
+        pg.evaluate("""() => {
+          const t = [...document.querySelectorAll('.navtab.main')][0];
+          if (t) t.click();
+        }""")
+        time.sleep(1.2)
+        b = home_state(pg)
+        checks.append(("侧栏「就医决策」回到起始页（不再点了没反应）",
+                       ok_run and b["onStep1"] and b["q"] == "" and b["cand"] == 0
+                       and b["hash"].startswith("#/plan"),
+                       str(b)))
+
+        # (c) 从查阅页点「就医决策」回来同样是起始页
+        ok_run = run_plan(pg, "牙疼")
+        pg.goto("%s#/profile" % BASE, wait_until="networkidle", timeout=45000)
+        time.sleep(2.5)
+        pg.evaluate("""() => {
+          const t = [...document.querySelectorAll('.navtab.main')][0];
+          if (t) t.click();
+        }""")
+        time.sleep(1.5)
+        c = home_state(pg)
+        checks.append(("从查阅页进「就医决策」也落在起始页",
+                       ok_run and c["onStep1"] and c["cand"] == 0
+                       and c["hash"].startswith("#/plan"),
+                       str(c)))
+
+        # ---- 6.6 从工作台返回查阅形态（单文件大屏）的入口 ----
+        # 起因：从大屏点「就医决策」进来之后，工作台里没有任何回大屏的链接 —— 单向门。
+        link = pg.evaluate("""() => {
+          const a = document.querySelector('.lookbtn');
+          return a ? { href: a.getAttribute('href'), text: a.innerText.trim() } : null;
+        }""")
+        checks.append(("顶栏有「查阅形态」返回入口且指向单文件大屏",
+                       bool(link) and link["href"] == "/", str(link)))
+        back = {"isLookup": False, "views": 0, "url": ""}
+        try:
+            if link:
+                pg.evaluate("() => document.querySelector('.lookbtn').click()")
+                time.sleep(4.5)
+                back = pg.evaluate("""() => ({
+                  url: location.pathname,
+                  isLookup: !!document.querySelector('.navbar'),
+                  views: document.querySelectorAll('.navtab[data-view]').length,
+                  cta: !!document.getElementById('nav_workbench')
+                })""")
+        except Exception as e:
+            back = {"isLookup": False, "views": 0, "url": str(e)[:80]}
+        checks.append(("点它能回到大屏且大屏渲染正常（含回工作台入口）",
+                       back.get("isLookup") and back.get("views", 0) >= 6 and back.get("cta"),
+                       str(back)))
 
         # ---- 7. 查阅页仍可用（回归） ----
         pg.goto("%s#/find?t=institutions" % BASE, wait_until="networkidle", timeout=45000)

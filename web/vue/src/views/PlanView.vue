@@ -1,15 +1,25 @@
 <template>
   <div class="page">
-    <!-- 任务步骤条：这条主线有明确的任务态，可回退、可重来 -->
-    <div class="stepper">
-      <button v-for="(s, i) in STEPS" :key="s.k" type="button"
-              class="step" :class="{ on: store.plan.step === i + 1, done: store.plan.step > i + 1 }"
-              :disabled="i + 1 > maxReached" @click="store.planGoto(i + 1)">
-        <span class="n">{{ i + 1 }}</span>
-        <span class="tx">
-          <b>{{ s.t }}</b>
-          <i>{{ s.d }}</i>
-        </span>
+    <!-- 任务步骤条 + 常驻「重新开始」入口：任何一步都能一眼找到回起始页的路 -->
+    <div class="planbar">
+      <div class="stepper">
+        <button v-for="(s, i) in STEPS" :key="s.k" type="button"
+                class="step" :class="{ on: store.plan.step === i + 1, done: store.plan.step > i + 1 }"
+                :disabled="i + 1 > maxReached" @click="store.planGoto(i + 1)">
+          <span class="n">{{ i + 1 }}</span>
+          <span class="tx">
+            <b>{{ s.t }}</b>
+            <i>{{ s.d }}</i>
+          </span>
+        </button>
+      </div>
+      <button class="pl-home" type="button" :disabled="!planBusy" @click="store.planHome()"
+              :title="planBusy ? '放弃当前进度，回到起始页' : '当前已在起始页'">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 3-6.7M3 4.5V9h4.5" />
+        </svg>
+        <span>重新开始</span>
       </button>
     </div>
 
@@ -383,6 +393,8 @@ const triage = computed(() => store.planTriage)
 const baseName = computed(() => (store.base ? store.base.name : '天安门（默认）'))
 // 只有生成过方案才允许跳到后面的步骤，避免空步骤
 const maxReached = computed(() => (store.planReady ? 4 : 1))
+// 是否有进行中的决策 —— 决定「重新开始」入口是否可用
+const planBusy = computed(() => store.plan.step > 1 || !!store.plan.result || !!store.plan.error)
 const failure = computed(() => {
   const r = store.plan.result
   return r && !r.ok && store.plan.step === 1 ? r : null

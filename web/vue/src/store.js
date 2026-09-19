@@ -9,6 +9,16 @@ const EMPTY_QUERY = {
   sort: 'score', page: 1, pageSize: 20
 }
 
+// 就医决策表单初值。planReset() 用它做「回到起始页」的原地还原：
+// 必须 Object.assign 到同一个对象上，不能整体替换 —— PlanView 里 `const f = store.plan.form`
+// 持有的是引用，换对象会让已挂载页面的 v-model 全部失联。
+function blankPlanForm() {
+  return {
+    q: '', dept: '', extra: '', prefer: 'specialty',
+    max_km: 0, public_only: false, level: '', district: ''
+  }
+}
+
 export const useDataStore = defineStore('data', {
   state: () => ({
     loaded: false,
@@ -39,10 +49,7 @@ export const useDataStore = defineStore('data', {
     // ---- 就医决策主线：一条从需求到方案的任务流，不是展示页 ----
     plan: {
       step: 1,                 // 1 说需求 → 2 看候选 → 3 做比较 → 4 拿方案
-      form: {
-        q: '', dept: '', extra: '', prefer: 'specialty',
-        max_km: 0, public_only: false, level: '', district: ''
-      },
+      form: blankPlanForm(),
       result: null,            // /api/plan 返回的完整数据（分诊结论 + 候选 + 依据）
       loading: false,
       error: '',
@@ -345,6 +352,22 @@ export const useDataStore = defineStore('data', {
       this.plan.primaryId = null
       this.plan.keptIds = []
       this.plan.savedId = null
+      // 起始页 = 干净的输入区。原地还原，保住 PlanView 里对 form 的引用。
+      Object.assign(this.plan.form, blankPlanForm())
+    },
+
+    // 是否有"进行中的决策"（用于决定要不要显示"重新开始"入口 / 是否提示）
+    planBusy() {
+      const p = this.plan
+      return p.step > 1 || !!p.result || !!p.error
+    },
+
+    // 回到起始页：侧栏「就医决策」与页内「重新开始」共用同一个入口语义。
+    // 已经在起始页时静默跳过，不弹提示、不抖动。
+    planHome() {
+      if (!this.planBusy()) return
+      this.planReset()
+      this.notify('已回到起始页')
     },
 
     async planSave() {

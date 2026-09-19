@@ -8,6 +8,15 @@
       <span class="chipmeta">机构总数 <b>{{ fmt(store.total || store.health?.institutions) }}</b></span>
       <span class="chipmeta">筛选命中 <b>{{ fmt(store.total) }}</b></span>
       <span class="chipmeta">基准点 <b>{{ store.base ? store.base.name : '未设定' }}</b></span>
+      <!-- 从工作台回查阅形态（单文件大屏）的入口：进来之后得能回去，不能是单向门 -->
+      <a v-if="!isFile" class="lookbtn" href="/"
+         title="返回单文件查阅形态：不依赖后端的离线数据大屏（系统起始页）">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+             stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 12H5M11 18l-6-6 6-6" />
+        </svg>
+        <span>查阅形态</span>
+      </a>
       <button class="themebtn" type="button" :title="store.theme === 'dark' ? '切换到白天外观' : '切换到黑夜外观'"
               @click="store.toggleTheme()">
         <svg v-if="store.theme === 'dark'" viewBox="0 0 24 24" width="16" height="16" fill="none"
@@ -27,4 +36,6 @@
 import { useDataStore } from '../store'
 const store = useDataStore()
 const fmt = (n) => (n === null || n === undefined || n === '' ? '—' : Number(n).toLocaleString())
+// 直接用 dist/index.html 双击打开（file://）时 "/" 指向文件系统根，链接无意义 → 隐藏
+const isFile = typeof location !== 'undefined' && location.protocol === 'file:'
 </script>

@@ -95,6 +95,15 @@ button{font-family:inherit}
   background:var(--panel);color:var(--ink-2);cursor:pointer;display:grid;place-items:center;
 }
 .themebtn:hover{color:var(--ink);border-color:var(--line-2)}
+/* 顶栏「查阅形态」返回入口 */
+.lookbtn{
+  display:flex;align-items:center;gap:6px;height:34px;padding:0 12px;
+  border:1px solid var(--line);border-radius:9px;background:var(--panel);
+  color:var(--ink-2);font-size:12px;text-decoration:none;transition:.15s;
+}
+.lookbtn:hover{color:var(--ink);border-color:var(--line-2)}
+.lookbtn:active{transform:scale(.98)}
+@media (max-width:900px){.lookbtn span{display:none}.lookbtn{padding:0 10px}}
 
 /* ---------------- 通用面板 ---------------- */
 .page{padding:var(--gap) var(--pad-x) 40px;display:flex;flex-direction:column;gap:var(--gap)}
@@ -315,6 +324,17 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
 .navgroup{font-size:10.5px;color:var(--ink-4);padding:16px 13px 6px;letter-spacing:.06em}
 .navtab.main{background:rgba(var(--acc-rgb),.07)}
 .navtab.main.active{background:rgba(var(--acc-rgb),.14)}
+
+/* 方案页顶栏：步骤条 + 常驻「重新开始」入口（任何一步都能回起始页） */
+.planbar{display:flex;gap:10px;align-items:stretch;margin-bottom:var(--gap)}
+.planbar .stepper{flex:1;margin-bottom:0}
+.pl-home{flex:none;display:flex;align-items:center;gap:7px;padding:0 15px;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  font:inherit;font-size:12.5px;color:var(--ink-3);cursor:pointer;transition:.15s}
+.pl-home:hover:not(:disabled){border-color:var(--line-2);color:var(--ink-1)}
+.pl-home:active:not(:disabled){transform:scale(.98)}
+.pl-home:disabled{opacity:.45;cursor:default}
+@media (max-width:640px){.planbar{flex-wrap:wrap}.pl-home{padding:9px 15px}}
 
 .stepper{display:flex;gap:6px;margin-bottom:var(--gap)}
 .step{flex:1;display:flex;align-items:center;gap:10px;padding:11px 13px;text-align:left;
