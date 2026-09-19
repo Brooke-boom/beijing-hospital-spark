@@ -180,6 +180,12 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .sidebar .navtab.active{background:rgba(var(--acc-rgb),.14);color:var(--acc);font-weight:650}
 .sidebar .navtab.active .ico{color:var(--acc)}
 .sidebar .navaux{margin-top:auto}
+/* —— 任务主线入口与分组标签（2026-09-19：明确"办事主线 / 数据查阅"的分工） —— */
+.sidebar .navcta{text-decoration:none;border:1px solid rgba(var(--acc-rgb),.42);
+  background:rgba(var(--acc-rgb),.12);color:var(--acc);font-weight:600}
+.sidebar .navcta:hover{background:rgba(var(--acc-rgb),.2);color:var(--acc)}
+.sidebar .navcta .ico{color:var(--acc)}
+.navcap{font-size:10.5px;color:var(--ink-4);letter-spacing:.08em;padding:2px 6px 4px}
 .sidefoot{margin-top:10px;padding:0 6px}
 .sidebar .navnote{white-space:normal;line-height:1.75;padding:0;text-align:left;font-size:10.5px}
 .maincol{flex:1 1 auto;min-width:0}
@@ -892,6 +898,11 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 <div class="layout">
 <aside class="sidebar">
   <nav class="navbar" id="navbar">
+  <a class="navtab navcta" id="nav_workbench" href="/spa/"
+     title="就医决策工作台（在线形态）：说清需求 → 分诊排序 → 横向对比 → 生成可带走的方案">
+    <span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="18" r="2.6"/><circle cx="18" cy="6" r="2.6"/><path d="M8.4 17.2h4.1a3.5 3.5 0 000-7H10a3.5 3.5 0 010-7h2"/></svg></span><span class="lbl">就医决策</span>
+  </a>
+  <div class="navcap">查阅</div>
   <button class="navtab active" data-view="overview"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg></span><span class="lbl">数据总览</span></button>
   <button class="navtab" data-view="analytics"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-12"/></svg></span><span class="lbl">医疗资源分析</span></button>
   <button class="navtab" data-view="institutions"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.4 16.4L21 21"/></svg></span><span class="lbl">机构查询</span></button>
@@ -900,7 +911,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   <button class="navtab" data-view="quality"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></span><span class="lbl">数据质量</span></button>
   </nav>
   <button class="navtab navaux" data-view="about"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 10v6M12 7.5h.01"/></svg></span><span class="lbl">系统说明</span></button>
-  <div class="sidefoot"><span class="navnote">7 维筛选 · 地图与列表悬停互指<br>勾选 2–3 家横向对比</span></div>
+  <div class="sidefoot"><span class="navnote">本页为<b>查阅形态</b>（离线可用）：摊开数据供查阅<br>办事主线在「就医决策」工作台</span></div>
 </aside>
 <div class="maincol">
 <header class="topbar">
@@ -1180,6 +1191,16 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 <!-- ============================ 关于 ============================ -->
 <section id="view-about" class="view">
   <div class="about-grid">
+    <div class="panel" style="grid-column:1/-1">
+      <h3>两种形态的分工 <span class="tag">TASK vs LOOKUP</span></h3>
+      <div class="notice">
+        本页是<b>查阅形态</b>：把整合后的机构数据摊开来看，回答"北京有哪些医疗机构、资源怎么分布"。<br>
+        系统的<b>任务主线是「就医决策」工作台</b>（在线形态 <code>/spa/</code>）：说清症状与偏好 → 系统判断应就诊科室并按偏好排序机构 → 挑 2–3 家横向对比 → 生成一份可打印、可带走的就医方案，方案自动留痕可回看。<br>
+        单文件离线形态不含工作台（它依赖后端接口与数据库），因此只保留查阅能力；用 Flask 启动后访问 <code>/spa/</code> 即可使用主线。
+      </div>
+    </div>
+  </div>
+  <div class="about-grid">
     <div class="panel">
       <h3>数据规模 <span class="tag">DATA SCALE</span></h3>
       <div class="infogrid" id="ab_counts"></div>
@@ -1327,5 +1348,18 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 
 <div class="toast" id="toast"></div>
 <script src="app.js"></script>
+<script>
+/* 离线单文件（file://）没有后端：工作台入口给出提示，而不是跳到不存在的页面 */
+(function () {
+  var a = document.getElementById('nav_workbench');
+  if (!a) return;
+  if (location.protocol === 'file:') {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      alert('「就医决策」工作台需要后端服务。\n\n请在项目目录执行：\nbash web/start.sh\n\n然后访问 http://localhost:5001/spa/');
+    });
+  }
+})();
+</script>
 </body>
 </html>

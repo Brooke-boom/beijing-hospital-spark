@@ -21,13 +21,12 @@ import time
 from playwright.sync_api import sync_playwright
 
 BASE = "http://127.0.0.1:5001/spa/"
+# 2026-09-19 信息架构重构后：主线 1 个 + 查阅支撑页 4 个（原 7 个入口已收敛）
 ROUTES = [
-    ("overview", "数据总览"),
-    ("analytics", "医疗资源分析"),
-    ("institutions", "机构查询"),
-    ("filter", "智能筛选"),
-    ("integration", "数据整合"),
-    ("quality", "数据质量"),
+    ("plan", "就医决策"),
+    ("find", "找机构"),
+    ("profile", "资源画像"),
+    ("govern", "数据治理"),
     ("about", "系统说明"),
 ]
 
@@ -46,12 +45,15 @@ def main():
         pg.goto(BASE, wait_until="networkidle", timeout=45000)
         time.sleep(3.0)
 
-        # ---- 1. 数据加载 ----
+        # ---- 1. 首屏 = 任务主线（就医决策），不再是大屏首页 ----
         try:
-            kpi = pg.inner_text(".kpis").replace("\n", " ")
+            has_stepper = pg.evaluate("() => document.querySelectorAll('.step').length")
+            has_ask = pg.evaluate("() => !!document.querySelector('.ask')")
+            hist = pg.evaluate("() => document.querySelectorAll('.histlist .hist').length")
         except Exception:
-            kpi = ""
-        checks.append(("首页 KPI 渲染", "9,789" in kpi or "9789" in kpi, kpi[:150]))
+            has_stepper, has_ask, hist = 0, False, 0
+        checks.append(("首屏为就医决策工作台（四步任务流）",
+                       has_stepper == 4 and has_ask, "steps=%d ask=%s 历史=%d" % (has_stepper, has_ask, hist)))
 
         # ---- 2. 逐路由可达 ----
         results = []
@@ -76,19 +78,40 @@ def main():
                            "len=%d canvas=%d rows=%d nav=%s" % (
                                info["len"], info["canvas"], info["rows"], info["navActive"])))
 
-        # ---- 3. 图表页 canvas ----
-        ov = [r for r in results if r[0] == "overview"][0][2]
-        checks.append(("总览页有 4 个图表 canvas", ov["canvas"] >= 4, "canvas=%d" % ov["canvas"]))
-        an = [r for r in results if r[0] == "analytics"][0][2]
-        checks.append(("分析页有 4 个图表 canvas", an["canvas"] >= 4, "canvas=%d" % an["canvas"]))
-        qu = [r for r in results if r[0] == "quality"][0][2]
-        checks.append(("质量页有图表 canvas", qu["canvas"] >= 1, "canvas=%d" % qu["canvas"]))
+        # ---- 3. 支撑页子标签：资源画像 / 数据治理 ----
+        pg.goto("%s#/profile?t=overview" % BASE, wait_until="networkidle", timeout=45000)
+        time.sleep(2.6)
+        ov = pg.evaluate("""() => ({
+          canvas: document.querySelectorAll('canvas').length,
+          tabs: [...document.querySelectorAll('.subtab')].map(x => x.innerText.trim()),
+          on: (document.querySelector('.subtab.on')||{}).innerText || ''
+        })""")
+        checks.append(("资源画像·总览 有图表 canvas", ov["canvas"] >= 4,
+                       "canvas=%d tabs=%s" % (ov["canvas"], "|".join(ov["tabs"]))))
 
-        # ---- 4. 机构列表 + 筛选 + 分页 ----
-        inst = [r for r in results if r[0] == "institutions"][0][2]
-        checks.append(("机构查询页有列表行", inst["rows"] > 0, "rows=%d" % inst["rows"]))
+        pg.goto("%s#/profile?t=analytics" % BASE, wait_until="networkidle", timeout=45000)
+        time.sleep(2.6)
+        an = pg.evaluate("() => ({canvas: document.querySelectorAll('canvas').length,"
+                         " on: (document.querySelector('.subtab.on')||{}).innerText || ''})")
+        checks.append(("资源画像·结构分析 子标签切换到图表页",
+                       an["canvas"] >= 4 and an["on"] == "结构分析",
+                       "canvas=%d on=%s" % (an["canvas"], an["on"])))
 
-        pg.goto("%s#/institutions" % BASE, wait_until="networkidle", timeout=45000)
+        pg.goto("%s#/govern?t=quality" % BASE, wait_until="networkidle", timeout=45000)
+        time.sleep(2.6)
+        qu = pg.evaluate("() => ({canvas: document.querySelectorAll('canvas').length,"
+                         " on: (document.querySelector('.subtab.on')||{}).innerText || ''})")
+        checks.append(("数据治理·质量核验 有图表 canvas",
+                       qu["canvas"] >= 1 and qu["on"] == "质量核验",
+                       "canvas=%d on=%s" % (qu["canvas"], qu["on"])))
+
+        # ---- 4. 机构列表 + 筛选 + 分页（找机构支撑页） ----
+        pg.goto("%s#/find" % BASE, wait_until="networkidle", timeout=45000)
+        time.sleep(2.4)
+        inst = pg.evaluate("() => document.querySelectorAll('.tbl tbody tr').length")
+        checks.append(("找机构页有列表行", inst > 0, "rows=%d" % inst))
+
+        pg.goto("%s#/find?t=institutions" % BASE, wait_until="networkidle", timeout=45000)
         time.sleep(2.2)
         try:
             def total_of():
@@ -127,8 +150,8 @@ def main():
 
         # ---- 5. 详情抽屉 ----
         try:
-            pg.goto("%s#/institutions" % BASE, wait_until="networkidle", timeout=45000)
-            time.sleep(2.2)
+            pg.goto("%s#/find?t=institutions" % BASE, wait_until="networkidle", timeout=45000)
+            time.sleep(2.4)
             pg.evaluate("() => { const r = document.querySelector('.tbl tbody tr'); if (r) r.click(); }")
             time.sleep(2.5)
             dlen = pg.evaluate("() => ((document.querySelector('.drawer')||{}).innerText||'').length")
@@ -138,8 +161,8 @@ def main():
 
         # ---- 6. 主题切换 ----
         try:
-            pg.goto("%s#/overview" % BASE, wait_until="networkidle", timeout=45000)
-            time.sleep(2.5)
+            pg.goto("%s#/profile?t=overview" % BASE, wait_until="networkidle", timeout=45000)
+            time.sleep(2.8)
             pg.evaluate("() => document.querySelector('.themebtn').click()")
             time.sleep(2.5)
             th = pg.evaluate("() => document.documentElement.getAttribute('data-theme')")

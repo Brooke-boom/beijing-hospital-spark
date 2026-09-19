@@ -35,7 +35,23 @@ export const useDataStore = defineStore('data', {
     theme: 'dark',
     drawer: { open: false, id: null, data: null, loading: false },
     compare: { open: false, data: null, loading: false },
-    toast: ''
+    toast: '',
+    // ---- 就医决策主线：一条从需求到方案的任务流，不是展示页 ----
+    plan: {
+      step: 1,                 // 1 说需求 → 2 看候选 → 3 做比较 → 4 拿方案
+      form: {
+        q: '', dept: '', extra: '', prefer: 'specialty',
+        max_km: 0, public_only: false, level: '', district: ''
+      },
+      result: null,            // /api/plan 返回的完整数据（分诊结论 + 候选 + 依据）
+      loading: false,
+      error: '',
+      primaryId: null,         // 用户标记的主选机构
+      keptIds: [],             // 圈定的备选（做比较用）
+      history: [],             // 历史方案（留痕，可回溯）
+      historyLoaded: false,
+      savedId: null            // 本次已保存的方案 id
+    }
   }),
 
   getters: {
@@ -59,7 +75,22 @@ export const useDataStore = defineStore('data', {
     hasConditions: (s) => !!(s.query.q || s.query.district || s.query.level ||
       s.query.category || s.query.dept || s.query.net),
 
-    totalPages: (s) => Math.max(1, Math.ceil(s.total / s.query.pageSize))
+    totalPages: (s) => Math.max(1, Math.ceil(s.total / s.query.pageSize)),
+
+    // ---- 就医决策派生数据 ----
+    planCandidates: (s) => (s.plan.result && s.plan.result.candidates) || [],
+    planPrimary(s) {
+      const cs = (s.plan.result && s.plan.result.candidates) || []
+      return cs.find((c) => String(c.id) === String(s.plan.primaryId)) || cs[0] || null
+    },
+    planKept(s) {
+      const cs = (s.plan.result && s.plan.result.candidates) || []
+      return s.plan.keptIds
+        .map((id) => cs.find((c) => String(c.id) === String(id)))
+        .filter(Boolean)
+    },
+    planTriage: (s) => (s.plan.result && s.plan.result.triage) || null,
+    planReady: (s) => !!(s.plan.result && s.plan.result.ok)
   },
 
   actions: {
@@ -242,6 +273,137 @@ export const useDataStore = defineStore('data', {
       this.applyTheme(t)
     },
     toggleTheme() { this.applyTheme(this.theme === 'dark' ? 'light' : 'dark') },
+
+    // ================= 就医决策：一条从需求到方案的任务流 =================
+    // 与「查询」的区别在于有任务态：草稿 → 候选 → 定稿 → 产出物，可回退、可留痕。
+    planSetForm(patch) {
+      Object.assign(this.plan.form, patch)
+    },
+
+    async planRun() {
+      const f = this.plan.form
+      if (!f.q && !f.dept) { this.notify('请先描述症状或选择科室'); return }
+      this.plan.loading = true
+      this.plan.error = ''
+      const b = this.base || DEFAULT_BASE
+      try {
+        const r = await api.plan({
+          q: f.q || undefined,
+          dept: f.dept || undefined,
+          extra: f.extra || undefined,
+          district: f.district || undefined,
+          prefer: f.prefer,
+          max_km: Number(f.max_km) || 0,
+          public_only: !!f.public_only,
+          level: f.level || undefined,
+          top_n: 12,
+          lng: b.lng, lat: b.lat, base_name: b.name
+        })
+        this.plan.result = r
+        this.plan.savedId = null
+        if (r.ok) {
+          this.plan.step = 2
+          const cs = r.candidates || []
+          this.plan.primaryId = cs.length ? cs[0].id : null
+          this.plan.keptIds = cs.slice(0, 3).map((c) => c.id)
+          const d0 = ((r.triage || {}).target_depts || [])[0]
+          api.track('plan', f.q || f.dept || '', (d0 && d0.name) || '', cs.length)
+        } else {
+          this.plan.step = 1
+        }
+      } catch (e) {
+        this.plan.error = e.message
+      } finally {
+        this.plan.loading = false
+      }
+    },
+
+    planGoto(step) {
+      if (step >= 1 && step <= 4) this.plan.step = step
+    },
+
+    planToggleKeep(id) {
+      id = String(id)
+      const i = this.plan.keptIds.indexOf(id)
+      if (i >= 0) this.plan.keptIds.splice(i, 1)
+      else if (this.plan.keptIds.length < 4) this.plan.keptIds.push(id)
+      else this.notify('最多同时比较 4 家机构')
+    },
+
+    planSetPrimary(id) {
+      this.plan.primaryId = String(id)
+      const i = this.plan.keptIds.indexOf(String(id))
+      if (i >= 0) this.plan.keptIds.splice(i, 1)
+      if (this.plan.keptIds.length >= 4) this.plan.keptIds.pop()
+      this.plan.keptIds.unshift(String(id))
+    },
+
+    planReset() {
+      this.plan.step = 1
+      this.plan.result = null
+      this.plan.error = ''
+      this.plan.primaryId = null
+      this.plan.keptIds = []
+      this.plan.savedId = null
+    },
+
+    async planSave() {
+      if (!this.planReady) { this.notify('请先生成方案'); return }
+      try {
+        const r = await api.planSave({
+          payload: this.plan.result,
+          primary_id: this.plan.primaryId
+        })
+        if (r.ok) {
+          this.plan.savedId = r.id
+          this.notify('已保存到「我的方案」')
+          await this.planLoadHistory(true)
+        } else {
+          this.notify(r.hint || '保存失败')
+        }
+      } catch (e) {
+        this.notify('保存失败：' + e.message)
+      }
+    },
+
+    async planLoadHistory(force = false) {
+      if (this.plan.historyLoaded && !force) return
+      try {
+        const r = await api.planList()
+        this.plan.history = r.items || []
+        this.plan.historyLoaded = true
+      } catch (e) { /* 历史是次要信息，失败不影响主流程 */ }
+    },
+
+    async planOpenSaved(id) {
+      try {
+        const r = await api.planGet(id)
+        const pl = r.plan && r.plan.payload
+        if (r.ok && pl && pl.ok) {
+          this.plan.result = pl
+          this.plan.savedId = r.plan.id
+          const cs = pl.candidates || []
+          this.plan.primaryId = r.plan.chosen_id || (cs.length ? cs[0].id : null)
+          this.plan.keptIds = cs.slice(0, 3).map((c) => c.id)
+          this.plan.step = 4
+        } else {
+          this.notify('该方案数据已失效')
+        }
+      } catch (e) {
+        this.notify('打开失败：' + e.message)
+      }
+    },
+
+    async planDeleteSaved(id) {
+      try {
+        await api.planDelete(id)
+        this.plan.history = this.plan.history.filter((x) => x.id !== id)
+        if (this.plan.savedId === id) this.plan.savedId = null
+        this.notify('已删除')
+      } catch (e) {
+        this.notify('删除失败：' + e.message)
+      }
+    },
 
     notify(msg) {
       this.toast = msg

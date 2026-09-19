@@ -91,10 +91,18 @@ def build_specialty_hospital(inst_dwd):
     """ADS4：专科找医院（feature L1 权威口径，分段展开科室名）"""
 
     def _clean_spec(seg):
+        # 三刀清理括号：成对 → 未闭合左 → 未闭合右。
+        # 源数据里存在大量半截括号（"针灸理疗康复（国家级重点专科"、"医信平台口径）"），
+        # 只删成对括号会把半截文本当成科室名落库。
         seg = F.trim(F.regexp_replace(seg, r"[（(][^（）()]{0,80}[)）]", ""))
+        seg = F.trim(F.regexp_replace(seg, r"[（(][^（）()]*$", ""))
+        seg = F.trim(F.regexp_replace(seg, r"^[^（()）]*[)）]", ""))
         seg = F.trim(F.regexp_replace(seg, r"^(另有|另设|另|含|包括|国家|省|市|院级|首都区域|其中)\s*", ""))
         seg = F.trim(F.regexp_replace(seg, r"[;；、,，\s]+$", ""))
         return seg
+
+    # 采编口径说明混在科室段里（"…口径""…未公开""…简介"），不是科室名，须剔除
+    _noise = ("口径", "未公开", "简介", "名单", "平台", "体系")
 
     return (
         inst_dwd
@@ -104,6 +112,7 @@ def build_specialty_hospital(inst_dwd):
         .withColumn("seg", _clean_spec(F.col("seg")))
         .filter(F.length(F.col("seg")) >= 2)
         .filter(F.length(F.col("seg")) <= 14)
+        .filter(~F.col("seg").rlike("|".join(_noise)))
         .select(
             F.col("id").alias("hospital_id"),
             "name", "district", "level_norm", "lng", "lat",

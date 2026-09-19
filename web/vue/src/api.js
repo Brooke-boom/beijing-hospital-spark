@@ -26,6 +26,12 @@ export const api = {
   detail: (id) => http.get(`/inst/${encodeURIComponent(id)}/detail`),
   compare: (ids) => http.get('/inst/compare', { params: { ids: ids.join(',') } }),
   triage: (payload) => http.post('/triage', payload),
+  // ---- 就医决策主线：生成方案 + 方案留痕（系统区别于看板的关键能力）----
+  plan: (payload) => http.post('/plan', payload),
+  planSave: (payload) => http.post('/plans', payload),
+  planList: () => http.get('/plans'),
+  planGet: (id) => http.get(`/plans/${encodeURIComponent(id)}`),
+  planDelete: (id) => http.delete(`/plans/${encodeURIComponent(id)}`),
   geocode: (address) => http.get('/geocode', { params: { address } }),
   about: () => http.get('/about'),
   adminStats: () => http.get('/admin/stats'),
