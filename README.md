@@ -7,7 +7,10 @@
 1. **就医决策（任务主线）** — 说清症状与偏好 → 系统分诊出应就诊科室、按专科实力排序机构 → 挑 2–4 家横向对比 → 生成一份可打印、可带走的就医方案，方案自动留痕可回看。有任务态、有产出物。
 2. **查阅支撑页（4 个）** — 找机构 / 资源画像 / 数据治理 / 系统说明，回答"有哪些机构、资源怎么分布、数据从哪来"。
 
-另保留一个零依赖单文件离线大屏作为离线兜底（查阅形态）。
+两条线都有**两种形态**：在线（Vue 3 + Flask，数据可实时更新）与**零依赖单文件**
+（`web/dashboard_offline.html`，一个 HTML 双击即用）。单文件形态同样具备完整主线——
+判科与排序由前端本地复算，依据是内嵌的 Spark 科室实力指数与症状知识库，
+因此**分享一个链接就能让别人的机器走完整个就医决策流程**。
 
 ## 技术栈
 
@@ -34,10 +37,10 @@
 ├── web/                # Flask 应用（API）+ 两种前端形态
 │   ├── app.py          # RESTful API（29 个接口：就医方案/筛选/排序/详情/概览/对比/地理编码/导诊/埋点）
 │   ├── vue/            # Vue 3 前端工程（前后端分离形态，构建产物挂载在 /spa/）
-│   │   ├── src/        # 源码：PlanView（任务主线）+ HubView（4 支撑页）+ 8 子视图 + 8 组件
+│   │   ├── src/        # 源码：9 视图（PlanView 任务主线 + HubView 支撑页 + 7 子视图）+ 7 组件
 │   │   ├── build.sh    # 一键构建 / 启动 dev server
 │   │   └── dist/       # 构建产物（已入库，Flask 挂载点）
-│   ├── templates/      # 单文件大屏（Flask 渲染版，离线兜底）
+│   ├── templates/      # 单文件形态的 Flask 渲染版（与离线版同源）
 │   └── static/         # ECharts、北京 geoJSON、样式
 ├── docs/               # 开发日志、项目说明书、功能点代码地图等文档
 └── docker-compose.yml  # hdfs(namenode+datanode) + spark(master+worker) + mysql
@@ -62,17 +65,19 @@
 
 ## 快速开始
 
-### 方式一：零依赖离线大屏（30 秒，推荐先看效果）
+### 方式一：零依赖单文件形态（30 秒，推荐先看效果）
 
 ```bash
 open web/dashboard_offline.html      # macOS；其他系统直接双击该文件
 ```
 
-数据快照已内联进单个 HTML（约 7.5MB），**无需 Python、Docker、数据库、联网**，
+数据快照与主线数据包已内联进单个 HTML（约 8.3MB），**无需 Python、Docker、数据库、联网**，
 即可使用七维筛选、四种排序、图表联动、导航栏视图切换与详情查看。
 
-> 这是**离线查阅形态**：单文件不含后端，因此没有「就医决策」工作台。要看任务主线请用方式二，
-> 启动后访问 `/spa/`；离线页面侧栏的「就医决策」入口也只会给出提示。
+> 这是**单文件形态**，查阅与办事两种能力都具备：侧栏「就医决策」是完整的四步任务流
+> （说需求 → 分诊排序 → 横向对比 → 拿方案），判科与排序由 `web/app.plan.js` 本地复算，
+> 结果与在线接口 `/api/plan` 逐字一致（由 `etl/verify_offline_plan.py` 把关）。
+> 在线形态（方式二）多出的是"数据可实时更新、方案存到数据库、AI 兜底可用"。
 
 ### 方式二：完整工程链路（HDFS + Spark + MySQL + Flask）
 
@@ -99,7 +104,9 @@ python etl/create_indexes.py
 python etl/build_disease_dept_map.py     # 生成 data/processed/disease_dept_map.csv
 python etl/load_disease_dept.py          # 写入 MySQL 维度表 dim_disease_dept
 
-# 6. 重新生成快照与离线大屏
+# 6. 导出离线就医决策数据包 + 重新生成单文件快照与产物
+#    （动了 app.py 的判科/打分逻辑或 ads_dept_strength 时，导出这步不能省）
+python etl/export_offline_plan_data.py
 bash web/build_spa.sh
 
 # 7. 构建 Vue 前端（前后端分离形态，产物挂载在 /spa/）
@@ -108,7 +115,7 @@ bash web/vue/build.sh
 # 8. 启动 Web 服务
 bash web/start.sh
 # Vue 在线形态   → http://localhost:5001/spa/
-# 单文件离线形态 → http://localhost:5001/
+# 单文件形态     → http://localhost:5001/
 ```
 
 HDFS 分层结果可现场核验：
@@ -157,7 +164,7 @@ docker exec hdfs-namenode hdfs dfs -du -s -h /hospital/ods /hospital/dwd /hospit
 
 距离计算采用 Haversine 公式（SQL 内实现）；条件匹配度（界面排序口径，原"综合评分"）= 0.5×等级 + 0.3×距离 + 0.2×科室数（归一化加权）。床位数因源数据覆盖率仅 0.4% 且取值疑似估算，已从展示与评分中移除，权重由等级维度承接。
 
-**智能导诊（疾病/症状 → 科室 → 医院）**：基于本地知识库 `dim_disease_dept`（417 条常见病/症状 → 29 个标准科室的映射，含 33 条急诊条目与大量口语说法），输入自然语言病情（如"头痛""胸痛""儿童发烧"）即匹配对应科室，再联 `dwd_dept_relation_clean` 筛出具备该科室的医院，复用条件匹配度加权排出 Top N 并标注急诊优先。全程**离线零依赖**，不依赖大模型，断网可跑；维度表缺失时回退到 `data/processed/disease_dept_map.csv`。
+**智能导诊（疾病/症状 → 科室 → 医院）**：基于本地知识库 `dim_disease_dept`（417 条常见病/症状 → 29 个标准科室的映射，含 39 条急诊条目与大量口语说法），输入自然语言病情（如"头痛""胸痛""儿童发烧"）即匹配对应科室，再联 `dwd_dept_relation_clean` 筛出具备该科室的医院，复用条件匹配度加权排出 Top N 并标注急诊优先。全程**离线零依赖**，不依赖大模型，断网可跑；维度表缺失时回退到 `data/processed/disease_dept_map.csv`。
 
 **大模型兜底（Agnes AI，可选增强）**：本地知识库只覆盖高频病症，遇到口语长句（如"我父亲最近手抖得厉害人还瘦了一大圈"）会零命中。此时自动调用 **Agnes**（OpenAI 兼容协议）把病情映射到**库里真实存在的 29 个标准科室**（白名单由 `dwd_dept_relation_clean` 实时查询生成，避免模型返回库里没有的科室导致 0 结果），再复用同一套 SQL 与加权评分。设计原则是**离线为主、大模型兜底**：
 
@@ -173,8 +180,11 @@ docker exec hdfs-namenode hdfs dfs -du -s -h /hospital/ods /hospital/dwd /hospit
 > 模型选型实测：`agnes-2.0-flash` 平均约 4 秒、答案准确；`agnes-2.5-flash` 平均约 18 秒（最长 32 秒），不适合交互式场景，故默认用前者。
 > 免费额度实测约 **1 次 / 30~40 秒**，现场连续提问会触发 429。演示前建议先预热：`bash web/start.sh` 后运行 `python etl/warm_ai_cache.py`（本地知识库已覆盖的问法会自动跳过，不浪费额度）。
 
-**在线演示**：仓库内 `web/dashboard_offline.html` 为零依赖单文件离线大屏（数据快照内联，约 7.5MB），可直接打开浏览查阅视图，无需启动任何服务。也可访问 GitHub Pages 在线版。
-> 注意该形态是纯前端单文件，**不含「就医决策」工作台**（它依赖后端接口与数据库）。
+**在线演示**：仓库内 `web/dashboard_offline.html` 是零依赖单文件形态（内联数据快照 + 离线就医决策数据包，约 8.3MB），
+双击即可使用**完整的就医决策主线**（四步任务流）与 6 个查阅视图，无需启动任何服务。
+GitHub Pages 上可直接访问：<https://brooke-boom.github.io/beijing-hospital-spark/web/dashboard_offline.html>
+> 该形态主线的判科与排序由 `web/app.plan.js` 在浏览器本地复算，与在线接口 `/api/plan` 结果逐字一致
+> （`etl/verify_offline_plan.py` 17 个用例把关）。不依赖后端的代价是：数据是构建时的快照、方案只存在浏览器本地、大模型兜底不可用。
 
 **信息架构：1 条任务主线 + 4 个查阅支撑页**。左侧导航分「主线」与「查阅」两组，浅色/深色统一由设计令牌驱动：
 
@@ -263,12 +273,12 @@ docker exec hdfs-namenode hdfs dfs -du -s -h /hospital/ods /hospital/dwd /hospit
 - [x] feature 字段反向补全（17 家 / +78 条，ads_specialty_hospital 418 → 496 条，两套专科口径自洽）
 - [x] 市/区级临床重点专科联网增强（**77 家医院 / 283 条**，新增 municipal_specialty 字段并在详情浮层展示；中医"十四五"首批 74 项 + 第二批 107 项全部抓齐）
 - [x] 三层专科口径自洽（feature 擅长分级 → national_specialty 国家级 → municipal_specialty 市/区级，50 家 municipal_only 补足先前无国家级认定的三级医院）
-- [x] **智能导诊能力**（疾病/症状 → 科室 → 医院，本地知识库 266 条 / 29 科室 / 33 急诊条目，`dim_disease_dept` 维度表 + `/api/triage` 接口，离线零依赖；独立页面在 v5.0 信息架构重构中下线，接口与知识库完整保留）
+- [x] **智能导诊能力**（疾病/症状 → 科室 → 医院，本地知识库 417 条 / 29 科室 / 39 急诊条目，`dim_disease_dept` 维度表 + `/api/triage` 接口，离线零依赖；独立页面在 v5.0 信息架构重构中下线，接口与知识库完整保留）
 - [x] **可视化大屏导航栏 + 多维分析视图**（左侧七视图导航：数据总览 / 医疗资源分析 / 机构查询 / 智能筛选 / 数据整合 / 数据质量 / 系统说明；医疗资源分析含八维分析图表 + 四项 KPI，全部随七维筛选实时联动，ECharts 渲染）
 - [x] **v5.0 信息架构重构**（2026-09-18：导航重构为七视图，与论文题目一一对应；新增机构查询 / 智能筛选 / 数据整合 / 数据质量四个独立页面）
 - [x] **机构详情抽屉**（概览 / 就诊与挂号 / 重点专科 / 周边配套 四个分区页签；周边配套接入高德 POI 实时查询并按坐标网格缓存至 `dim_poi_cache`）
 - [x] **机构横向对比**（勾选 2~3 家 → 16 项对比表，数值项自动判定优劣并高亮最优值，距离按当前定位或指定起始地址计算）
-- [x] **智能导诊多轮对话**（追问澄清 + `reason_detail` 摊开加权评分；知识库扩充至 266 条 / 29 科室）
+- [x] **智能导诊多轮对话**（追问澄清 + `reason_detail` 摊开加权评分；知识库扩充至 417 条 / 29 科室）
 - [x] **行为埋点与运营统计**（`fact_user_event` 真实行为埋点 + 资源热度双板块；`/api/track` 单条 INSERT 失败静默，绝不影响主流程；独立运营后台页在 v5.0 重构中下线，`/api/admin/stats` 接口保留）
 - [x] **关于页**（数据来源、Spark 七步清洗流程、数仓分层表清单、更新时间与更新日志，全部取自真实表）
 

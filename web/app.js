@@ -84,8 +84,16 @@ let FILTERED = [];
 let PAGE = 1, PAGE_SIZE = 20;
 const PICKED = new Set();                 // 对比已选机构 id（最多 3）
 const PICK_MAX = 3;
+// 是否值得去探后端。
+// 静态托管（GitHub Pages 等）与 file:// 都没有 /api，探测只会拿到 404 并在控制台
+// 留下一串红字——分享出去的页面看着就像坏了。所以只在「本机地址 + Flask 端口」上探活：
+// 本机跑静态服务（换端口预览产物）时同样不会误探。
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)$/.test(location.hostname)
+  || /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
 const ENV = {
   http: location.protocol === 'http:' || location.protocol === 'https:',
+  // Flask 默认 5001（macOS 的 5000 被 AirPlay 占用）；port 为空表示走的是 80/443
+  backend: LOCAL_HOST && (location.port === '5001' || location.port === ''),
   api: false,          // /api/health 探活结果
   amap: false,
 };
@@ -119,7 +127,7 @@ function toast(msg, ms) {
 }
 // 埋点：只在有后端时上报，失败静默（埋点绝不能影响主流程）
 function track(ev, k1, k2, n) {
-  if (!ENV.http) return;
+  if (!ENV.backend) return;
   try {
     const p = new URLSearchParams({ ev: ev, sid: SID });
     if (k1) p.set('k1', k1);
@@ -850,7 +858,8 @@ function init() {
 // 后端探活（离线版永不执行）
 function initAIState() {
   const el = $('ai_state');
-  if (!ENV.http) { if (el) el.innerHTML = 'AI 兜底 <b>离线模式</b>'; return; }
+  // 没有后端就不发探测请求（静态托管下 404 会在控制台留红字），直接标成走本地规则
+  if (!ENV.backend) { if (el) el.innerHTML = 'AI 兜底 <b>本地规则</b>'; return; }
   fetch('/api/health', { cache: 'no-store' })
     .then(r => r.ok ? r.json() : null)
     .then(j => {

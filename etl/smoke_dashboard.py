@@ -4,7 +4,7 @@
 ================================================================================
 为什么需要它：三份产物是"字符串注入"式拼装出来的（内联快照 + 内联 ECharts），
 锚点错位会**静默产出坏页面**——能打开、不报错，只是列表空、KPI 空白、图表无数据。
-本脚本用无头 Chrome 真跑一遍，证明「数据加载 → 七个视图渲染 → 筛选联动」都活着。
+本脚本用无头 Chrome 真跑一遍，证明「数据加载 → 八个视图渲染（含就医决策工作台）→ 筛选联动」都活着。
 
 关键做法（否则 headless 会永久挂起）：
   * 把内联 ECharts 换成**空桩**。ECharts 的持续动画会让 headless 虚拟时间永不收敛，
@@ -65,7 +65,7 @@ setTimeout(function(){
     r.push('views='+cnt('section.view'));
     r.push('nav='+cnt('.navtab'));
     r.push('kpi_total='+tx('v_total'));
-    var ids=['overview','analytics','institutions','filter','integration','quality','about'];
+    var ids=['workbench','overview','analytics','institutions','filter','integration','quality','about'];
     var okv=[], rowsByView={};
     ids.forEach(function(v){
       try{ if(typeof switchView==='function') switchView(v); }catch(e){ r.push('switchfail_'+v+'='+e.message); }
@@ -186,10 +186,10 @@ def main():
     checks = []
     n_snap = int(kv.get("snap", "0") or 0)
     checks.append(("快照机构数 = 9789", n_snap == 9789, str(n_snap)))
-    checks.append(("七个视图齐备", kv.get("views") == "7", kv.get("views", "?")))
-    checks.append(("导航项 7 个", kv.get("nav") == "7", kv.get("nav", "?")))
+    checks.append(("八个视图齐备（含工作台）", kv.get("views") == "8", kv.get("views", "?")))
+    checks.append(("导航项 8 个", kv.get("nav") == "8", kv.get("nav", "?")))
     sw = kv.get("switch", "")
-    checks.append(("七视图均可显示", sw.count("+") == 7, sw))
+    checks.append(("八视图均可显示", sw.count("+") == 8, sw))
     rows = int(kv.get("rows_inst", "0") or 0)
     checks.append(("机构列表有行", rows > 0, "rows_inst=%d" % rows))
     errs = kv.get("ERR", "?")
@@ -212,7 +212,7 @@ def main():
             ok = False
 
     print("\n" + "=" * 70)
-    print("  %s" % ("✅ 冒烟通过：数据加载 + 七视图渲染 + 筛选联动 全部正常" if ok
+    print("  %s" % ("✅ 冒烟通过：数据加载 + 八视图渲染 + 筛选联动 全部正常" if ok
                     else "❌ 存在未通过项，见上方 ✗ 标记"))
     print("=" * 70)
     return 0 if ok else 1

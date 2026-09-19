@@ -1790,6 +1790,18 @@ def _ensure_plan_table():
     db.commit()
 
 
+def _best_row_key(r):
+    """同院多科室 / 多名条时挑选「代表记录」的确定序。
+
+    一家医院同时命中妇产科、妇科、产科时，要选一条作为展示、其余折叠。
+    原先只比 strength，同分时保留谁取决于 MySQL 返回行的先后——而 SQL 不保证顺序，
+    于是同一问题可能给出「产科」也可能给出「妇科」。对一个要给用户看的推荐结果来说，
+    这种不确定性不可接受（也让离线复算无法对齐）。这里补上科室名与机构 id 作为兜底，
+    比较键完全确定，与 web/app.plan.js 的 tiebreak 保持同序。
+    """
+    return (-(r["strength"] or 0), r["dept_name"] or "", str(r["id"]))
+
+
 @app.route("/api/plan", methods=["POST"])
 def api_plan():
     """就医决策：生成一次完整的就医方案（任务主线核心接口）。
@@ -1884,7 +1896,7 @@ def api_plan():
     for r in rows:
         rec = by_hosp.setdefault(r["id"], {"row": r, "depts": []})
         rec["depts"].append(r["dept_name"])
-        if (r["strength"] or 0) > (rec["row"]["strength"] or 0):
+        if _best_row_key(r) < _best_row_key(rec["row"]):
             rec["row"] = r
 
     # 同院多名称合并：库里同一家医院可能以「隆福医院」「隆福医院（东城区老年病医院）」
@@ -1900,7 +1912,7 @@ def api_plan():
         else:
             m["depts"] = list(set(m["depts"]) | set(rec["depts"]))
             m["alias"].append(rec["row"]["name"])
-            if (rec["row"]["strength"] or 0) > (m["row"]["strength"] or 0):
+            if _best_row_key(rec["row"]) < _best_row_key(m["row"]):
                 keep_depts, keep_alias = m["depts"], m["alias"]
                 m["row"] = rec["row"]
                 m["depts"], m["alias"] = keep_depts, keep_alias
@@ -1969,7 +1981,11 @@ def api_plan():
             reasons.append("距%s %.1f 公里" % (base_name or "基准点", dist))
 
         candidates.append({
-            "id": hid, "name": r["name"], "district": r["district"],
+            # ⚠️ 这里必须取机构真实 id，不能取 hid：
+            #    上面的同院合并把 by_hosp 换成了以 _norm_hosp_name() 为键的 merged，
+            #    于是 hid 变成了「机构名」——前端拿它当主键用不会出错（仍唯一），
+            #    但语义错位：离线形态 / 详情跳转 / 与 ads_inst_search.id 对齐都会对不上。
+            "id": rec["row"]["id"], "name": r["name"], "district": r["district"],
             "addr": r["addr"], "phone": r["phone"],
             "lng": r["lng"], "lat": r["lat"],
             "level": r["level"], "level_norm": r["level_norm"],

@@ -186,6 +186,7 @@ def main():
                 files = sorted(os.listdir(assets))
                 asize = sum(os.path.getsize(os.path.join(assets, f)) for f in files)
                 expect_chunks = ["app.js", "charts.js", "index.css",
+                                 "PlanView.js", "HubView.js",
                                  "OverviewView.js", "AnalyticsView.js", "InstitutionsView.js",
                                  "FilterView.js", "IntegrationView.js", "QualityView.js",
                                  "AboutView.js"]
@@ -193,7 +194,7 @@ def main():
                 print("  %s dist/assets 共 %d 个文件 / %.2f MB"
                       % ("✓" if not miss else "✗", len(files), asize / 1024 / 1024))
                 if miss:
-                    print("  ✗ 缺少预期 chunk：%s（七个视图应各自成块）" % miss); ok = False
+                    print("  ✗ 缺少预期 chunk：%s（九个视图应各自成块）" % miss); ok = False
         # 源码比产物新 → 提示需要重新构建（只比 mtime，够用且零依赖）
         src_newest = 0.0
         for root, _dirs, files in os.walk(os.path.join(BASE, "web", "vue", "src")):

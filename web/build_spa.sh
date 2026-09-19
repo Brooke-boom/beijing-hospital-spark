@@ -5,7 +5,7 @@ set -e
 cd "$(dirname "$0")/.."
 echo "=== 1. 拉 MySQL 全量精简数据 ==="
 /Users/brooke/.workbuddy/binaries/python/envs/default/bin/python << 'PYEOF'
-import json, pymysql
+import json, pymysql, datetime
 from pathlib import Path
 conn = pymysql.connect(host='127.0.0.1', port=3307, user='root', password='hospital123',
                       database='hospital', charset='utf8mb4',
@@ -15,6 +15,7 @@ def q(sql):
         cur.execute(sql); return cur.fetchall()
 rows = q("""SELECT a.id, a.name, a.district, a.level_norm AS level, a.category_norm AS category,
     a.category_sub, a.ownership, a.feature, a.feature_level,
+    a.addr, a.phone,
     a.dept_count, a.key_specialty_count, a.lng, a.lat, a.coord_precision, a.key_depts, a.grade_scope,
     a.dept_count_src,
     a.ownership_src, a.level_src,
@@ -87,26 +88,62 @@ meta = {
     'depts': q("SELECT dept_name, hospital_count FROM dws_dept_coverage ORDER BY hospital_count DESC"),
 }
 geo = json.load(open('web/static/json/beijing.json', encoding='utf-8'))
+# 快照日期 = 最近一次 ETL 批次日期（反映数据实际新鲜度），不再硬编码；
+# 批次表为空时退回构建当天。前端「快照 <日期>」标签读的就是这个字段。
+_etl = overviews.get('etl_snapshots') or []
+_snap_date = (_etl[0].get('batch_date') if _etl else None) or datetime.date.today().isoformat()
 out = {'institutions': rows, 'overviews': overviews,
-       'meta': meta, 'geojson': geo, 'snapshot_time': '2026-09-08', 'total': len(rows)}
+       'meta': meta, 'geojson': geo, 'snapshot_time': str(_snap_date), 'total': len(rows)}
 out_path = Path('web/snapshot_data.json')
 out_path.write_text(json.dumps(out, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
 print(f'  ✓ {out_path} | {out_path.stat().st_size/1024/1024:.2f} MB')
 conn.close()
 PYEOF
 
-echo "=== 2. 拼装单文件 HTML ==="
+echo "=== 2. 刷新离线就医决策数据包 ==="
+# 必须与 app.py 的判科/打分常量、ads_dept_strength 同步；
+# 漏跑会让单文件形态与后端 /api/plan 漂移（etl/verify_offline_plan.py 能查出来），
+# 所以放在构建链路里自动跑，而不是靠人记得。
+/Users/brooke/.workbuddy/binaries/python/envs/default/bin/python etl/export_offline_plan_data.py
+
+echo "=== 3. 拼装单文件 HTML ==="
 /Users/brooke/.workbuddy/binaries/python/envs/default/bin/python << 'PYEOF'
 from pathlib import Path
 data = open('web/snapshot_data.json', encoding='utf-8').read()
 html = open('web/dashboard.html', encoding='utf-8').read()
 js = open('web/app.js', encoding='utf-8').read()
+
+# 就医决策主线的离线数据包与两段脚本。
+# 单文件形态原本只带查阅能力，主线要跳 /spa/（在线形态）——在 GitHub Pages 上那是 404。
+# 内联这三样之后，单文件自身即可走完「说需求 → 分诊 → 对比 → 拿方案」。
+plan_path = Path('web/offline_plan_data.json')
+if not plan_path.exists():
+    raise SystemExit('缺少 web/offline_plan_data.json，请先运行：'
+                     'python etl/export_offline_plan_data.py')
+plan_data = plan_path.read_text(encoding='utf-8')
+plan_js = open('web/app.plan.js', encoding='utf-8').read()
+plan_ui_js = open('web/app.plan.ui.js', encoding='utf-8').read()
+
+
+def inline(s):
+    """内联进 <script> 前必须转义 </script>：数据或代码里出现该串会提前闭合脚本，
+    页面从那一行起全部变成文本（症状是「页面没报错但白屏」），排查起来很费时间。"""
+    return s.replace('</script>', '<\\/script>')
+
+
 js = js.replace(
 "async function loadData() {\n  try {\n    const resp = await fetch('snapshot_data.json');\n    if (!resp.ok) throw new Error('HTTP ' + resp.status);\n    DATA = await resp.json();\n    console.log('数据加载完成:', DATA.total, '家');\n    init();\n  } catch (e) {\n    document.getElementById('loading').innerHTML =\n      '❌ 数据加载失败：' + e.message + '<br>请确保 <code>snapshot_data.json</code> 与 HTML 在同一目录';\n  }\n}",
 "function loadData() {\n  try {\n    if (!window.__SNAPSHOT__) throw new Error('未找到内嵌数据快照');\n    DATA = window.__SNAPSHOT__;\n    console.log('数据加载完成:', DATA.total, '家');\n    init();\n  } catch (e) {\n    document.getElementById('loading').innerHTML =\n      '❌ 数据加载失败：' + e.message;\n  }\n}")
-# 关键：window.__SNAPSHOT__ 必须先定义，再执行 app.js，否则 loadData() 会报"未找到内嵌数据快照"
+# 关键：window.__SNAPSHOT__ / window.__PLAN_DATA__ 必须先定义，再执行 app.js，否则 loadData() 会报"未找到内嵌数据快照"
 html = html.replace('<script src="app.js"></script>',
-                    f'<script>window.__SNAPSHOT__ = {data};</script>\n<script>\n{js}\n</script>')
+                    f'<script>window.__SNAPSHOT__ = {inline(data)};</script>\n'
+                    f'<script>window.__PLAN_DATA__ = {inline(plan_data)};</script>\n'
+                    f'<script>\n{inline(js)}\n</script>')
+for tag, code in (('<script src="app.plan.js"></script>', plan_js),
+                  ('<script src="app.plan.ui.js"></script>', plan_ui_js)):
+    if html.count(tag) != 1:
+        raise SystemExit(f'产物拼装失败：锚点 {tag} 出现 {html.count(tag)} 次（应为 1 次）')
+    html = html.replace(tag, f'<script>\n{inline(code)}\n</script>')
 out = Path('web/dashboard_standalone.html')
 out.write_text(html, encoding='utf-8')
 print(f'  ✓ {out} | {out.stat().st_size/1024/1024:.2f} MB')
