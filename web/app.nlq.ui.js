@@ -522,7 +522,16 @@ var NLQ_UI = (function () {
     return (d == null || isNaN(d)) ? null : d;
   }
 
-  function rowHtml(r) {
+  // 科室数的展示口径统一走 app.js 里的 deptLabel（同一份判据，不在本文件重复实现）。
+// dept_count 由三种不可比的口径拼成（在线核实 / 登记科目 / 通用清单推导），
+// 直接甩一个数字会误导——判据与注释见 app.js 中的 deptLabel。
+// 这里用运行时判断，避免两个文件的加载顺序耦合。
+function deptTag(r) {
+  if (typeof deptLabel === 'function') return deptLabel(r);
+  return '<span>' + (r.dept_count || 0) + ' 个科室</span>';
+}
+
+function rowHtml(r) {
     var on = PICKED.has(String(r.id));
     var d = distOf(r);
     var dist = (d == null) ? '—' : (Math.round(d * 10) / 10).toFixed(1) + ' km';
@@ -537,7 +546,7 @@ var NLQ_UI = (function () {
         '<div class="name">' + esc(r.name) + '</div>' +
         '<div class="meta">' + levelBadge(r.level) + catBadge(r.category) + ownBadge(r.ownership) +
           '<span>' + esc(r.district || '未标注') + '</span><span style="color:' + FAINT + '">·</span>' +
-          '<span>' + (r.dept_count || 0) + ' 个科室</span>' +
+          deptTag(r) +
           (r.src_count_int ? '<span style="color:' + FAINT + '">·</span><span>' + r.src_count_int + ' 个来源</span>' : '') +
         '</div>' +
         featLine(r) + netLine(r) +

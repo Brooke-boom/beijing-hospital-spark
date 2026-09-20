@@ -38,7 +38,8 @@
             <td><span class="badge" :class="lvClass(r.level)">{{ r.level || '—' }}</span></td>
             <td><span class="badge" :class="ownClass(r.ownership)">{{ r.ownership || '未标注' }}</span></td>
             <td>{{ r.category || '—' }}</td>
-            <td>{{ r.dept_count ?? '—' }}</td>
+            <td :title="deptTip(r)">{{ deptText(r)
+              }}<span v-if="deptSuffix(r)" class="muted" style="font-size:10px">·{{ deptSuffix(r) }}</span></td>
             <td>{{ r.distance_km === null || r.distance_km === undefined ? '—' : r.distance_km + ' km' }}</td>
             <td>{{ r.score === null || r.score === undefined ? '—' : r.score }}</td>
           </tr>
@@ -71,6 +72,7 @@
 
 <script setup>
 import { useDataStore } from '../store'
+import { deptText, deptTip, deptSuffix } from '../deptLabel'
 const store = useDataStore()
 const fmt = (n) => (n === null || n === undefined || n === '' ? '—' : Number(n).toLocaleString())
 

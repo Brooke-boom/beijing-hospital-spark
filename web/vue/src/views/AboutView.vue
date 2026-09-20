@@ -81,7 +81,7 @@
           <div class="k">条件匹配度</div><div>等级权重 0.5 + 距离权重 0.3 + 科室权重 0.2（归一化加权）</div>
           <div class="k">距离</div><div>基于设定基准点的 Haversine 球面距离，近 → 远</div>
           <div class="k">医院等级</div><div>三级 → 二级 → 一级 → 未定级，同级按距离升序</div>
-          <div class="k">科室数量</div><div>按开展科室数降序（资源丰富度代理指标）</div>
+          <div class="k">科室数量</div><div>按科室数降序；该字段有三种来源口径（在线核实 / 登记科目 / 通用清单推导），逐条标注</div>
           <div class="k">机构名称</div><div>按机构名称升序，便于按字面快速定位</div>
         </div>
       </div>

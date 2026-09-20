@@ -143,6 +143,29 @@ setTimeout(function(){
                         r.push('oral2_kwchip=' + cnt('#nlq_chips .nlqchip[data-ck="kw"]'));
                         r.push('oral2_count=' + tx('nlq_count'));
                         r.push('oral2_rows=' + cnt('#nlq_list .row'));
+                        // ── J. 科室数的展示口径（本轮修复：22 家医院凭空多出「59 个科室」）
+                        //    百度百科上这几家词条共用同一段模板文字
+                        //    「开放编制床位2500张；共设59个临床、医技科室」，
+                        //    抓取时被当成了每家各自的科室数。现在列表里必须带口径提示，
+                        //    且「59 个科室」不再出现。
+                        var _metas = document.querySelectorAll('#nlq_list .row .meta');
+                        var _n59 = 0, _tipOn = 0, _tipRule = 0, _tipPend = 0;
+                        for (var _mi = 0; _mi < _metas.length; _mi++) {
+                          var _mt = _metas[_mi].innerText || '';
+                          if (_mt.indexOf('59 个科室') >= 0) _n59++;
+                          var _sps = _metas[_mi].querySelectorAll('span[title]');
+                          for (var _si = 0; _si < _sps.length; _si++) {
+                            var _ti = _sps[_si].getAttribute('title') || '';
+                            if (_ti.indexOf('在线核实') === 0) _tipOn++;
+                            else if (_ti.indexOf('通用科室清单') >= 0) _tipRule++;
+                            else if (_ti.indexOf('仅收录到') >= 0) _tipPend++;
+                          }
+                        }
+                        r.push('dept59=' + _n59);
+                        r.push('dept_tiponline=' + _tipOn);
+                        r.push('dept_tiprule=' + _tipRule);
+                        r.push('dept_tippending=' + _tipPend);
+                        r.push('dept_head=' + (_metas.length ? _metas[0].innerText.replace(/\s+/g, ' ').trim() : ''));
                         done();
                       }, 1300);
                     }, 1300);
@@ -287,6 +310,13 @@ def main():
                    "家" in kv.get("oral2_count", "") and "—" not in kv.get("oral2_count", "")
                    and int(kv.get("oral2_rows", "0") or 0) > 0,
                    "%s / rows=%s" % (kv.get("oral2_count", "?"), kv.get("oral2_rows"))))
+    checks.append(("科室数不再出现「59 个科室」", int(kv.get("dept59", "-1") or -1) == 0,
+                   "命中=%s" % kv.get("dept59")))
+    checks.append(("科室数带口径提示", int(kv.get("dept_tiponline", "0") or 0) > 0
+                   or int(kv.get("dept_tiprule", "0") or 0) > 0,
+                   "在线核实=%s 通用清单=%s 待补全=%s | 首行=%s" % (
+                       kv.get("dept_tiponline"), kv.get("dept_tiprule"),
+                       kv.get("dept_tippending"), (kv.get("dept_head", "") or "")[:46])))
     errs = kv.get("ERR", "?")
     checks.append(("无运行时错误", errs == "none", errs))
 

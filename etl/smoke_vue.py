@@ -205,6 +205,22 @@ def main():
         inst = pg.evaluate("() => document.querySelectorAll('.tbl tbody tr').length")
         checks.append(("找机构页有列表行", inst > 0, "rows=%d" % inst))
 
+        # 科室数口径：dept_count 有三种来源（在线核实 / 登记科目 / 通用清单推导），
+        # 单元格必须带 title 说明来路，且不再出现被百科模板污染的「59」。
+        dc = pg.evaluate("""() => {
+          const tds = [...document.querySelectorAll('.tbl tbody tr')]
+            .map(tr => tr.children[5]).filter(Boolean);
+          return {
+            n: tds.length,
+            texts: tds.map(td => td.innerText.trim()),
+            tips: tds.filter(td => td.getAttribute('title')).length,
+          };
+        }""")
+        checks.append(("科室数列不再出现「59」", '59' not in dc["texts"],
+                       "取值=%s" % dc["texts"][:8]))
+        checks.append(("科室数列带口径提示", dc["tips"] > 0,
+                       "带提示 %d/%d 行" % (dc["tips"], dc["n"])))
+
         pg.goto("%s#/find?t=institutions" % BASE, wait_until="networkidle", timeout=45000)
         time.sleep(2.2)
         try:

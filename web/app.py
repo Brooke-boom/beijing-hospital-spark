@@ -228,7 +228,7 @@ def api_institutions():
         " t.level_sub, t.addr, t.phone, t.key_depts,"
         " t.category_sub, t.ownership, t.feature, t.feature_level,"
         " t.net_pediatric, t.net_stroke, t.net_neonatal, t.net_maternal,"
-        " t.lng, t.lat, t.coord_precision, t.dept_count, t.key_specialty_count,"
+        " t.lng, t.lat, t.coord_precision, t.dept_count, t.dept_count_src, t.key_specialty_count,"
         " d.distance_km, COALESCE(rc.rule_dept_count, 0) AS rule_dept_count, " + score_expr + " AS score " + base_select +
         f" ORDER BY {order_sql} LIMIT %s OFFSET %s",
         dist_params + params + [page_size, offset],
@@ -251,7 +251,7 @@ def api_detail(inst_id):
         " addr, phone, postal, key_depts,"
         " net_pediatric, net_stroke, net_neonatal, net_maternal,"
         " lng, lat, coord_formatted, coord_precision, coord_source,"
-        " src_count_int, source_files, dept_count, key_specialty_count"
+        " src_count_int, source_files, dept_count, dept_count_src, key_specialty_count"
         " FROM ads_inst_search WHERE id = %s",
         [inst_id], one=True,
     )
@@ -937,6 +937,7 @@ def api_inst_detail(inst_id):
             "ownership": r.get("ownership") or "", "ownership_basis": r.get("ownership_basis") or "",
             "grade_scope": r.get("grade_scope") or "",
             "dept_count": r.get("dept_count") or 0,
+            "dept_count_src": r.get("dept_count_src") or "",
             "key_specialty_count": r.get("key_specialty_count") or 0,
         },
         "contact": {

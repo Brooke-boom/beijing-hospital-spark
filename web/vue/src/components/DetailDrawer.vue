@@ -31,8 +31,8 @@
           <div class="k">电话</div><div>{{ inst.phone || '—' }}</div>
           <div class="k">科室数量</div>
           <div>
-            {{ inst.dept_count ?? '—' }}
-            <span v-if="inst.dept_count_src" class="muted">（{{ inst.dept_count_src }}）</span>
+            {{ deptText(inst) }}
+            <div class="muted" style="font-size:11px;margin-top:3px">{{ deptExplain(inst) }}</div>
           </div>
           <div class="k">重点专科</div>
           <div>
@@ -103,6 +103,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useDataStore } from '../store'
+import { deptText, deptExplain } from '../deptLabel'
 
 const store = useDataStore()
 const d = computed(() => store.drawer.data)

@@ -228,7 +228,7 @@ function renderFavList() {
     return '<div class="favcard">' +
       '<div class="fn">' + esc(r.name) + '</div>' +
       '<div class="fm">' + levelBadge(r.level) + ownBadge(r.ownership) +
-        '<span>' + esc(r.district || '—') + '</span><span>' + (r.dept_count || 0) + ' 个科室</span><span>' + dist + '</span></div>' +
+        '<span>' + esc(r.district || '—') + '</span>' + deptLabel(r) + '<span>' + dist + '</span></div>' +
       '<div class="fa">' +
         '<span class="chip pick" data-fopen="' + esc(r.id) + '">查看详情</span>' +
         '<span class="chip pick" data-fpick="' + esc(r.id) + '">' +
@@ -1247,7 +1247,7 @@ function renderList() {
       '<div class="body">' +
         '<div class="name">' + kwMark(r.name) + '</div>' +
         '<div class="meta">' + levelBadge(r.level) + catBadge(r.category) + ownBadge(r.ownership) +
-          '<span>' + esc(r.district) + '</span><span style="color:' + FAINT + '">·</span><span>' + (r.dept_count || 0) + ' 个科室</span></div>' +
+          '<span>' + esc(r.district) + '</span><span style="color:' + FAINT + '">·</span>' + deptLabel(r) + '</div>' +
         featLine(r) + netLine(r) +
       '</div>' +
       '<div class="side">' +
@@ -1832,6 +1832,35 @@ function paintDrawerLocal(r) {
 // 不含「是否重点专科 / 归属来源」两列——那两列要连本地服务才有。
 // 这一段的意义：用户在智能筛选里按科室筛出机构后，点进来能看见同一批科室名，
 // 而不是"筛得到、详情里却看不到"。
+// 科室数的展示口径。
+// dept_count 有三种来源，列表里直接甩一个数字会误导：
+//   ① 在线核实（dept_count_src）：机构官网 / 百科词条自述，最接近真实；
+//   ② 登记诊疗科目（specialty / key_depts）：来自医疗机构登记的诊疗科目；
+//   ③ 规则推导（rule_dept_count）：源数据没收录时，按「机构等级 × 类型」套的一份
+//      通用清单（如三级医院 19 个），**不是**这家机构真实的科室构成。
+// 另有一批头部医院在源数据里只登记到 1~5 个科室（宣武医院只登记了「神经内科」一条
+// 国家级重点专科），此时把收录条数当科室数展示反而误导，统一回落为「科室资料待补全」。
+function deptLabel(r) {
+  const n = Number(r.dept_count || 0);
+  if (!n) return '';
+  const src = String(r.dept_count_src || '');
+  const rule = Number(r.rule_dept_count || 0);
+  const lv = String(r.level || '');
+  if (src) {
+    return '<span title="在线核实：来自机构官网 / 百科词条的科室设置，共 ' + n + ' 个">' +
+      n + ' 个科室</span>';
+  }
+  if (rule >= n) {
+    return '<span title="源数据未收录该机构的科室设置，当前数量按「' + (lv || '同类型') +
+      '」通用科室清单推导，仅供筛选参考，不代表真实科室构成">' + n + ' 个科室</span>';
+  }
+  if ((lv === '三级' || lv === '二级') && n <= 5) {
+    return '<span title="源数据仅收录到 ' + n + ' 个科室，与该院实际规模不符，故不展示具体数字">' +
+      '科室资料待补全</span>';
+  }
+  return '<span title="来自医疗机构登记的诊疗科目，共 ' + n + ' 个">' + n + ' 个科室</span>';
+}
+
 function deptsLocalHTML(r) {
   const ds = String(r.depts || '').split(';').filter(Boolean);
   if (!ds.length) return '';
