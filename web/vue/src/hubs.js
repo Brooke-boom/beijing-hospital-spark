@@ -9,7 +9,7 @@ import { defineAsyncComponent } from 'vue'
 //   资源画像  → 全市资源怎么分布 / 结构如何
 //   数据治理  → 数据从哪来 / 质量如何
 //   系统说明  → 系统是什么、边界在哪
-// 主线（就医决策）不在这里，它是独立的任务流。
+// 主线（智能筛选）不在这里，它是独立的任务流：一句话进，一份结果出。
 // ============================================================================
 
 const InstitutionsView = defineAsyncComponent(() => import('./views/InstitutionsView.vue'))
@@ -46,10 +46,12 @@ export const HUBS = {
   }
 }
 
-// 旧路径 → 新支撑页的映射，保证之前分享过的深链接仍然能打开
+// 旧路径 → 新地址的映射，保证之前分享过的深链接仍然能打开。
+// 注意：'/filter' 从"找机构·条件筛选子标签"升级成了任务主线本身，
+// 因此它不再出现在映射表里——它已经是一个真实路由了。
 export const LEGACY_REDIRECT = {
+  '/plan': { name: 'filter' },
   '/institutions': { name: 'find', query: { t: 'institutions' } },
-  '/filter': { name: 'find', query: { t: 'filter' } },
   '/overview': { name: 'profile', query: { t: 'overview' } },
   '/analytics': { name: 'profile', query: { t: 'analytics' } },
   '/integration': { name: 'govern', query: { t: 'integration' } },

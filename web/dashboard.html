@@ -191,154 +191,88 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .navcap{font-size:10.5px;color:var(--ink-4);letter-spacing:.08em;padding:2px 6px 4px}
 
 /* ============================================================================
-   就医决策工作台（任务主线）—— 单文件形态内嵌
-   命名统一加 wb- 前缀，与查阅形态既有样式隔离，避免互相污染。
+   智能筛选页（自然语言 + 条件双通道）—— 单文件形态内嵌
+   命名统一加 nlq- 前缀，与查阅形态既有样式隔离，避免互相污染。
    ============================================================================ */
-.wb-steps{display:flex;gap:6px;align-items:center;margin:0 var(--pad-x) var(--gap);flex-wrap:wrap}
-.wb-step{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:10px;
-  border:1px solid var(--line);background:var(--panel);color:var(--ink-3);cursor:pointer;
-  font-family:inherit;font-size:12.5px;transition:.15s}
-.wb-step b{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;
-  background:var(--panel-3);color:var(--ink-3);font-size:11px;font-weight:600}
-.wb-step:hover:not(:disabled){color:var(--ink);border-color:var(--line-2)}
-.wb-step.on{color:var(--acc);border-color:rgba(var(--acc-rgb),.45);background:rgba(var(--acc-rgb),.1);font-weight:600}
-.wb-step.on b{background:var(--acc);color:var(--on-accent)}
-.wb-step.done b{background:rgba(var(--teal-rgb),.18);color:var(--teal)}
-.wb-step:disabled{opacity:.42;cursor:not-allowed}
-.wb-home{margin-left:auto;padding:7px 13px;border-radius:9px;border:1px solid var(--line);
-  background:var(--panel);color:var(--ink-3);cursor:pointer;font-family:inherit;font-size:12px}
-.wb-home:hover:not(:disabled){color:var(--ink);border-color:var(--line-2)}
-.wb-home:disabled{opacity:.4;cursor:not-allowed}
-
-.wb-pane{display:none;padding:0 var(--pad-x)}
-.wb-pane.on{display:block}
-
-#wb_q{width:100%;box-sizing:border-box;margin-top:4px;padding:11px 13px;border-radius:10px;
-  border:1px solid var(--line);background:var(--panel-2);color:var(--ink);
-  font-family:inherit;font-size:13px;line-height:1.6;resize:vertical;outline:none}
-#wb_q:focus{border-color:rgba(var(--acc-rgb),.45)}
-
-.wb-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;margin-top:18px}
-.wb-h4{margin:0 0 9px;font-size:12.5px;font-weight:600;color:var(--ink-2);
-  display:flex;align-items:center;gap:8px}
-.wb-prefs{display:flex;flex-wrap:wrap;gap:7px}
-.wb-pref{padding:7px 12px;border-radius:9px;border:1px solid var(--line);background:var(--panel-2);
-  color:var(--ink-2);cursor:pointer;font-family:inherit;font-size:12px;text-align:left;transition:.15s}
-.wb-pref i{display:block;font-style:normal;font-size:10.5px;color:var(--ink-4);margin-top:2px}
-.wb-pref:hover{border-color:var(--line-2);color:var(--ink)}
-.wb-pref.on{border-color:rgba(var(--acc-rgb),.5);background:rgba(var(--acc-rgb),.1);color:var(--acc)}
-.wb-pref.on i{color:var(--t-info-fg2)}
-.wb-limits{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.wb-limits select{width:100%;box-sizing:border-box;padding:7px 9px;border-radius:9px;
-  border:1px solid var(--line);background:var(--panel-2);color:var(--ink-2);
-  font-family:inherit;font-size:12px;outline:none;cursor:pointer}
-.wb-chk{grid-column:1/-1;font-size:12px;color:var(--ink-2)}
-
-.wb-base{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:2px}
-.wb-base select{padding:7px 9px;border-radius:9px;border:1px solid var(--line);
-  background:var(--panel-2);color:var(--ink-2);font-family:inherit;font-size:12px;outline:none;cursor:pointer}
-.wb-hint{color:var(--ink-4);font-size:11px;line-height:1.7}
-.wb-run{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:18px;
-  padding-top:15px;border-top:1px solid var(--line)}
-.wb-btnrow{margin-left:auto;display:inline-flex;gap:7px}
-
-/* —— 分诊结论 —— */
-.wb-tri{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
-.wb-tridept{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
-.wb-pill{padding:5px 12px;border-radius:20px;font-size:12.5px;font-weight:600;
-  background:rgba(var(--acc-rgb),.13);color:var(--t-acc-fg);
-  border:1px solid rgba(var(--acc-rgb),.3)}
-.wb-pill small{font-weight:400;opacity:.75;margin-left:5px;font-size:10.5px}
-.wb-pill.emg{background:rgba(var(--crit-rgb),.13);color:var(--t-crit-fg);border-color:rgba(var(--crit-rgb),.32)}
-.wb-trirow{display:flex;gap:9px;align-items:baseline;margin-top:9px;font-size:12.5px;color:var(--ink-2);line-height:1.75}
-.wb-trirow .k{color:var(--ink-4);flex:none;min-width:64px}
-
-/* —— 候选卡 —— */
-.wb-cands{display:grid;gap:10px;margin-top:4px}
-.wb-cand{border:1px solid var(--line);border-radius:11px;background:var(--panel-2);
-  padding:13px 15px;transition:.15s}
-.wb-cand:hover{border-color:var(--line-2)}
-.wb-cand.picked{border-color:rgba(var(--acc-rgb),.45);background:rgba(var(--acc-rgb),.05)}
-.wb-cand.primary{border-color:rgba(var(--warn-rgb),.5)}
-.wb-chd{display:flex;align-items:flex-start;gap:12px}
-.wb-rank{flex:none;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;
-  font-size:12px;font-weight:700;background:var(--panel-3);color:var(--ink-3)}
-.wb-cand:nth-child(1) .wb-rank{background:rgba(var(--warn-rgb),.16);color:var(--t-warn-fg)}
-.wb-cand:nth-child(2) .wb-rank{background:rgba(var(--acc-rgb),.13);color:var(--t-acc-fg)}
-.wb-cand:nth-child(3) .wb-rank{background:rgba(var(--teal-rgb),.13);color:var(--t-teal-fg)}
-.wb-cname{font-size:13.5px;font-weight:600;color:var(--ink-strong);line-height:1.5}
-.wb-cmeta{margin-top:4px;display:flex;gap:7px;flex-wrap:wrap;align-items:center}
-.wb-acts{margin-left:auto;display:flex;gap:7px;flex:none}
-.wb-score{display:flex;align-items:center;gap:9px;margin-top:10px}
-.wb-bar{flex:1;height:5px;border-radius:3px;background:var(--panel-3);overflow:hidden}
-.wb-bar i{display:block;height:100%;border-radius:3px;background:var(--grad-brand)}
-.wb-score b{font-size:13px;color:var(--ink-strong);font-variant-numeric:tabular-nums}
-.wb-why{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px}
-.wb-why span{font-size:11px;color:var(--ink-3);background:var(--panel-3);
-  padding:3px 9px;border-radius:6px;line-height:1.6}
-.wb-mtags{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:11px;color:var(--ink-4)}
-
-/* —— 对比表 —— */
-.wb-cmpwrap{overflow-x:auto;margin-top:2px}
-.wb-cmp{width:100%;border-collapse:collapse;font-size:12px;min-width:560px}
-.wb-cmp th,.wb-cmp td{padding:9px 11px;text-align:left;vertical-align:top;
-  border-bottom:1px solid var(--line);color:var(--ink-2);line-height:1.7}
-.wb-cmp thead th{color:var(--ink);font-size:12.5px;font-weight:600;
-  border-bottom:1px solid var(--line-2)}
-.wb-cmp .ro{color:var(--ink-4);font-weight:400;white-space:nowrap;width:88px}
-.wb-cmp tbody tr:hover td{background:rgba(var(--hair-rgb),.02)}
-.wb-cmp .rs{display:block;font-size:11px;color:var(--ink-3)}
-.wb-cmp .cmpname{font-size:12.5px;line-height:1.5;margin-bottom:7px}
-
-/* —— 方案卡（可打印区） —— */
-#wb_plancard{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:4px}
-.wb-ph{padding:16px 18px;border-bottom:1px solid var(--line);
-  background:linear-gradient(180deg,rgba(var(--acc-rgb),.07),transparent);
-  display:flex;align-items:flex-start;gap:12px}
-.wb-ptitle{font-size:17px;font-weight:700;color:var(--ink-strong);line-height:1.4}
-.wb-pmeta{margin-top:5px;font-size:12px;color:var(--ink-3);line-height:1.7}
-.wb-ptag{margin-left:auto;flex:none;padding:5px 12px;border-radius:20px;font-size:11.5px;
-  background:rgba(var(--warn-rgb),.14);color:var(--t-warn-fg);border:1px solid rgba(var(--warn-rgb),.3)}
-.wb-ps{padding:14px 18px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 22px}
-.wb-prow{display:flex;gap:10px;font-size:12.5px;line-height:1.75}
-.wb-prow label{flex:none;min-width:52px;color:var(--ink-4)}
-.wb-prow div{color:var(--ink);min-width:0;word-break:break-all}
-.wb-psec{padding:0 18px 16px}
-.wb-psec h5{margin:0 0 9px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
-.wb-psec ul,.wb-psec ol{margin:0;padding-left:20px}
-.wb-psec li{font-size:12.5px;color:var(--ink-2);line-height:1.9}
-.wb-alt{display:flex;align-items:baseline;gap:9px;padding:5px 0;border-bottom:1px dashed var(--line)}
-.wb-alt b{color:var(--ink);font-weight:600}
-.wb-alt .d{margin-left:auto;color:var(--ink-4);font-size:11.5px;flex:none}
-.wb-pft{padding:12px 18px;border-top:1px solid var(--line);background:var(--panel-2);
-  font-size:11px;color:var(--ink-4);line-height:1.8}
-
-/* —— 我的方案 —— */
-.wb-mine{display:grid;gap:8px;margin-top:4px}
-.wb-mi{display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:10px;
-  border:1px solid var(--line);background:var(--panel-2)}
-.wb-mi .t{font-size:12.5px;color:var(--ink);min-width:0;flex:1;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.wb-mi .m{font-size:11px;color:var(--ink-4);flex:none}
-.wb-empty{color:var(--ink-4);font-size:12px;padding:8px 0}
-
-@media (max-width:1100px){
-  .wb-grid{grid-template-columns:minmax(0,1fr)}
-  .wb-ps{grid-template-columns:minmax(0,1fr)}
-  .wb-limits{grid-template-columns:repeat(2,minmax(0,1fr))}
+.nlqtabs{display:flex;align-items:center;gap:6px;margin-bottom:15px;flex-wrap:wrap}
+.nlqtab{padding:7px 14px;border-radius:9px;border:1px solid var(--line);background:transparent;
+  color:var(--ink-3);font-size:12.5px;font-weight:500;cursor:pointer;font-family:inherit;transition:.15s}
+.nlqtab:hover{color:var(--ink);border-color:var(--line-2)}
+.nlqtab.active{background:rgba(var(--acc-rgb),.14);border-color:rgba(var(--acc-rgb),.34);
+  color:var(--acc);font-weight:650}
+.nlqwait{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink-3)}
+.nlqwait::before{content:'';width:11px;height:11px;border-radius:50%;
+  border:2px solid var(--line-2);border-top-color:var(--acc);animation:nlqspin .7s linear infinite}
+@keyframes nlqspin{to{transform:rotate(360deg)}}
+.nlqpane{display:none}
+.nlqpane.active{display:block}
+.nlqconds{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 14px;align-items:end}
+.nlqconds .nc{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--ink-3);min-width:0}
+.nlqconds .nc select,.nlqconds .nc input{width:100%;box-sizing:border-box;height:36px;padding:0 10px;
+  border-radius:9px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);
+  font-size:12.5px;font-family:inherit;outline:none}
+.nlqconds .nc select:focus,.nlqconds .nc input:focus{border-color:rgba(var(--acc-rgb),.5)}
+.nlqconds .ncbtn{flex-direction:row;align-items:center;gap:8px}
+.nlqscope{margin-top:11px;display:flex;gap:7px;align-items:flex-start;font-size:11.5px;
+  line-height:1.7;color:var(--ink-3)}
+.nlqscope .ic{flex:none;margin-top:2px}
+.nlqreply .nlqmsg{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;line-height:1.75;color:var(--ink-2)}
+.nlqreply .nlqmsg.muted{color:var(--ink-4)}
+.nlqreply .nlqmsg .okdot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--acc);margin-top:8px}
+.nlqreply .nlqmsg.nlqrefuse{display:block;padding:13px 15px;border-radius:var(--r-m);
+  border:1px solid rgba(var(--warn-rgb),.30);background:rgba(var(--warn-rgb),.07);color:var(--ink)}
+.nlqrefuse .rf-t{display:flex;align-items:center;gap:7px;font-weight:650;margin-bottom:7px}
+.nlqrefuse .rf-b{font-size:12px;line-height:1.8;color:var(--t-warn-fg2)}
+.nlqchips{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.nlqchip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:9px;
+  border:1px solid rgba(var(--acc-rgb),.30);background:rgba(var(--acc-rgb),.10);
+  color:var(--ink);font-size:12px;font-family:inherit;cursor:pointer;transition:.15s}
+.nlqchip:hover{border-color:rgba(var(--acc-rgb),.58);background:rgba(var(--acc-rgb),.18)}
+.nlqchip em{font-style:normal;font-size:11px;color:var(--ink-3)}
+.nlqchip b{font-weight:650}
+.nlqchip i{font-style:normal;font-weight:700;color:var(--ink-4)}
+.nlqchip:hover i{color:var(--crit)}
+.nlqmiss{margin-top:11px;font-size:11.5px;line-height:1.75;color:var(--ink-4)}
+.nlqmiss code{margin:0 3px;padding:1px 6px;border-radius:5px;border:1px solid var(--line);
+  background:var(--panel-2);font-size:11px}
+.nlqnote{margin-top:11px;padding:10px 12px;border-radius:var(--r-m);
+  border:1px solid var(--line);background:var(--panel-2);font-size:11.5px;line-height:1.75;color:var(--ink-3)}
+.nlqsum{margin-top:12px;display:flex;gap:9px;align-items:flex-start;padding:11px 13px;
+  border-radius:var(--r-m);border:1px solid rgba(var(--vio-rgb),.26);background:rgba(var(--vio-rgb),.07)}
+.nlqsum .ai-badge{flex:none;display:inline-flex;align-items:center;gap:5px;font-size:11px;
+  font-weight:650;color:var(--t-vio-fg);white-space:nowrap}
+.nlqsum .ai-txt{font-size:12px;line-height:1.75;color:var(--ink-2)}
+.nlqchart{height:340px;min-height:340px;width:100%}
+.nlqkpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--gap);
+  padding:var(--gap) var(--pad-x) 0}
+/* 维度统计查询只出 4 张卡（总计/分组数/最多/最少），单独一档栅格免得右侧空两格 */
+.nlqkpis.k4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.nlqsplit{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,420px);gap:var(--gap);
+  padding:var(--gap) var(--pad-x) 0;align-items:start}
+.nlqmapcard{position:sticky;top:74px;height:calc(100vh - 92px);min-height:560px}
+.nlqpager{display:flex;align-items:center;justify-content:center;gap:14px;padding:12px 0 2px}
+.nlqpg{font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.nlqsource .nlqsrc-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:var(--gap);margin-top:14px}
+.nlqsrc-detail{margin-top:13px;font-size:12px;line-height:1.8;color:var(--ink-3)}
+.nlqsrc-note{margin-top:11px;display:flex;gap:7px;align-items:flex-start;padding:10px 12px;
+  border-radius:var(--r-m);border:1px solid rgba(var(--warn-rgb),.24);
+  background:rgba(var(--warn-rgb),.06);color:var(--t-warn-fg2);font-size:11.5px;line-height:1.7}
+.nlqsrc-note .ic{flex:none;margin-top:2px}
+@media (max-width:1260px){
+  .nlqsplit{grid-template-columns:minmax(0,1fr) minmax(330px,380px)}
+  .nlqconds{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
-@media (max-width:640px){
-  .wb-chd{flex-wrap:wrap}
-  .wb-acts{margin-left:0;width:100%}
-  .wb-home{margin-left:0;width:100%}
+@media (max-width:1080px){.nlqkpis,.nlqkpis.k4{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:900px){
+  .nlqsplit{grid-template-columns:1fr}
+  .nlqmapcard{position:static;height:460px;min-height:0}
+  .nlqconds{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .nlqsource .nlqsrc-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
-
-/* 打印：只留方案卡，其余全部隐藏 —— 让「可带走」真的成立 */
-@media print{
-  body *{visibility:hidden}
-  #wb_plancard,#wb_plancard *{visibility:visible}
-  #wb_plancard{position:absolute;left:0;top:0;width:100%;border:none;border-radius:0}
-  .wb-btnrow,.wb-steps,.sidebar,.topbar{display:none!important}
+@media (max-width:560px){
+  .nlqkpis,.nlqkpis.k4{grid-template-columns:1fr 1fr}
+  .nlqconds{grid-template-columns:1fr}
 }
 .sidefoot{margin-top:10px;padding:0 6px}
 .sidebar .navnote{white-space:normal;line-height:1.75;padding:0;text-align:left;font-size:10.5px}
@@ -536,27 +470,9 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 #ch1,#ch2,#ch3,#ch_own,#ch_feat,#ch_net,#ch_lvown,#ch_topsp,#ch_deptop,#ch_distlv,#ch_coord,
 #a_kw,#a_dist,#a_triage,#a_daily,#a_density,#a_level,#a_spec,#a_net,#a_own{width:100%;height:100%}
 
-/* ============================ 智能导诊（多轮对话） ============================ */
-.triage-shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,360px);gap:var(--gap);padding:var(--gap) var(--pad-x) 22px;align-items:start}
-.chat{
-  display:flex;flex-direction:column;height:min(76vh,760px);border-radius:var(--r-xl);overflow:hidden;
-  background:var(--panel);border:1px solid var(--line);box-shadow:var(--sh-2)
-}
-.chat-hd{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:11px;flex-wrap:wrap}
-.chat-hd .av{width:34px;height:34px;border-radius:10px;background:var(--vio);display:grid;place-items:center;font-size:17px;flex:none;color:var(--on-accent)}
-.chat-hd .t{font-size:13.5px;font-weight:650}
-.chat-hd .s{color:var(--ink-4);font-size:10.5px;margin-top:1px}
-.chat-hd .r{margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
-.chat-body{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px}
-.msg{display:flex;gap:10px;max-width:88%}
-.msg.me{align-self:flex-end;flex-direction:row-reverse}
-.msg .av2{width:28px;height:28px;border-radius:9px;flex:none;display:grid;place-items:center;font-size:14px;
-  background:var(--panel-2);border:1px solid var(--line)}
-.msg.me .av2{background:var(--acc);color:var(--on-accent);border-color:transparent}
-.bub{padding:11px 14px;border-radius:13px;background:var(--panel-2);border:1px solid var(--line);
-  font-size:12.5px;line-height:1.65;min-width:0}
-.msg.me .bub{background:rgba(var(--acc-rgb),.16);border-color:rgba(var(--acc-rgb),.3)}
-.bub .hint{color:var(--ink-4);font-size:11px;margin-top:6px}
+/* ============== 智能筛选页共用基础样式（条件卡 / 标签 / 处理中指示） ============== */
+/* 说明：这些是与「自然语言智能筛选」页共享的原子样式；
+   .chip 是条件标签与结果标签的统一外观，.typing 是模型处理中的三点指示。 */
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
 .chip{display:inline-flex;align-items:center;gap:5px;background:var(--panel-2);border:1px solid var(--line-2);
   color:var(--ink-2);padding:3px 10px;border-radius:999px;font-size:11px}
@@ -566,22 +482,6 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 .chip.eng{background:var(--panel-2);color:var(--ink-3);border-color:var(--line)}
 .chip.pick{cursor:pointer;transition:.15s}
 .chip.pick:hover{background:rgba(var(--acc-rgb),.2);color:var(--ink-strong);border-color:var(--acc)}
-.rec{background:var(--bg-soft);border:1px solid var(--line);border-radius:var(--r-m);padding:11px 13px;margin-top:9px;cursor:pointer;transition:.15s}
-.rec:hover{border-color:var(--acc);background:var(--panel)}
-.rec .rh{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
-.rec .rn{font-size:13px;font-weight:600}
-.rec .rs{margin-left:auto;color:var(--warn);font-weight:700;font-size:13px;font-variant-numeric:tabular-nums}
-.rec .rm{color:var(--ink-3);font-size:11px;margin-top:4px;display:flex;gap:7px;flex-wrap:wrap;align-items:center}
-.bars{margin-top:8px;display:flex;flex-direction:column;gap:4px}
-.barrow{display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--ink-3)}
-.barrow .bk{width:74px;flex:none}
-.barrow .bt{flex:1;height:6px;border-radius:4px;background:rgba(var(--hair-rgb),.07);overflow:hidden;min-width:40px}
-.barrow .bt i{display:block;height:100%;border-radius:4px;background:var(--acc)}
-.barrow .bv{width:96px;flex:none;text-align:right;color:var(--ink-2);font-variant-numeric:tabular-nums}
-.chat-ft{padding:12px 16px;border-top:1px solid var(--line);background:var(--bg-soft)}
-.chat-ft .line{display:flex;gap:9px;align-items:center}
-.chat-ft input{flex:1;min-width:0}
-.chat-side{display:flex;flex-direction:column;gap:var(--gap)}
 .typing{display:inline-flex;gap:4px;align-items:center;padding:4px 0}
 .typing i{width:6px;height:6px;border-radius:50%;background:var(--ink-3);animation:tp 1.2s infinite}
 .typing i:nth-child(2){animation-delay:.18s}.typing i:nth-child(3){animation-delay:.36s}
@@ -767,7 +667,6 @@ body.has-pick{padding-bottom:84px}
 @media (max-width:1080px){
   :root{--pad-x:16px}
   .split{grid-template-columns:1fr}
-  .triage-shell{grid-template-columns:1fr}
   .list{max-height:430px}
   .brand .sub{display:none}
 }
@@ -776,7 +675,6 @@ body.has-pick{padding-bottom:84px}
 .ic{width:16px;height:16px;display:inline-block;vertical-align:middle;flex:0 0 auto}
 .ico svg{width:17px;height:17px}
 .mark svg{width:26px;height:26px}
-.av svg,.av2 svg{width:22px;height:22px}
 .li svg{width:18px;height:18px;color:var(--acc)}
 .pi svg{width:15px;height:15px;color:var(--tint-fg)}
 .who svg{width:16px;height:16px;vertical-align:-3px;margin-right:3px}
@@ -1047,28 +945,27 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 <script>/* 首帧前落定主题，避免明暗闪烁 */(function(){try{var t=localStorage.getItem("bjyy_theme");if(t==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
 </head>
 <body>
-<div class="loading" id="loading"><span class="pulse"></span>正在加载数据快照（9,789 家机构）…</div>
+<div class="loading" id="loading"><span class="pulse"></span>正在加载数据快照…</div>
 
 <div class="layout">
 <aside class="sidebar">
   <nav class="navbar" id="navbar">
-  <!-- 主任务入口：切到内嵌的工作台视图（本地复算），不再跳 /spa/。
-       原先写 href="/spa/" 只在 file:// 下被拦截，在 GitHub Pages 上是 https，
-       拦截不生效 → 点进去直接 404。分享场景下这条主线等于断了。 -->
-  <button class="navtab navcta" id="nav_workbench" data-view="workbench"
-     title="就医决策工作台：说清需求 → 分诊排序 → 横向对比 → 生成可带走的方案">
-    <span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="18" r="2.6"/><circle cx="18" cy="6" r="2.6"/><path d="M8.4 17.2h4.1a3.5 3.5 0 000-7H10a3.5 3.5 0 010-7h2"/></svg></span><span class="lbl">就医决策</span>
+  <!-- 主入口：智能筛选（自然语言 / 条件双通道）。
+       本页内即可走完「描述条件 → 解析 → 查真实数据 → 看分布与列表 → 加入对比」，
+       不跳 /spa/、不依赖后端，因此分享链接与断网场景都可用。 -->
+  <button class="navtab navcta" id="nav_smartfilter" data-view="filter"
+     title="智能筛选：用一句话描述条件，或手动组合条件，直接检索真实机构数据">
+    <span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4zM18 15.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg></span><span class="lbl">智能筛选</span>
   </button>
-  <div class="navcap">查阅</div>
+  <div class="navcap">数据查阅</div>
   <button class="navtab active" data-view="overview"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg></span><span class="lbl">数据总览</span></button>
   <button class="navtab" data-view="analytics"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-12"/></svg></span><span class="lbl">医疗资源分析</span></button>
   <button class="navtab" data-view="institutions"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.4 16.4L21 21"/></svg></span><span class="lbl">机构查询</span></button>
-  <button class="navtab" data-view="filter"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4zM18 15.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg></span><span class="lbl">智能筛选</span></button>
   <button class="navtab" data-view="integration"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg></span><span class="lbl">数据整合</span></button>
   <button class="navtab" data-view="quality"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></span><span class="lbl">数据质量</span></button>
   </nav>
   <button class="navtab navaux" data-view="about"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 10v6M12 7.5h.01"/></svg></span><span class="lbl">系统说明</span></button>
-  <div class="sidefoot"><span class="navnote"><b>就医决策</b>是办事主线：说需求 → 看候选 → 做比较 → 拿方案<br>下方<b>查阅</b>分组把数据摊开供查阅</span></div>
+  <div class="sidefoot"><span class="navnote"><b>智能筛选</b>是主入口：说一句话或选条件 → 系统解析成筛选条件 → 查真实数据库<br>下方<b>数据查阅</b>分组把整合后的机构数据摊开供查阅</span></div>
 </aside>
 <div class="maincol">
 <header class="topbar">
@@ -1087,117 +984,6 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   </div>
 </header>
 
-
-<!-- ============================ 就医决策（任务主线） ============================ -->
-<!-- 这是「系统」与「大屏」的分界线：有任务态（说需求 → 看候选 → 做比较 → 拿方案）、
-     有产出物（可复制 / 下载 / 打印 / 留痕的方案），而不是摊开一堆图表让人自己看。
-     判科与排序由 app.plan.js 本地复算，数据来自内嵌的 offline_plan_data.json。 -->
-<section id="view-workbench" class="view">
-  <div class="sec-title"><span class="bar"></span>就医决策 · 从说清需求到带走方案
-    <span class="hint">本地复算，不依赖后端 · 科室实力指数来自 Spark 离线计算</span></div>
-
-  <!-- 步骤条：既是进度指示，也是回退入口；右侧常驻「重新开始」避免进来出不去 -->
-  <div class="wb-steps" id="wb_steps">
-    <button type="button" class="wb-step on" data-step="1"><b>1</b><span>说需求</span></button>
-    <button type="button" class="wb-step" data-step="2"><b>2</b><span>看候选</span></button>
-    <button type="button" class="wb-step" data-step="3"><b>3</b><span>做比较</span></button>
-    <button type="button" class="wb-step" data-step="4"><b>4</b><span>拿方案</span></button>
-    <button type="button" class="wb-home" id="wb_home" disabled
-            title="清空本次输入与结果，回到起始页（已保存的方案不受影响）">重新开始</button>
-  </div>
-
-  <!-- ---------- ① 说需求 ---------- -->
-  <div class="wb-pane on" data-pane="1">
-    <div class="panel">
-      <h3>说说您的需求 <span class="tag">说人话就行</span></h3>
-      <textarea id="wb_q" rows="2" spellcheck="false"
-        placeholder="例如：孩子反复发烧咳嗽三天了 ／ 老人最近总心慌胸闷 ／ 骨折了该去哪家"></textarea>
-      <div class="quickbar" id="wb_examples"></div>
-
-      <div class="wb-grid">
-        <div>
-          <h4 class="wb-h4">就诊偏好 <span class="tag">决定排序权重</span></h4>
-          <div class="wb-prefs" id="wb_prefs"></div>
-        </div>
-        <div>
-          <h4 class="wb-h4">限制条件 <span class="tag">可留空</span></h4>
-          <div class="wb-limits">
-            <select id="wb_district" title="限定行政区"></select>
-            <select id="wb_level" title="限定机构等级"></select>
-            <select id="wb_maxkm" title="最大可接受直线距离"></select>
-            <label class="check wb-chk"><input type="checkbox" id="wb_public"> 只看公立机构</label>
-          </div>
-        </div>
-      </div>
-
-      <h4 class="wb-h4">位置基准 <span class="tag">用于计算距离</span></h4>
-      <div class="wb-base">
-        <select id="wb_base"></select>
-        <button class="btn sm" id="wb_locate" type="button">用我的位置</button>
-        <span class="wb-hint" id="wb_basehint"></span>
-      </div>
-
-      <div class="wb-run">
-        <button class="btn pri" id="wb_run" type="button">生成就医方案 →</button>
-        <span class="wb-hint">先判断该挂哪个科，再按偏好排序候选机构</span>
-      </div>
-    </div>
-
-    <div class="panel" id="wb_mine" style="margin-top:var(--gap);display:none">
-      <h3>我的方案 <span class="tag">本地留痕</span>
-        <span class="wb-btnrow"><button class="btn sm" id="wb_clear_mine" type="button">清空记录</button></span>
-      </h3>
-      <div class="wb-mine" id="wb_mine_list"></div>
-    </div>
-  </div>
-
-  <!-- ---------- ② 看候选 ---------- -->
-  <div class="wb-pane" data-pane="2">
-    <div class="panel" id="wb_triage"></div>
-    <div class="panel" style="margin-top:var(--gap)">
-      <h3>候选机构 <span class="tag" id="wb_cand_tag">—</span>
-        <span class="wb-btnrow">
-          <button class="btn sm" id="wb_pick3" type="button">选前 3 家做对比</button>
-          <button class="btn sm" id="wb_back1" type="button">← 改条件</button>
-        </span>
-      </h3>
-      <div class="wb-cands" id="wb_cands"></div>
-      <div class="wb-run">
-        <button class="btn pri" id="wb_to_cmp" type="button" disabled>下一步 · 对比选中的 0 家</button>
-        <span class="wb-hint">勾选 2–4 家做横向对比</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- ---------- ③ 做比较 ---------- -->
-  <div class="wb-pane" data-pane="3">
-    <div class="panel">
-      <h3>横向对比 <span class="tag" id="wb_cmp_tag">—</span>
-        <span class="wb-btnrow"><button class="btn sm" id="wb_back2" type="button">← 回到候选</button></span>
-      </h3>
-      <div class="wb-cmpwrap" id="wb_cmp"></div>
-      <div class="wb-run">
-        <button class="btn pri" id="wb_to_plan" type="button" disabled>生成就医方案 →</button>
-        <span class="wb-hint">点表头的「设为主选」确定最终要去的那一家</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- ---------- ④ 拿方案 ---------- -->
-  <div class="wb-pane" data-pane="4">
-    <div class="panel">
-      <h3>就医决策方案 <span class="tag">可带走</span>
-        <span class="wb-btnrow">
-          <button class="btn sm" id="wb_copy" type="button">复制</button>
-          <button class="btn sm" id="wb_download" type="button">下载</button>
-          <button class="btn sm" id="wb_print" type="button">打印</button>
-          <button class="btn sm" id="wb_save" type="button">保存到我的方案</button>
-        </span>
-      </h3>
-      <div id="wb_plancard"></div>
-    </div>
-  </div>
-</section>
 
 <!-- ============================ 数据总览 ============================ -->
 <section id="view-overview" class="view active">
@@ -1365,56 +1151,103 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   </div>
 </section>
 
-<!-- ============================ 智能筛选 ============================ -->
+<!-- ============================ 智能筛选（自然语言 + 条件双通道） ============================ -->
+<!-- 这是本系统的**主入口**，也是定位最需要说清楚的一页：
+     它做的是"把中文说法翻译成结构化筛选条件，再去查真实的机构数据"，
+     **不做**疾病诊断、用药建议、就诊推荐——系统数据里根本没有患者诊疗数据。
+     两条通道（自然语言 / 条件）共用同一个执行链，输出同一套结果视图。 -->
 <section id="view-filter" class="view">
-  <div class="sec-title"><span class="bar"></span>🔎 医疗机构智能筛选
-    <span class="hint">基于规则解析的自然语言筛选条件转换 · 大模型仅在本地零命中时兜底</span></div>
+  <div class="sec-title"><span class="bar"></span>医疗机构智能筛选
+    <span class="hint">自然语言 → 结构化筛选条件 → 数据库检索 · 所有数字均来自数据仓库的真实查询结果</span></div>
 
   <div class="panel railcard" style="margin:0 var(--pad-x)">
-    <div class="nlqbar" id="nlqbar">
-      <div class="nlq-head">
-        <span class="nlq-badge"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4zM18 15.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg>自然语言筛选</span>
-        <span class="nlq-sub">说人话就行</span>
-        <button class="nlq-fold" id="btn_nlq_fold" type="button" aria-expanded="true" title="折叠 / 展开 AI 面板" aria-label="折叠或展开 AI 面板">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
-        </button>
+    <div class="nlqtabs" id="nlq_tabs" role="tablist">
+      <button class="nlqtab active" type="button" data-ntab="nl" role="tab" aria-selected="true">自然语言筛选</button>
+      <button class="nlqtab" type="button" data-ntab="cond" role="tab" aria-selected="false">条件筛选</button>
+      <span class="nlqwait" id="nlq_wait" style="display:none">正在检索数据库…</span>
+    </div>
+
+    <!-- 通道 A：自然语言 -->
+    <div class="nlqpane active" id="nlq_pane_nl">
+      <div class="nlq-field">
+        <button class="nlq-ic" id="btn_voice_ai" type="button"
+          title="语音输入：需在本机 http://localhost:5001 下使用" aria-label="语音输入"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11a7 7 0 0014 0M12 18v3M8.5 21h7"/></svg></button>
+        <input id="f_ai" type="text" autocomplete="off" spellcheck="false"
+               placeholder="例如：朝阳区和海淀区的三级医院，公立，来自卫健委公示名单"
+               title="支持口语化描述：行政区 / 机构等级 / 机构类型 / 所有制 / 数据来源 / 排序方式">
+        <button class="nlq-x" id="btn_ai_clear" type="button" title="清空输入" aria-label="清空输入" style="display:none">×</button>
+        <button class="nlq-send" id="btn_ai" type="button" title="解析并检索（也可直接按回车）" aria-label="解析并检索"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
       </div>
-      <div class="nlq-body" id="nlq_body">
-        <div class="nlq-field">
-          <button class="nlq-ic" id="btn_voice_ai" type="button"
-            title="语音输入：点一下说出需求（需在 http://localhost:5001 下使用）" aria-label="语音输入"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11a7 7 0 0014 0M12 18v3M8.5 21h7"/></svg></button>
-          <input id="f_ai" type="text" autocomplete="off" spellcheck="false"
-                 placeholder="朝阳区的三级综合医院，床位500张以上"
-                 title="支持口语化描述：区域 / 科室 / 等级 / 类型 / 距离 / 排序，可一次说全">
-          <button class="nlq-x" id="btn_ai_clear" type="button" title="清空输入" aria-label="清空输入">×</button>
-          <button class="nlq-send" id="btn_ai" type="button" title="解析（也可直接按回车）" aria-label="解析"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+      <div class="quickbar" id="nlq_examples"></div>
+      <div class="nlqscope" id="nlq_scope"></div>
+    </div>
+
+    <!-- 通道 B：条件筛选 -->
+    <div class="nlqpane" id="nlq_pane_cond">
+      <div class="nlqconds">
+        <label class="nc"><span>行政区</span><select id="q_district" title="限定行政区"></select></label>
+        <label class="nc"><span>机构等级</span><select id="q_level" title="限定医院等级"></select></label>
+        <label class="nc"><span>机构类型</span><select id="q_cat" title="限定机构类型"></select></label>
+        <label class="nc"><span>所有制</span><select id="q_own" title="限定所有制性质"></select></label>
+        <label class="nc"><span>数据来源</span><select id="q_source" title="限定该机构的记录来自哪一类公开数据文件"></select></label>
+        <label class="nc"><span>名称关键词</span><input id="q_kw" type="text" placeholder="如：协和、儿童、妇儿"></label>
+        <label class="nc"><span>结果排序</span><select id="q_sort" title="结果排序方式"></select></label>
+        <div class="nc ncbtn">
+          <button class="btn pri sm" id="q_run" type="button">执行筛选</button>
+          <button class="btn ghost sm" id="q_reset" type="button">重置</button>
         </div>
-        <div class="quickbar" id="ai_quick"></div>
-        <div id="ai_echo" class="ai-echo" style="margin-top:9px;font-size:11.5px;color:var(--ink-3);line-height:1.8;display:none"></div>
       </div>
     </div>
   </div>
 
-  <div class="panel" style="margin:var(--gap) var(--pad-x) 0">
-    <h3>排序方式 <span class="tag">SORT</span></h3>
-    <div class="sort-radios" id="filter_sort_group">
-      <label class="check"><input type="radio" name="filter_sort" value="score" checked> 条件匹配度</label>
-      <label class="check"><input type="radio" name="filter_sort" value="distance"> 距离（近 → 远）</label>
-      <label class="check"><input type="radio" name="filter_sort" value="level"> 医院等级</label>
-      <label class="check"><input type="radio" name="filter_sort" value="depts"> 科室数量</label>
-      <label class="check"><input type="radio" name="filter_sort" value="name"> 机构名称</label>
-    </div>
-    <div class="notice" style="margin-top:11px">条件匹配度 = 0.5×等级 + 0.3×距离归一 + 0.2×科室归一；公式与「机构查询」页一致，仅在智能筛选页以单选形式呈现便于口语化选择。</div>
+  <!-- 解析结果：条件卡片（可逐项移除）+ 未识别片段 + 边界说明 + 结果说明 -->
+  <div class="panel nlqreply" id="nlq_reply" style="margin:var(--gap) var(--pad-x) 0">
+    <div id="nlq_msg" class="nlqmsg muted"></div>
+    <div class="nlqchips" id="nlq_chips"></div>
+    <div class="nlqmiss" id="nlq_unmatched" style="display:none"></div>
+    <div class="nlqnote" id="nlq_notice" style="display:none"></div>
+    <div class="nlqsum" id="nlq_summary" style="display:none"></div>
   </div>
 
-  <div class="panel" style="margin:var(--gap) var(--pad-x) 0">
-    <div class="railhead">
-      <h3>筛选结果 <span class="tag" id="filter_count_tag">— 家</span></h3>
-      <button class="btn pri sm" id="btn_filter_goto" type="button">在机构查询查看完整结果 →</button>
-    </div>
-    <div class="listhead"><div class="lh-l"><span>Top 5 预览 · 点击行看详情 · 完整列表与对比/收藏功能在「机构查询」页</span></div></div>
-    <div class="list" id="filter_preview" style="max-height:520px"></div>
+  <!-- 维度统计（"按行政区统计…"这类输入）：ECharts 与本次查询结果联动 -->
+  <div class="panel" id="nlq_statsbox" style="margin:var(--gap) var(--pad-x) 0;display:none">
+    <h3><span id="nlq_stats_title">维度统计</span>
+      <span class="tag">STATS · 数字全部来自数据库</span></h3>
+    <div class="nlqchart" id="nlq_chart"></div>
   </div>
+
+  <!-- 统计概览：六张 KPI 卡，全部由本次查询结果填充 -->
+  <div class="nlqkpis" id="nlq_kpis"></div>
+
+  <!-- 结果：机构列表 + 地理分布 -->
+  <div class="nlqsplit">
+    <div class="panel railcard">
+      <div class="railhead">
+        <h3>筛选结果 <span class="tag" id="nlq_count">— 家</span></h3>
+        <span class="railacts">
+          <button class="btn sm" id="nlq_goto_inst" type="button">在「机构查询」继续 →</button>
+        </span>
+      </div>
+      <div class="listhead"><div class="lh-l"><span id="nlq_sortnote"></span></div></div>
+      <div class="list" id="nlq_list" style="max-height:640px"></div>
+      <div class="nlqpager">
+        <button class="btn ghost sm" id="nlq_prev" type="button">‹ 上一页</button>
+        <span class="nlqpg" id="nlq_pg">— / —</span>
+        <button class="btn ghost sm" id="nlq_next" type="button">下一页 ›</button>
+      </div>
+    </div>
+
+    <div class="panel mapwrap nlqmapcard">
+      <h3>结果地理分布 <span class="tag">MAP · 色深 = 命中数量</span></h3>
+      <div class="mapstage">
+        <div id="nlq_map"></div>
+        <div id="nlq_map_diag">⏳ 等待地图初始化…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 数据来源说明：让用户随时能看到"这些数字是哪来的" -->
+  <div class="panel nlqsource" id="nlq_source" style="margin:var(--gap) var(--pad-x) var(--gap)"></div>
 </section>
 
 <!-- ============================ 数据整合 ============================ -->
@@ -1460,12 +1293,12 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 <section id="view-about" class="view">
   <div class="about-grid">
     <div class="panel" style="grid-column:1/-1">
-      <h3>两种形态的分工 <span class="tag">TASK vs LOOKUP</span></h3>
+      <h3>系统定位与两种用法 <span class="tag">FILTER vs LOOKUP</span></h3>
       <div class="notice">
-        系统有两种用法，<b>先办事，再查阅</b>：<br>
-        ① <b>就医决策（办事主线）</b>：说清症状与偏好 → 系统判断该挂哪个科 → 按您的偏好把候选机构排序 → 挑 2–3 家横向对比 → 生成一份可打印、可下载、可带走的就医方案，方案自动留痕可回看。<br>
-        ② <b>查阅</b>：把整合后的机构数据摊开来看，回答"北京有哪些医疗机构、资源怎么分布"。<br>
-        本单文件形态<b>两种能力都具备</b>：主线的判科与排序由前端本地复算，依据是 Spark 离线产出的科室实力指数（<code>ads_dept_strength</code>，4.2 万条五级证据）与 417 条症状—科室知识库，均已内嵌，因此双击文件、无需任何服务即可使用。
+        本系统是<b>北京市医疗机构数据智能分析与筛选平台</b>，回答的是"北京有哪些医疗机构、资源怎么分布、按条件怎么筛出来"。<br>
+        ① <b>智能筛选（主入口）</b>：用自然语言描述条件（行政区 / 机构等级 / 机构类型 / 所有制 / 数据来源 / 排序），或直接组合条件 → 系统解析成结构化筛选条件 → 查询真实机构数据 → 统计概览 + 地理分布 + 机构列表 + 横向对比。<br>
+        ② <b>数据查阅</b>：数据总览 / 医疗资源分析 / 机构查询 / 数据整合 / 数据质量，把整合后的数据摊开供查阅。<br>
+        <b>需要明确的边界</b>：系统只处理<b>机构资源数据</b>，<b>不提供</b>疾病诊断、用药建议、挂号推荐，也不做医学知识问答——数据集里没有患者诊疗数据。自然语言模块的职责仅是把中文翻译成筛选条件；所有机构名称与统计数字都来自数据库的真实查询结果，不生成、不编造。
       </div>
     </div>
   </div>
@@ -1596,7 +1429,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   </div>
   <div class="dw-tabs">
     <button class="dw-tab active" data-pane="ov">概览</button>
-    <button class="dw-tab" data-pane="contact">就诊与挂号</button>
+    <button class="dw-tab" data-pane="contact">联系方式与导航</button>
     <button class="dw-tab" data-pane="spec">重点专科</button>
     <button class="dw-tab" data-pane="near">周边配套</button>
   </div>
@@ -1610,17 +1443,22 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     <button class="btn pri sm" id="dw_pick">＋ 加入对比</button>
     <button class="btn ghost sm" id="dw_fav"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6l2.62 5.31 5.86.86-4.24 4.13 1 5.84L12 17.02l-5.24 2.72 1-5.84L3.52 9.77l5.86-.86z"/></svg> 收藏</button>
     <button class="btn ghost sm" id="dw_copy">复制名称</button>
-    <button class="btn vio sm" id="dw_ai"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 9h6v6H9zM4 10v4M20 10v4M10 4h4M10 20h4M6.5 7.5L4 9M17.5 7.5L20 9M6.5 16.5L4 15M17.5 16.5L20 15"/></svg> AI 就医提示</button>
+    <button class="btn vio sm" id="dw_ai"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 9h6v6H9zM4 10v4M20 10v4M10 4h4M10 20h4M6.5 7.5L4 9M17.5 7.5L20 9M6.5 16.5L4 15M17.5 16.5L20 15"/></svg> AI 数据解读</button>
     <span style="margin-left:auto;color:var(--ink-4);font-size:10.5px" id="dw_ft_note"></span>
   </div>
 </aside>
 
 <div class="toast" id="toast"></div>
 <script src="app.js"></script>
-<!-- 就医决策主线的本地复算引擎与界面。
-     原先单文件形态点「就医决策」是跳 /spa/（在线形态），在 GitHub Pages 上是死链；
-     现在两段脚本把主线内嵌进来，单文件自身即可走完「说需求 → 拿方案」。 -->
-<script src="app.plan.js"></script>
-<script src="app.plan.ui.js"></script>
+<!-- 智能筛选页的离线引擎与界面层（单文件形态不依赖任何服务）：
+     ① app.nlq.js    —— 与 web/nlq.py 同源的解析 / 筛选 / 统计引擎；
+                        词表不在这里写死，来自 window.__NLQ_LEX__（构建时由
+                        etl/export_nlq_lexicon.py 从 nlq.py 导出后内联）。
+     ② app.nlq.ui.js —— 界面层：双通道输入、条件卡片、统计概览、结果地图与列表、数据来源说明。 -->
+<script src="app.nlq.js"></script>
+<script>/* 词表装载：构建产物里 __NLQ_LEX__ 已内联（外层 {meta, lex}，真正的词表在 .lex）；
+       开发形态下 app.nlq.ui.js 会自动回退去读同目录的 nlq_lexicon.json */
+if (window.__NLQ_LEX__ && window.NLQ) { var _nlqLex = window.__NLQ_LEX__; NLQ.init(_nlqLex.lex || _nlqLex); }</script>
+<script src="app.nlq.ui.js"></script>
 </body>
 </html>

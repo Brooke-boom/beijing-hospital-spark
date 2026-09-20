@@ -9,15 +9,43 @@
         <div class="h2t">
           <div class="h2title">北京市医疗机构资源整合与多维筛选可视化系统</div>
           <div class="h2sub">
-            面向北京市 9,789 家医疗机构的多源数据整合、七个维度筛选、距离与等级排序、
-            协作网络分析与机构详情展示。
+            面向北京市 9,789 家医疗机构的多源数据整合；主线是<b>自然语言智能筛选</b>——
+            一句话说清要找什么机构，系统解析成结构化条件后去数据库查真实数据，
+            支持七个维度筛选、五种排序、维度统计与机构详情展示。
           </div>
         </div>
         <div class="h2stat">
           <div><span>数据快照</span><b>{{ snapshot }}</b></div>
           <div><span>机构总数</span><b>{{ fmt(c.institutions) }}</b></div>
           <div><span>落库表</span><b>{{ fmt(c.tables) }}</b></div>
-          <div><span>导诊知识库</span><b>{{ fmt(c.triage_dict) }}</b></div>
+          <div><span>含坐标机构</span><b>{{ fmt(c.with_coord) }}</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>主线：自然语言 → 条件 → 真实数据 <span class="tag">系统的核心能力</span></h3>
+      <div class="grid2">
+        <div>
+          <div class="kv">
+            <div class="k">① 输入</div><div>用户用中文描述筛选需求，例如「朝阳区和海淀区的三级公立医院」</div>
+            <div class="k">② 解析</div><div>规则引擎（词表 + 正则）把中文翻译成结构化条件，全程离线、可复现</div>
+            <div class="k">③ 确认</div><div>解析出的条件以卡片形式回显，可逐条删除后重查</div>
+            <div class="k">④ 查询</div><div>条件编译成<b>参数化 SQL</b>，在 MySQL 上执行；数字全部来自查询结果</div>
+            <div class="k">⑤ 呈现</div><div>清单 + 概览 + 结果地图，或按维度的统计图表</div>
+          </div>
+        </div>
+        <div>
+          <div class="notice">
+            <b>能力边界（写在系统里，不靠自觉）：</b>本系统只处理<b>机构资源数据</b>，
+            不提供疾病诊断、用药建议、就诊科室推荐或挂号引导——数据集里没有患者诊疗数据。
+            遇到病征描述类输入，系统会明确拒答并引导到条件式表达，而不是硬凑一个结果。
+          </div>
+          <div class="notice" style="margin-top:12px">
+            <b>大模型的位置：</b>只在规则引擎零命中时兜底补齐条件字段，提示词中写死
+            「只输出条件、不输出机构名与数字」。所有机构名称与统计数字均由 SQL 产生，
+            模型不参与任何数字的生成。
+          </div>
         </div>
       </div>
     </div>
@@ -107,7 +135,7 @@ const STACK = [
   { short: 'MYSQL', name: '关系型数据库', ver: '8.x', cls: 'l-dws',
     desc: '仅承载 ADS 服务层与维表（19 张表），建复合索引支撑 Flask 多维筛选' },
   { short: 'FLASK', name: '后端服务', ver: 'Python 3', cls: 'l-ads',
-    desc: '22 个 REST 接口：筛选 / 排序 / 详情 / 概览 / 对比 / 地理编码 / 导诊 / 埋点' },
+    desc: '25 个 REST 接口：自然语言筛选 / 条件筛选 / 维度统计 / 详情 / 概览 / 对比 / 地理编码 / 埋点' },
   { short: 'VUE', name: '前端框架', ver: 'Vue 3 + Vite', cls: 'l-dwd',
     desc: '单页应用，Pinia 状态管理、Vue Router 路由，ECharts 渲染地图与多维图表' },
   { short: 'DOCKER', name: '容器编排', ver: 'Compose', cls: 'l-ods',

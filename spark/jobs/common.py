@@ -50,6 +50,11 @@ def get_spark(app_name):
         .config("spark.sql.adaptive.enabled", "true")
         .config("spark.sql.shuffle.partitions", "8")
         .config("spark.driver.memory", "1g")
+        # 会话时区固定为北京时间：Spark 的 current_timestamp() / date_format 按**会话时区**
+        # 渲染，而容器默认 TZ=UTC —— 在北京时间 00:00–08:00 跑批时，UTC 日期还停在前一天，
+        # 批次表 (ads_etl_snapshot) 就会写进昨天的 batch_date，前端「快照 <日期>」跟着错。
+        # 业务口径全在北京，这里显式对齐，跨时区跑批结果一致。
+        .config("spark.sql.session.timeZone", "Asia/Shanghai")
         # HDFS 客户端：以超级用户写入（容器内 Spark 进程 uid=185）
         .config("spark.hadoop.fs.defaultFS", HDFS_NS)
         .config("spark.hadoop.dfs.client.use.datanode.hostname", "true")

@@ -29,6 +29,18 @@ if [ "${1:-}" = "--dev" ]; then
   exec "$NODE" node_modules/vite/bin/vite.js
 fi
 
+echo "▶ 同步地图边界数据 → web/vue/geo/"
+# 智能筛选页的结果地图需要北京 16 区边界。权威副本在 web/vendor/beijing_geo.json，
+# 仓库里同时保留一份 geo/ 副本（clone 后不装 Node 也能构建），这里做一次覆盖同步，
+# 避免两处各改一份导致边界漂移。
+if [ -f "$HERE/../vendor/beijing_geo.json" ]; then
+  mkdir -p "$HERE/geo"
+  cp "$HERE/../vendor/beijing_geo.json" "$HERE/geo/beijing_geo.json"
+  echo "  ✓ 已从 web/vendor/beijing_geo.json 同步"
+else
+  echo "  ! 未找到 web/vendor/beijing_geo.json，沿用 geo/ 内既有副本"
+fi
+
 echo "▶ 构建 Vue 前端 → web/vue/dist/"
 "$NODE" node_modules/vite/bin/vite.js build
 

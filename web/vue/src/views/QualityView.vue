@@ -29,9 +29,9 @@
         <div class="s">机构 × 科室 明细关系</div>
       </div>
       <div class="card k2">
-        <div class="l">导诊知识库条目</div>
-        <div class="v">{{ fmt(c.triage_dict) }}</div>
-        <div class="s">疾病 → 科室 映射（离线规则引擎）</div>
+        <div class="l">重点专科挂牌记录</div>
+        <div class="v">{{ fmt(c.specialty_rows) }}</div>
+        <div class="s">机构 × 专科 明细（逐条来自公开名单）</div>
       </div>
     </div>
 

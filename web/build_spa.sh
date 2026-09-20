@@ -1,8 +1,34 @@
 #!/usr/bin/env bash
 # 重新生成大屏快照数据 + 单文件 HTML
-# 用法：bash web/build_spa.sh
+# 用法：bash web/build_spa.sh [--no-db]
+#   --no-db  跳过「拉 MySQL」这一步，直接复用已有的 web/snapshot_data.json。
+#            适用场景：本机没起 MySQL / 只改了前端想重新拼装产物。
+#            注意：源数据变了必须带库重跑（--no-db 不会更新快照内容）。
 set -e
 cd "$(dirname "$0")/.."
+
+NO_DB=0
+for a in "$@"; do [ "$a" = "--no-db" ] && NO_DB=1; done
+
+if [ "$NO_DB" = "1" ]; then
+  echo "=== 1. 跳过 MySQL（--no-db），复用 web/snapshot_data.json ==="
+  [ -s web/snapshot_data.json ] || { echo "✗ web/snapshot_data.json 不存在或为空，请先带库运行一次"; exit 1; }
+  /Users/brooke/.workbuddy/binaries/python/versions/3.13.12/bin/python3 -c "
+import json, os
+d = json.load(open('web/snapshot_data.json', encoding='utf-8'))
+n = len(d.get('institutions') or [])
+print('  OK 复用快照 %d 家机构 | 快照日期 %s | %.2f MB' % (
+    n, d.get('snapshot_time') or '?', os.path.getsize('web/snapshot_data.json') / 1024 / 1024))
+inst = (d.get('institutions') or [{}])[0]
+# 数据来源字段：带库构建产出 src_count_int / source_files；
+# 由 etl/export_inst_source.py 回填的历史快照叫 src_count（app.nlq.js 两者都认）。
+have_src = any(k in inst for k in ('src_count_int', 'src_count'))
+print(('  OK 数据来源字段存在（%s）' % (', '.join(k for k in ('src_count_int', 'src_count') if k in inst))
+       if have_src else '  WARN 缺少数据来源计数字段（按来源筛选会失效，请带库重跑）'))
+print(('  OK 字段 source_files 存在' if 'source_files' in inst
+       else '  WARN 缺少 source_files（按来源筛选会失效，请重跑 etl/export_inst_source.py）'))
+"
+else
 echo "=== 1. 拉 MySQL 全量精简数据 ==="
 /Users/brooke/.workbuddy/binaries/python/envs/default/bin/python << 'PYEOF'
 import json, pymysql, datetime
@@ -22,6 +48,7 @@ rows = q("""SELECT a.id, a.name, a.district, a.level_norm AS level, a.category_n
     a.national_specialty, a.national_specialty_count,
     a.municipal_specialty, a.municipal_specialty_count,
     a.net_pediatric, a.net_stroke, a.net_neonatal, a.net_maternal,
+    a.src_count_int, a.source_files,
     COALESCE(rc.rule_dept_count, 0) AS rule_dept_count
     FROM ads_inst_search a
     LEFT JOIN (SELECT hospital_id, COUNT(*) AS rule_dept_count FROM dwd_dept_relation_clean
@@ -32,9 +59,11 @@ for r in rows:
               'feature','feature_level','coord_precision','key_depts','grade_scope',
               'addr','phone',
               'national_specialty','municipal_specialty',
-              'net_pediatric','net_stroke','net_neonatal','net_maternal','dept_count_src'):
+              'net_pediatric','net_stroke','net_neonatal','net_maternal','dept_count_src',
+              'source_files'):
         v = r.get(k); r[k] = ('' if v is None else v.strip() if isinstance(v, str) else v)
-    for k in ('dept_count','key_specialty_count','lng','lat','national_specialty_count','municipal_specialty_count'):
+    for k in ('dept_count','key_specialty_count','lng','lat','national_specialty_count',
+              'municipal_specialty_count','src_count_int'):
         r[k] = None if r.get(k) in (None, '') else r[k]
 overviews = {
     'districts':  q("SELECT district, inst_count, coord_high_count FROM ads_district_overview ORDER BY inst_count DESC"),
@@ -99,30 +128,32 @@ out_path.write_text(json.dumps(out, ensure_ascii=False, separators=(',', ':')), 
 print(f'  ✓ {out_path} | {out_path.stat().st_size/1024/1024:.2f} MB')
 conn.close()
 PYEOF
+fi
 
-echo "=== 2. 刷新离线就医决策数据包 ==="
-# 必须与 app.py 的判科/打分常量、ads_dept_strength 同步；
-# 漏跑会让单文件形态与后端 /api/plan 漂移（etl/verify_offline_plan.py 能查出来），
-# 所以放在构建链路里自动跑，而不是靠人记得。
-/Users/brooke/.workbuddy/binaries/python/envs/default/bin/python etl/export_offline_plan_data.py
+echo "=== 2. 刷新自然语言筛选词表 ==="
+# 词表只有一份真源：web/nlq.py。这里把它导出成 web/nlq_lexicon.json，
+# 再内联进单文件产物 —— 单文件形态的解析结果因此与后端逐字段一致
+# （etl/verify_offline_nlq.py 会逐条比对，漂移立刻暴露）。
+# 放在构建链路里自动跑，而不是靠人记得手抄。
+/Users/brooke/.workbuddy/binaries/python/versions/3.13.12/bin/python3 etl/export_nlq_lexicon.py
 
 echo "=== 3. 拼装单文件 HTML ==="
-/Users/brooke/.workbuddy/binaries/python/envs/default/bin/python << 'PYEOF'
+/Users/brooke/.workbuddy/binaries/python/versions/3.13.12/bin/python3 << 'PYEOF'
 from pathlib import Path
 data = open('web/snapshot_data.json', encoding='utf-8').read()
 html = open('web/dashboard.html', encoding='utf-8').read()
 js = open('web/app.js', encoding='utf-8').read()
 
-# 就医决策主线的离线数据包与两段脚本。
-# 单文件形态原本只带查阅能力，主线要跳 /spa/（在线形态）——在 GitHub Pages 上那是 404。
-# 内联这三样之后，单文件自身即可走完「说需求 → 分诊 → 对比 → 拿方案」。
-plan_path = Path('web/offline_plan_data.json')
-if not plan_path.exists():
-    raise SystemExit('缺少 web/offline_plan_data.json，请先运行：'
-                     'python etl/export_offline_plan_data.py')
-plan_data = plan_path.read_text(encoding='utf-8')
-plan_js = open('web/app.plan.js', encoding='utf-8').read()
-plan_ui_js = open('web/app.plan.ui.js', encoding='utf-8').read()
+# 智能筛选页的词表 + 解析引擎 + 界面层。
+# 单文件形态原本只带查阅能力，智能筛选要跳 /spa/（在线形态）——在 GitHub Pages 上那是 404。
+# 内联这三样之后，单文件自身即可走完「说一句话 → 解析成筛选条件 → 查真实数据 → 看分布」。
+lex_path = Path('web/nlq_lexicon.json')
+if not lex_path.exists():
+    raise SystemExit('缺少 web/nlq_lexicon.json，请先运行：'
+                     'python etl/export_nlq_lexicon.py')
+lex_json = lex_path.read_text(encoding='utf-8')
+nlq_js = open('web/app.nlq.js', encoding='utf-8').read()
+nlq_ui_js = open('web/app.nlq.ui.js', encoding='utf-8').read()
 
 
 def inline(s):
@@ -131,16 +162,16 @@ def inline(s):
     return s.replace('</script>', '<\\/script>')
 
 
-js = js.replace(
-"async function loadData() {\n  try {\n    const resp = await fetch('snapshot_data.json');\n    if (!resp.ok) throw new Error('HTTP ' + resp.status);\n    DATA = await resp.json();\n    console.log('数据加载完成:', DATA.total, '家');\n    init();\n  } catch (e) {\n    document.getElementById('loading').innerHTML =\n      '❌ 数据加载失败：' + e.message + '<br>请确保 <code>snapshot_data.json</code> 与 HTML 在同一目录';\n  }\n}",
-"function loadData() {\n  try {\n    if (!window.__SNAPSHOT__) throw new Error('未找到内嵌数据快照');\n    DATA = window.__SNAPSHOT__;\n    console.log('数据加载完成:', DATA.total, '家');\n    init();\n  } catch (e) {\n    document.getElementById('loading').innerHTML =\n      '❌ 数据加载失败：' + e.message;\n  }\n}")
-# 关键：window.__SNAPSHOT__ / window.__PLAN_DATA__ 必须先定义，再执行 app.js，否则 loadData() 会报"未找到内嵌数据快照"
+# 关键：window.__SNAPSHOT__ / window.__NLQ_LEX__ 必须先定义，再执行 app.js / app.nlq.js，
+# 否则 loadData() 会报"未找到内嵌数据快照"，离线解析引擎也拿不到词表。
+assert '<script src="app.js"></script>' in html, '产物拼装失败：未找到 app.js 锚点'
 html = html.replace('<script src="app.js"></script>',
                     f'<script>window.__SNAPSHOT__ = {inline(data)};</script>\n'
-                    f'<script>window.__PLAN_DATA__ = {inline(plan_data)};</script>\n'
+                    f'<script>window.__NLQ_LEX__ = {inline(lex_json)};</script>\n'
                     f'<script>\n{inline(js)}\n</script>')
-for tag, code in (('<script src="app.plan.js"></script>', plan_js),
-                  ('<script src="app.plan.ui.js"></script>', plan_ui_js)):
+# 词表装载脚本（开发形态回退读 nlq_lexicon.json）在产物里已由 __NLQ_LEX__ 覆盖，原样保留即可
+for tag, code in (('<script src="app.nlq.js"></script>', nlq_js),
+                  ('<script src="app.nlq.ui.js"></script>', nlq_ui_js)):
     if html.count(tag) != 1:
         raise SystemExit(f'产物拼装失败：锚点 {tag} 出现 {html.count(tag)} 次（应为 1 次）')
     html = html.replace(tag, f'<script>\n{inline(code)}\n</script>')

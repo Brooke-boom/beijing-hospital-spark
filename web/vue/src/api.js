@@ -25,13 +25,14 @@ export const api = {
   specialtyGroups: () => http.get('/specialty/groups'),
   detail: (id) => http.get(`/inst/${encodeURIComponent(id)}/detail`),
   compare: (ids) => http.get('/inst/compare', { params: { ids: ids.join(',') } }),
-  triage: (payload) => http.post('/triage', payload),
-  // ---- 就医决策主线：生成方案 + 方案留痕（系统区别于看板的关键能力）----
-  plan: (payload) => http.post('/plan', payload),
-  planSave: (payload) => http.post('/plans', payload),
-  planList: () => http.get('/plans'),
-  planGet: (id) => http.get(`/plans/${encodeURIComponent(id)}`),
-  planDelete: (id) => http.delete(`/plans/${encodeURIComponent(id)}`),
+  // ---- 主线：自然语言智能筛选（系统区别于普通看板的关键能力）----
+  // 职责边界：前端只负责把中文原样递上去，条件解析与数据查询都在后端完成；
+  // 所有机构名称与统计数字均来自 MySQL 查询结果，前端不做任何补造。
+  nlqQuery: (payload) => http.post('/nlq/query', payload),
+  nlqParse: (q) => http.get('/nlq/parse', { params: { q } }),
+  nlqLexicon: () => http.get('/nlq/lexicon'),
+  // 统计预留接口：与自然语言里的"按维度统计"意图等价，供图表页直接调用
+  statistics: (dim, params) => http.get(`/statistics/${encodeURIComponent(dim)}`, { params }),
   geocode: (address) => http.get('/geocode', { params: { address } }),
   about: () => http.get('/about'),
   adminStats: () => http.get('/admin/stats'),

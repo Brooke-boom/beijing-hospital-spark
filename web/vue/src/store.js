@@ -9,14 +9,11 @@ const EMPTY_QUERY = {
   sort: 'score', page: 1, pageSize: 20
 }
 
-// 就医决策表单初值。planReset() 用它做「回到起始页」的原地还原：
-// 必须 Object.assign 到同一个对象上，不能整体替换 —— PlanView 里 `const f = store.plan.form`
-// 持有的是引用，换对象会让已挂载页面的 v-model 全部失联。
-function blankPlanForm() {
-  return {
-    q: '', dept: '', extra: '', prefer: 'specialty',
-    max_km: 0, public_only: false, level: '', district: ''
-  }
+// 智能筛选页的初始条件。所有字段与后端 web/nlq.py 的条件 schema 一一对应，
+// 前端不发明自己的字段名——否则"自然语言解析出来的条件"与"条件筛选 Tab 填的条件"
+// 会变成两套东西，也就无法互相回填。
+function blankNlqForm() {
+  return { district: '', level: '', category: '', ownership: '', source: '', dept: '', kw: '' }
 }
 
 export const useDataStore = defineStore('data', {
@@ -46,18 +43,23 @@ export const useDataStore = defineStore('data', {
     drawer: { open: false, id: null, data: null, loading: false },
     compare: { open: false, data: null, loading: false },
     toast: '',
-    // ---- 就医决策主线：一条从需求到方案的任务流，不是展示页 ----
-    plan: {
-      step: 1,                 // 1 说需求 → 2 看候选 → 3 做比较 → 4 拿方案
-      form: blankPlanForm(),
-      result: null,            // /api/plan 返回的完整数据（分诊结论 + 候选 + 依据）
+    // ---- 智能筛选主线：自然语言 → 条件 → 真实数据，一条链路走完 ----
+    // 与「机构查询」的区别：那里是人逐项填条件；这里是规则引擎先读懂中文，
+    // 再把解析结果作为**可删除、可重填的条件**交给用户确认，确认后才查数据。
+    nlq: {
+      mode: 'nl',              // nl = 自然语言通道，cond = 条件筛选通道
+      q: '',                   // 用户输入的原句
+      form: blankNlqForm(),    // 条件筛选通道的控件状态
+      dimension: '',           // 非空 = 要"按某维度统计"而不是机构清单
       loading: false,
       error: '',
-      primaryId: null,         // 用户标记的主选机构
-      keptIds: [],             // 圈定的备选（做比较用）
-      history: [],             // 历史方案（留痕，可回溯）
-      historyLoaded: false,
-      savedId: null            // 本次已保存的方案 id
+      result: null,            // /api/nlq/query 的完整返回（含 applied / summary / rows）
+      page: 1,
+      pageSize: 20,
+      sort: 'score',
+      lex: null,               // 词表（/api/nlq/lexicon）：维度标签、来源规则、边界文案
+      lexLoaded: false,
+      history: []              // 本次会话的查询留痕：演示时可回看
     }
   }),
 
@@ -84,20 +86,19 @@ export const useDataStore = defineStore('data', {
 
     totalPages: (s) => Math.max(1, Math.ceil(s.total / s.query.pageSize)),
 
-    // ---- 就医决策派生数据 ----
-    planCandidates: (s) => (s.plan.result && s.plan.result.candidates) || [],
-    planPrimary(s) {
-      const cs = (s.plan.result && s.plan.result.candidates) || []
-      return cs.find((c) => String(c.id) === String(s.plan.primaryId)) || cs[0] || null
-    },
-    planKept(s) {
-      const cs = (s.plan.result && s.plan.result.candidates) || []
-      return s.plan.keptIds
-        .map((id) => cs.find((c) => String(c.id) === String(id)))
-        .filter(Boolean)
-    },
-    planTriage: (s) => (s.plan.result && s.plan.result.triage) || null,
-    planReady: (s) => !!(s.plan.result && s.plan.result.ok)
+    // ---- 智能筛选派生数据 ----
+    // 判定"这次结果是清单还是统计"只看后端返回的 intent，
+    // 前端不根据用户输入的措辞去猜——口径必须与后端一致。
+    nlqResult: (s) => s.nlq.result,
+    nlqIsStats: (s) => !!(s.nlq.result && s.nlq.result.ok && s.nlq.result.intent === 'stats'),
+    nlqIsFilter: (s) => !!(s.nlq.result && s.nlq.result.ok && s.nlq.result.intent === 'filter'),
+    // 解析出的条件卡片：直接采用后端的 describe() 结果，前端不自己拼标签
+    nlqChips: (s) => (s.nlq.result && s.nlq.result.applied) || [],
+    // 命中的机构清单（仅清单意图有）
+    nlqItems: (s) => (s.nlq.result && s.nlq.result.items) || [],
+    // 统计结果行（仅统计意图有）
+    nlqRows: (s) => (s.nlq.result && s.nlq.result.rows) || [],
+    nlqTotal: (s) => (s.nlq.result && s.nlq.result.total) || 0
   },
 
   actions: {
@@ -281,151 +282,133 @@ export const useDataStore = defineStore('data', {
     },
     toggleTheme() { this.applyTheme(this.theme === 'dark' ? 'light' : 'dark') },
 
-    // ================= 就医决策：一条从需求到方案的任务流 =================
-    // 与「查询」的区别在于有任务态：草稿 → 候选 → 定稿 → 产出物，可回退、可留痕。
-    planSetForm(patch) {
-      Object.assign(this.plan.form, patch)
+    // ================= 智能筛选：自然语言 → 条件 → 真实数据 =================
+    // 与「机构查询」的动作区分开：这里的查询由"一句话"驱动，条件由后端解析产出，
+    // 用户可以对解析结果做减法（删掉某个条件卡）或改写后重查。
+    nlqSetForm(patch) {
+      Object.assign(this.nlq.form, patch)
     },
 
-    async planRun() {
-      const f = this.plan.form
-      if (!f.q && !f.dept) { this.notify('请先描述症状或选择科室'); return }
-      this.plan.loading = true
-      this.plan.error = ''
-      const b = this.base || DEFAULT_BASE
+    nlqSetMode(mode) {
+      this.nlq.mode = mode === 'cond' ? 'cond' : 'nl'
+    },
+
+    // 词表：维度标签、来源规则、边界文案都来自后端，前端不复制一份。
+    // 已经取到就不再请求（切页不会重复打接口）。
+    async nlqLoadLex() {
+      if (this.nlq.lexLoaded) return this.nlq.lex
       try {
-        const r = await api.plan({
-          q: f.q || undefined,
-          dept: f.dept || undefined,
-          extra: f.extra || undefined,
-          district: f.district || undefined,
-          prefer: f.prefer,
-          max_km: Number(f.max_km) || 0,
-          public_only: !!f.public_only,
-          level: f.level || undefined,
-          top_n: 12,
-          lng: b.lng, lat: b.lat, base_name: b.name
-        })
-        this.plan.result = r
-        this.plan.savedId = null
-        if (r.ok) {
-          this.plan.step = 2
-          const cs = r.candidates || []
-          this.plan.primaryId = cs.length ? cs[0].id : null
-          this.plan.keptIds = cs.slice(0, 3).map((c) => c.id)
-          const d0 = ((r.triage || {}).target_depts || [])[0]
-          api.track('plan', f.q || f.dept || '', (d0 && d0.name) || '', cs.length)
+        this.nlq.lex = await api.nlqLexicon()
+        this.nlq.lexLoaded = true
+      } catch (e) { /* 词表只影响文案与下拉项，失败时页面仍可用 */ }
+      return this.nlq.lex
+    },
+
+    // 自然语言通道：原句交给 /api/nlq/query，后端一步完成"解析 + 查数据"。
+    // text 只接受字符串：写成 @click="nlqRun" 时 Vue 会把点击事件传进来，
+    // 那样 `event.trim()` 会直接抛错——所以这里显式判类型，而不是信任调用方。
+    async nlqRun(text) {
+      const q = (typeof text === 'string' ? text : (this.nlq.q || '')).trim()
+      this.nlq.q = q
+      if (!q) { this.notify('请先描述您想查找的机构条件'); return }
+      await this._nlqExec({ q })
+    },
+
+    // 条件通道：把控件值整理成后端条件 schema 后提交。
+    // dimension 非空 → 要统计；否则 → 要清单。两者走同一个接口，口径统一。
+    async nlqRunConditions() {
+      const f = this.nlq.form
+      const conditions = {}
+      if (f.district) conditions.district = [f.district]
+      if (f.level) conditions.level = [f.level]
+      if (f.category) conditions.category = [f.category]
+      if (f.ownership) conditions.ownership = [f.ownership]
+      if (f.source) conditions.source = [f.source]
+      if (f.dept) conditions.dept = f.dept
+      if (f.kw) conditions.kw = f.kw
+      if (this.nlq.dimension) conditions.dimension = this.nlq.dimension
+      conditions._sort = this.nlq.sort
+      if (!Object.keys(conditions).filter((k) => k !== '_sort').length) {
+        this.notify('请至少设置一个筛选条件，或选择统计维度')
+        return
+      }
+      await this._nlqExec({ conditions })
+    },
+
+    // 删掉一个条件卡后重查：以后端返回的 conditions 为准做减法，
+    // 不用前端的表单反推——避免"界面显示的条件"和"实际查询的条件"两套口径。
+    async nlqDropChip(key) {
+      const cur = (this.nlq.result && this.nlq.result.conditions) || {}
+      const next = { ...cur }
+      delete next[key]
+      const rest = Object.keys(next).filter((k) => k !== '_sort' && k !== 'dimension')
+      if (!rest.length) { this.nlqReset(); return }
+      await this._nlqExec({ conditions: next })
+    },
+
+    // 翻页：后端把分页参数定义在**条件对象内**（conditions._page / _page_size），
+    // 所以这里以后端回传的 conditions 为准再查一次，而不是把页码塞在请求体顶层。
+    // 一句话查询的首次结果同样带 conditions，因此清单页翻页无需重复解析中文。
+    async nlqPage(page) {
+      const r = this.nlq.result
+      if (!r || !r.ok || r.intent !== 'filter') return
+      const total = Math.max(1, Math.ceil((r.total || 0) / this.nlq.pageSize))
+      const p = Math.min(Math.max(1, page), total)
+      const cond = { ...(r.conditions || {}), _page: p, _page_size: this.nlq.pageSize }
+      await this._nlqExec({ conditions: cond })
+    },
+
+    // 一次查询的公共出口：负责 loading / error / 留痕 与结果落库。
+    // 两条通道在这里合流，保证"自然语言"与"手填条件"拿到的是同一种数据结构。
+    async _nlqExec({ q, conditions }) {
+      this.nlq.loading = true
+      this.nlq.error = ''
+      try {
+        const body = {}
+        if (q) {
+          body.q = q
         } else {
-          this.plan.step = 1
+          const c = { ...conditions }
+          if (!c._page) c._page = 1
+          c._page_size = this.nlq.pageSize
+          body.conditions = c
+        }
+        const r = await api.nlqQuery(body)
+        this.nlq.result = r
+        this.nlq.page = r.page || 1
+        if (r.ok) {
+          const title = r.intent === 'stats'
+            ? '按' + (r.dimension_label || '维度') + '统计'
+            : ((r.applied || []).map((c) => c.text).join(' · ') || '全部机构')
+          this.nlq.history.unshift({
+            title, at: new Date().toLocaleTimeString('zh-CN'), n: r.total || 0,
+            q, conditions: q ? null : body.conditions
+          })
+          this.nlq.history = this.nlq.history.slice(0, 8)
+          api.track('nlq', q || title, r.intent, r.total || 0)
         }
       } catch (e) {
-        this.plan.error = e.message
+        this.nlq.error = e.message
+        this.nlq.result = null
       } finally {
-        this.plan.loading = false
+        this.nlq.loading = false
       }
     },
 
-    planGoto(step) {
-      if (step >= 1 && step <= 4) this.plan.step = step
+    // 查过的句子可以一键重放：演示时不必重新敲一遍，也保证演示条件与记录一致
+    async nlqReplay(h) {
+      if (h.q) await this._nlqExec({ q: h.q })
+      else if (h.conditions) { this.nlq.dimension = h.conditions.dimension || ''; await this._nlqExec({ conditions: h.conditions }) }
     },
 
-    planToggleKeep(id) {
-      id = String(id)
-      const i = this.plan.keptIds.indexOf(id)
-      if (i >= 0) this.plan.keptIds.splice(i, 1)
-      else if (this.plan.keptIds.length < 4) this.plan.keptIds.push(id)
-      else this.notify('最多同时比较 4 家机构')
-    },
-
-    planSetPrimary(id) {
-      this.plan.primaryId = String(id)
-      const i = this.plan.keptIds.indexOf(String(id))
-      if (i >= 0) this.plan.keptIds.splice(i, 1)
-      if (this.plan.keptIds.length >= 4) this.plan.keptIds.pop()
-      this.plan.keptIds.unshift(String(id))
-    },
-
-    planReset() {
-      this.plan.step = 1
-      this.plan.result = null
-      this.plan.error = ''
-      this.plan.primaryId = null
-      this.plan.keptIds = []
-      this.plan.savedId = null
-      // 起始页 = 干净的输入区。原地还原，保住 PlanView 里对 form 的引用。
-      Object.assign(this.plan.form, blankPlanForm())
-    },
-
-    // 是否有"进行中的决策"（用于决定要不要显示"重新开始"入口 / 是否提示）
-    planBusy() {
-      const p = this.plan
-      return p.step > 1 || !!p.result || !!p.error
-    },
-
-    // 回到起始页：侧栏「就医决策」与页内「重新开始」共用同一个入口语义。
-    // 已经在起始页时静默跳过，不弹提示、不抖动。
-    planHome() {
-      if (!this.planBusy()) return
-      this.planReset()
-      this.notify('已回到起始页')
-    },
-
-    async planSave() {
-      if (!this.planReady) { this.notify('请先生成方案'); return }
-      try {
-        const r = await api.planSave({
-          payload: this.plan.result,
-          primary_id: this.plan.primaryId
-        })
-        if (r.ok) {
-          this.plan.savedId = r.id
-          this.notify('已保存到「我的方案」')
-          await this.planLoadHistory(true)
-        } else {
-          this.notify(r.hint || '保存失败')
-        }
-      } catch (e) {
-        this.notify('保存失败：' + e.message)
-      }
-    },
-
-    async planLoadHistory(force = false) {
-      if (this.plan.historyLoaded && !force) return
-      try {
-        const r = await api.planList()
-        this.plan.history = r.items || []
-        this.plan.historyLoaded = true
-      } catch (e) { /* 历史是次要信息，失败不影响主流程 */ }
-    },
-
-    async planOpenSaved(id) {
-      try {
-        const r = await api.planGet(id)
-        const pl = r.plan && r.plan.payload
-        if (r.ok && pl && pl.ok) {
-          this.plan.result = pl
-          this.plan.savedId = r.plan.id
-          const cs = pl.candidates || []
-          this.plan.primaryId = r.plan.chosen_id || (cs.length ? cs[0].id : null)
-          this.plan.keptIds = cs.slice(0, 3).map((c) => c.id)
-          this.plan.step = 4
-        } else {
-          this.notify('该方案数据已失效')
-        }
-      } catch (e) {
-        this.notify('打开失败：' + e.message)
-      }
-    },
-
-    async planDeleteSaved(id) {
-      try {
-        await api.planDelete(id)
-        this.plan.history = this.plan.history.filter((x) => x.id !== id)
-        if (this.plan.savedId === id) this.plan.savedId = null
-        this.notify('已删除')
-      } catch (e) {
-        this.notify('删除失败：' + e.message)
-      }
+    // 回到起始页：清空结果与输入，保留词表（省一次请求）
+    nlqReset() {
+      this.nlq.result = null
+      this.nlq.q = ''
+      this.nlq.error = ''
+      this.nlq.page = 1
+      this.nlq.dimension = ''
+      Object.assign(this.nlq.form, blankNlqForm())
     },
 
     notify(msg) {

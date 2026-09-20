@@ -28,6 +28,12 @@ import uuid
 import pymysql
 from flask import Flask, g, jsonify, render_template, request, make_response, send_from_directory
 
+# 自然语言筛选：解析 / 执行 / 统计 / 摘要（词表与前端离线引擎同源）
+sys_path = os.path.dirname(os.path.abspath(__file__))
+if sys_path not in __import__("sys").path:
+    __import__("sys").path.insert(0, sys_path)
+import nlq  # noqa: E402
+
 # ============== 配置 ==============
 DB_CONFIG = {
     "host": os.environ.get("DB_HOST", "127.0.0.1"),
@@ -362,9 +368,9 @@ def api_health():
 
 
 # ============== 大模型（Agnes AI）配置与调用 ==============
-# 设计要点：前端 JS 规则引擎 + 本地疾病-科室知识库是**默认路径**，纯离线、零依赖、
-# 可复现，答辩现场绝不受网络与额度影响；大模型只在「本地零命中」时兜底，
-# 用于口语长尾句式与知识库未收录的病情描述。
+# 设计要点：web/nlq.py 的规则引擎（词表 + 正则）是**默认路径**，纯离线、零依赖、
+# 可复现，答辩现场绝不受网络与额度影响；大模型只在「规则零命中」时兜底，
+# 且提示词中写死"只输出筛选条件，不输出机构名与数字"，从设计上堵死幻觉。
 # 开启方式（三级优先，后者兜底）：
 #   1) export AI_API_KEY=sk-xxx            # 环境变量
 #   2) data/.ai_key.txt                    # 密钥文件（已被 .gitignore 排除，绝不入库）
@@ -392,7 +398,7 @@ AI_API_BASE = (os.environ.get("AI_API_BASE")
                or "https://apihub.agnes-ai.com/v1").rstrip("/")
 AI_API_KEY = os.environ.get("AI_API_KEY") or _read_secret("data/.ai_key.txt")
 # 实测选型：agnes-2.0-flash 平均约 4s；agnes-2.5-flash 平均约 18s（最长 32s），
-# 交互式导诊必须用快模型，慢模型只适合离线批处理。可用 AI_MODEL 覆盖。
+# 交互式解析必须用快模型，慢模型只适合离线批处理。可用 AI_MODEL 覆盖。
 AI_MODEL = os.environ.get("AI_MODEL") or "agnes-2.0-flash"
 # 开关：显式设置 AI_LLM_ENABLED 时以其为准；未设置则「有密钥即自动启用」
 _ENV_FLAG = os.environ.get("AI_LLM_ENABLED", "").strip()
@@ -460,7 +466,7 @@ def _llm_chat(messages, timeout=None, temperature=0):
         "model": AI_MODEL, "messages": messages, "temperature": temperature,
     }, ensure_ascii=False).encode("utf-8")
     # 免费额度窗口实测约 30~40 秒，短退避重试等不到窗口恢复，
-    # 故只做一次极短重试后快速失败并明确告知——不把用户挂在「导诊中…」干等。
+    # 故只做一次极短重试后快速失败并明确告知——不把用户挂在「解析中…」干等。
     # 真正的解法是预热缓存（/api/ai/warm，见 etl/warm_ai_cache.py）。
     backoff = [2.0]
     for attempt in range(len(backoff) + 1):
@@ -511,14 +517,39 @@ STD_DEPTS = ("心血管内科 呼吸内科 消化内科 神经内科 肾内科 �
              "全科医疗科 普通外科 骨科 神经外科 心胸外科 泌尿外科 肛肠外科 妇产科 儿科 肿瘤科 "
              "精神心理科 眼科 耳鼻咽喉科 口腔科 皮肤科 中医内科 中医骨伤科 针灸推拿科 感染科 "
              "肝病科 急诊科 重症医学科 康复医学科").split()
+# 大模型兜底解析提示词。
+# 它与 web/nlq.py 的规则解析器**共用同一套条件 schema**——这样"规则命中"和"模型兜底"
+# 两条路径产出的条件长得一样，前端只有一套渲染逻辑，用户也看不出差别。
+# 强调"不许生成机构名/数字"，是为了在任何路径下都堵死幻觉。
 AI_PARSE_PROMPT = (
-    "你是北京市医疗机构检索系统的查询解析器，把用户口语转成 JSON 筛选条件。\n"
-    "可选字段（用不到的省略）：district(行政区，须带\"区\"字，如朝阳区)、"
-    "level(三级/二级/一级/未定级)、"
-    "category(医院/诊所/门诊部/妇幼保健/体检中心/急救中心/其他机构)、"
-    "dept(标准科室名，必须取自下列之一：" + "、".join(STD_DEPTS) + ")、"
-    "sort(score/distance/level/depts/name)、kw(机构名关键词)。\n"
+    "你是「北京市医疗机构检索系统」的自然语言查询解析器。"
+    "任务：把用户的中文查询转成 JSON 格式的结构化筛选条件。\n"
+    "可选字段（没有提到的就省略，不要猜）：\n"
+    "  district       行政区数组，取值必须来自：" + "、".join(nlq.DISTRICTS) + "\n"
+    "  level          医院等级数组，取值来自：三级/二级/一级/未定级\n"
+    "  level_min      等级下限（整数 1/2/3），仅当用户说「二级以上」这类表达时给出\n"
+    "  category       机构类型数组，取值来自：" + "、".join(nlq.CATEGORIES) + "\n"
+    "  ownership      所有制数组，取值来自：公立/民营/未标注\n"
+    "  source         数据来源数组，取值来自：" + "、".join(r["key"] for r in nlq.SOURCE_RULES) + "\n"
+    "  dept           科室名，必须取自：" + "、".join(STD_DEPTS) + "\n"
+    "  kw             机构名称关键词\n"
+    "  sort           排序，取值 score/distance/level/depts/name\n"
+    "铁律：只输出筛选条件，绝不输出任何机构名称、医院名、数量或统计数字——"
+    "那些必须由数据库查询得到。若用户描述的是病症、用药、治疗或诊断诉求，"
+    "输出 {\"unsupported\": true} 即可，不要试图判断病情。\n"
     "只输出 JSON 本体，不要解释、不要代码块。用户查询："
+)
+# 结果摘要提示词：模型只负责"把 SQL 查出来的事实讲成人话"，
+# 数字与机构名一律照抄事实，杜绝编造（答辩会问"AI 会不会瞎编"）。
+SUMMARY_PROMPT = (
+    "你是北京市医疗机构数据平台的查询结果说明助手。请依据给定的结构化事实，"
+    "用 2~3 句中文说明这次查询。硬性要求：\n"
+    "① 只能使用事实中出现的信息；机构名称、数量、比例必须与事实完全一致，"
+    "不得新增、不得四舍五入改数、不得编造排名或结论；\n"
+    "② 这是**数据查询说明**，不是医疗建议：不要给出就诊推荐、诊断、用药或治疗意见；\n"
+    "③ 语言客观平实，不夸大、不营销，不使用 Markdown 与列表；\n"
+    "④ 若事实里指明了筛选条件，第一句要先复述条件。\n"
+    "只输出说明正文。事实(JSON)："
 )
 
 
@@ -568,15 +599,8 @@ def api_ai_parse():
         return jsonify({"ok": False, "reason": "llm_error", "detail": str(e)[:200]})
 
 
-SUMMARY_PROMPT = (
-    "你是北京市医疗资源检索系统的结果摘要助手。请依据给定的结构化事实，"
-    "用 2~3 句中文写一段面向普通患者的总结。硬性要求：\n"
-    "① 只能使用事实中出现的信息，数字必须准确保留，绝不编造医院名、距离或排名；\n"
-    "② 语言客观平实，不夸大、不营销，不使用 Markdown 与列表；\n"
-    "③ 点出最推荐的一家并说明理由（等级 / 距离 / 重点专科 / 科室匹配）；\n"
-    "④ 事实中若含急诊提示，最后一句必须提醒急危症状立即拨打 120。\n"
-    "只输出总结正文。事实(JSON)："
-)
+# 注：SUMMARY_PROMPT 已上移到 AI_PARSE_PROMPT 旁边统一定义，
+# 避免两处提示词漂移（旧版这里还留着一份"面向普通患者的总结"，已删除）。
 
 
 @app.route("/api/ai/summary")
@@ -621,77 +645,42 @@ def api_ai_summary():
 
 @app.route("/api/ai/warm")
 def api_ai_warm():
-    """预热大模型缓存：演示/答辩前跑一次，把常用问法固化到缓存，现场零等待。
+    """预热大模型解析缓存：演示/答辩前跑一次，把常用问法固化到缓存，现场零等待。
 
-    用法：/api/ai/warm?queries=手抖还瘦了很多|眼睛干涩发痒&kind=triage
+    用法：/api/ai/warm?queries=朝阳区三级公立医院|海淀区二级以上医院
     免费额度约 1 次/30 秒，故每次调用间自动 sleep，避免连续 429。
-    返回每个问法的预热结果（ok / cached / rate_limited）。
+    返回每个问法的预热结果（ok / cached / skipped_local / rate_limited）。
+
+    注意：规则解析器（web/nlq.py）能直接命中的问法**不消耗额度**——
+    现场本来就优先走规则链路，大模型只是长尾兜底。
     """
     raw = (request.args.get("queries") or "").strip()
-    kind = (request.args.get("kind") or "triage").strip()
     if not raw:
         return jsonify({"ok": False, "reason": "empty"})
     if not (AI_LLM_ENABLED and AI_API_KEY):
         return jsonify({"ok": False, "reason": "llm_disabled"})
     queries = [x.strip() for x in raw.split("|") if x.strip()][:20]
-    local_pairs = load_triage_map()
     out = []
     for i, q in enumerate(queries):
-        ck = AI_MODEL + "|" + kind + "|" + q
+        ck = AI_MODEL + "|parse|" + q
         if ck in _LLM_CACHE or _ai_cache_get(ck) is not None:
             out.append({"q": q, "status": "cached"})
             continue
-        # 本地知识库已能命中的问法不必消耗额度（现场本来就走的离线链路）
-        if kind == "triage" and any(kw and kw in q for kw, _d, _w, _e in local_pairs):
-            out.append({"q": q, "status": "skipped_local"})
+        rule = nlq.parse(q)
+        if rule["intent"] != "unsupported" and rule["applied"]:
+            out.append({"q": q, "status": "skipped_local",
+                        "conditions": rule["conditions"]})
             continue
         if i:                       # 免费额度约 1 次/30 秒，串行预热必须留足间隔
             time.sleep(30)
         try:
-            if kind == "triage":
-                wl = _dept_whitelist()
-                picked, note = _llm_map_dept(q, wl)
-                out.append({"q": q, "status": "ok", "depts": picked, "note": note})
-            else:
-                cond = _llm_json(AI_PARSE_PROMPT + q, "parse", q)
-                out.append({"q": q, "status": "ok", "conditions": cond})
+            cond = _llm_json(AI_PARSE_PROMPT + q, "parse", q)
+            out.append({"q": q, "status": "ok", "conditions": cond})
         except LLMRateLimited:
             out.append({"q": q, "status": "rate_limited"})
         except Exception as e:
             out.append({"q": q, "status": "error", "detail": str(e)[:120]})
-    return jsonify({"ok": True, "kind": kind, "total": len(queries), "results": out})
-
-
-# ============== 智能导诊（疾病/症状 → 科室 → 医院）==============
-import csv as _csv
-
-
-def load_triage_map():
-    """从 dim_disease_dept 维度表加载导诊词典；表不存在时回退到本地 CSV。
-
-    注意：每次请求实时读取，不使用模块级缓存——避免「改库后不重启就失效」的
-    隐性 bug（演示/答辩时新增症状词后立即生效，无需重启服务）。
-    """
-    rows = []
-    try:
-        db = get_db()
-        with db.cursor() as cur:
-            cur.execute(
-                "SELECT keyword, dept_name, weight, is_emergency "
-                "FROM dim_disease_dept")
-            rows = [(r["keyword"], r["dept_name"], float(r["weight"]),
-                     int(r["is_emergency"])) for r in cur.fetchall()]
-    except Exception:
-        rows = []
-    if not rows:
-        csv_path = os.path.join(os.path.dirname(__file__), "..",
-                                "data", "processed", "disease_dept_map.csv")
-        if os.path.exists(csv_path):
-            with open(csv_path, encoding="utf-8") as f:
-                for r in _csv.DictReader(f):
-                    rows.append((r["keyword"], r["dept_name"],
-                                 float(r["weight"]), int(r["is_emergency"])))
-    return rows
+    return jsonify({"ok": True, "total": len(queries), "results": out})
 
 
 def haversine(lng1, lat1, lng2, lat2):
@@ -703,423 +692,10 @@ def haversine(lng1, lat1, lng2, lat2):
          math.cos(lat1 * rad) * math.cos(lat2 * rad) * math.sin(dlng / 2) ** 2)
     return 2 * 6371.0 * math.asin(min(1.0, math.sqrt(a)))
 
-
-def _dept_whitelist():
-    """取库里真实存在的标准科室名，作为大模型的候选约束。
-
-    必须用真实取值而非写死清单：若模型返回库里没有的科室（如"神经外科"），
-    join 结果会是 0 家，用户会误以为系统坏了。实测库中为 29 个科室。
-    """
-    db = get_db()
-    with db.cursor() as cur:
-        cur.execute("SELECT DISTINCT dept_name FROM dwd_dept_relation_clean")
-        return sorted(r["dept_name"] for r in cur.fetchall() if r["dept_name"])
-
-
-TRIAGE_LLM_RULES = (
-    "你是北京市就医导诊助手。请把用户口语化的病情/症状，映射到【标准科室清单】中"
-    "最相关的一个或多个科室。\n"
-    "硬性要求：\n"
-    "① 科室名只能从清单中原样选取，不得改写、不得自创、不得返回清单外名称；\n"
-    "② 最多 3 个科室，按相关度从高到低排列；\n"
-    "③ 属急危重症（胸痛、卒中、大出血、昏迷、呼吸困难、严重外伤、抽搐等）时，"
-    "必须包含\"急诊科\"；\n"
-    "④ 只输出 JSON 本体，格式 {\"depts\": [\"科室名\"], \"reason\": \"一句话依据\"}，"
-    "不要解释、不要代码块；无法判断时 depts 返回空数组。\n"
-    "【标准科室清单】"
-)
-
-
-def _llm_map_dept(q, whitelist, timeout=None):
-    """大模型兜底：口语病情 → 标准科室。返回 (科室列表, 依据)。"""
-    prompt = TRIAGE_LLM_RULES + "、".join(whitelist) + "\n用户描述："
-    out = _llm_json(prompt + q, "triage", q, timeout=timeout)
-    depts = out.get("depts") or []
-    if isinstance(depts, str):
-        depts = [depts]
-    picked = [d for d in depts if isinstance(d, str) and d in whitelist]
-    return picked, str(out.get("reason") or "")
-
-
-# ---------- 意图纠错 & 歧义澄清（"AI 说话"的深度：先纠正，再反问） ----------
-# 北京 17 个行政区/功能区（用于区名错别字纠正；写死比查库更稳且离线可用）
-BJ_DISTRICTS = ["东城区", "西城区", "朝阳区", "丰台区", "石景山区", "海淀区",
-                "门头沟区", "房山区", "通州区", "顺义区", "昌平区", "大兴区",
-                "怀柔区", "平谷区", "密云区", "延庆区", "经济技术开发区"]
-
-# 口语科室别名 → 标准科室名（知识库按标准名落库，别名不归一化就会零命中）
-DEPT_ALIAS = {
-    "心内科": "心血管内科", "心脏内科": "心血管内科", "心血管科": "心血管内科",
-    "呼吸科": "呼吸内科", "消化科": "消化内科", "神经科": "神经内科",
-    "肾脏内科": "肾内科", "内分泌": "内分泌科", "血液科": "血液内科",
-    "普外": "普通外科", "胸外科": "心胸外科", "心脏外科": "心胸外科",
-    "泌尿科": "泌尿外科", "痔瘘科": "肛肠外科", "妇科": "妇产科", "产科": "妇产科",
-    "小儿科": "儿科", "耳鼻喉科": "耳鼻咽喉科", "耳鼻喉": "耳鼻咽喉科",
-    "口腔": "口腔科", "皮肤": "皮肤科", "精神科": "精神心理科",
-    "心理科": "精神心理科", "传染科": "感染科", "重症监护": "重症医学科",
-    "ICU": "重症医学科", "康复科": "康复医学科",
-}
-
-# 疾病 → 多个可能科室（同义不同科）：命中即反问，展示 NLP 的歧义消解能力
-CLARIFY_MAP = [
-    {"kw": ["心脏病", "心脏"], "q": "心脏问题分内科和外科两条路，您想看哪一类？",
-     "opts": [{"label": "心血管内科（药物 / 介入治疗）", "dept": "心血管内科"},
-              {"label": "心胸外科（外科手术）", "dept": "心胸外科"}]},
-    {"kw": ["头痛", "头疼"], "q": "头痛在内科和外科都能看，您更接近哪一种？",
-     "opts": [{"label": "神经内科（偏头痛 / 供血不足）", "dept": "神经内科"},
-              {"label": "神经外科（外伤 / 颅内肿物）", "dept": "神经外科"}]},
-    {"kw": ["腹痛", "肚子疼"], "q": "腹痛可能是内科也可能是外科问题，您想先查哪一科？",
-     "opts": [{"label": "消化内科（胃痛 / 腹泻）", "dept": "消化内科"},
-              {"label": "普通外科（急腹症 / 阑尾）", "dept": "普通外科"}]},
-    {"kw": ["甲状腺"], "q": "甲状腺问题分功能性与结节手术，您是哪一种？",
-     "opts": [{"label": "内分泌科（甲亢 / 甲减）", "dept": "内分泌科"},
-              {"label": "普通外科（结节 / 手术）", "dept": "普通外科"}]},
-    {"kw": ["便血", "血便"], "q": "便血可能来自消化道也可能来自肛周，您想先查哪一科？",
-     "opts": [{"label": "消化内科（胃肠 / 内镜）", "dept": "消化内科"},
-              {"label": "肛肠外科（痔 / 肛裂）", "dept": "肛肠外科"}]},
-    {"kw": ["头晕", "眩晕"], "q": "头晕在神经和耳部都很常见，您想先看哪一科？",
-     "opts": [{"label": "神经内科（脑血管 / 供血不足）", "dept": "神经内科"},
-              {"label": "耳鼻咽喉科（耳石症 / 前庭）", "dept": "耳鼻咽喉科"}]},
-]
-
-
-def _norm_depts(text):
-    """口语科室别名归一化为标准科室名（长别名先替换，避免「心脏外科」被「外科」截胡）。"""
-    for alias in sorted(DEPT_ALIAS, key=len, reverse=True):
-        if alias in text:
-            text = text.replace(alias, DEPT_ALIAS[alias])
-    return text
-
-
-def _correct_district(q):
-    """区名错别字纠正：返回 {"from","to"} 或 None。
-
-    只对「以区结尾的 2~4 字片段」做模糊匹配，避免把普通词误判成区名。
-    """
-    for cand in re.findall(r"[\u4e00-\u9fa5]{2,4}区", q):
-        if cand in BJ_DISTRICTS:
-            continue
-        hit = difflib.get_close_matches(cand, BJ_DISTRICTS, n=1, cutoff=0.6)
-        if hit:
-            return {"from": cand, "to": hit[0]}
-    return None
-
-
-def _clarify_for(q, matched, extra):
-    """歧义澄清：症状对应多个科室且用户尚未明确时，反问一句（多轮对话的核心）。"""
-    for spec in CLARIFY_MAP:
-        if not any(k in q for k in spec["kw"]):
-            continue
-        depts = [o["dept"] for o in spec["opts"]]
-        if any(d in q for d in depts):                 # 用户已明确科室，无需追问
-            continue
-        if any(d in (extra or "") for d in depts):     # 本轮已确认过，不再重复追问
-            continue
-        if not any(d in matched for d in depts):       # 没命中任何相关科室则不追问
-            continue
-        return {"question": spec["q"],
-                "options": [{"label": o["label"], "dept": o["dept"]} for o in spec["opts"]]}
-    return None
-
-
-@app.route("/api/triage")
-def api_triage():
-    """智能导诊：输入病情/疾病文本，推荐具备对应科室的医院。
-
-    参数：q(必填), district(可选), level(可选: 一级/二级/三级),
-          top_n(默认10), lng/lat(用户坐标，用于距离排序)
-    """
-    q = (request.args.get("q") or "").strip()
-    if not q:
-        return jsonify({"ok": False, "reason": "empty"})
-    # 多轮对话：extra 为前几轮已确认的补充信息（如"伴发热""3天""老年人"），
-    # 只参与科室匹配，不改变对外回显的 query（保持对话可追溯）。
-    extra = (request.args.get("extra") or "").strip()
-    # 意图纠错①：区名错别字（如"朝杨区"→"朝阳区"）
-    correction = _correct_district(q)
-    q_norm = q.replace(correction["from"], correction["to"]) if correction else q
-    # 意图纠错②：口语科室别名归一化（如"心内科"→"心血管内科"）
-    match_text = _norm_depts(q_norm + (" " + extra if extra else ""))
-    district = (request.args.get("district") or "").strip()
-    if not district:
-        # 区名从自然语言里直接抽取（"朝阳区看心脏病"→区=朝阳区）；
-        # 抽不到时再用纠错结果兜底（"朝杨区"→朝阳区）。用户无需再手动选区。
-        for _dz in BJ_DISTRICTS:
-            if _dz in q_norm:
-                district = _dz
-                break
-        if not district and correction:
-            district = correction["to"]
-    level = (request.args.get("level") or "").strip()
-    try:
-        top_n = max(1, min(50, int(request.args.get("top_n", 10))))
-    except ValueError:
-        top_n = 10
-    try:
-        ulng = float(request.args.get("lng", DEFAULT_LNG))
-        ulat = float(request.args.get("lat", DEFAULT_LAT))
-    except ValueError:
-        ulng, ulat = DEFAULT_LNG, DEFAULT_LAT
-
-    # 1) 文本 → 命中科室
-    pairs = load_triage_map()
-    matched = {}        # dept_name -> (weight, is_emergency)
-    for kw, dept, w, emg in pairs:
-        if kw and kw in match_text:
-            old = matched.get(dept)
-            if old is None or w > old[0]:
-                matched[dept] = (w, emg)
-    for kw, dept, w, emg in pairs:      # 直接输入科室名也能命中
-        if dept in match_text and dept not in matched:
-            matched[dept] = (w, emg)
-
-    # 1.5) 本地知识库零命中 → 大模型兜底（用 AI_LLM_ENABLED=0 或 &llm=0 可强制关闭）
-    engine, ai_note, llm_attempted = "local", "", False
-    if (not matched) and request.args.get("llm", "auto") != "0" \
-            and AI_LLM_ENABLED and AI_API_KEY:
-        llm_attempted = True
-        try:
-            wl = _dept_whitelist()
-            picked, ai_note = _llm_map_dept(q, wl)
-            for d in picked:
-                if d not in matched:
-                    # 知识库未收录的口语病情，权重给 0.8（低于精确词条，高于模糊词条）
-                    matched[d] = (0.8, d == "急诊科")
-            if matched:
-                engine = "llm"
-        except LLMRateLimited:
-            ai_note = "Agnes 免费额度限流，稍后重试即可（本地知识库不受影响）"
-        except Exception as e:
-            ai_note = "大模型兜底未生效：" + str(e)[:80]
-
-    if not matched:
-        return jsonify({
-            "ok": False, "reason": "no_match",
-            "llm_attempted": llm_attempted,
-            "llm_note": ai_note,
-            "hint": "本地知识库与大模型均未匹配到科室，请换个说法或补充更具体的症状",
-            "examples": ["头痛", "骨折", "高血压", "咳嗽", "儿童发烧", "孕检", "牙痛"],
-        })
-
-    dept_list = list(matched.keys())
-    placeholders = ",".join(["%s"] * len(dept_list))
-
-    # 2) 科室 → 医院（join 联表），聚合该医院命中的科室
-    sql = (
-        "SELECT s.id, "
-        "ANY_VALUE(s.name) AS name, ANY_VALUE(s.district) AS district, "
-        "ANY_VALUE(s.level) AS level, ANY_VALUE(s.level_norm) AS level_norm, "
-        "ANY_VALUE(s.addr) AS addr, ANY_VALUE(s.phone) AS phone, "
-        "ANY_VALUE(s.lng) AS lng, ANY_VALUE(s.lat) AS lat, "
-        "ANY_VALUE(s.key_specialty_count) AS key_specialty_count, "
-        "ANY_VALUE(s.feature) AS feature, "
-        "ANY_VALUE(s.national_specialty) AS national_specialty, "
-        "ANY_VALUE(s.municipal_specialty) AS municipal_specialty, "
-        "ANY_VALUE(s.dept_count) AS dept_count, "
-        "GROUP_CONCAT(d.dept_name) AS matched_depts, "
-        "MAX(d.is_key_specialty='1') AS has_key "
-        "FROM ads_inst_search s "
-        "JOIN dwd_dept_relation_clean d ON s.id = d.hospital_id "
-        "WHERE d.dept_name IN (" + placeholders + ")"
-    )
-    args = list(dept_list)
-    if district:
-        sql += " AND s.district=%s"
-        args.append(district)
-    if level:
-        sql += " AND s.level_norm=%s"
-        args.append(level)
-    sql += " GROUP BY s.id"
-
-    # 是否真正拿到了用户坐标：前端只在勾选"按距离排序"时才传 lng/lat，
-    # 因此"参数缺失"等价于"未定位"，此时不计距离分。
-    located = ("lng" in request.args) and ("lat" in request.args)
-    w = TRIAGE_W_LOC if located else TRIAGE_W_NO_LOC
-
-    db = get_db()
-    results = []
-    with db.cursor() as cur:
-        cur.execute(sql, args)
-        for r in cur.fetchall():
-            try:
-                dlng = float(r["lng"]) if r["lng"] is not None else None
-                dlat = float(r["lat"]) if r["lat"] is not None else None
-            except (TypeError, ValueError):
-                dlng = dlat = None
-            dist = haversine(ulng, ulat, dlng, dlat) if (dlng and dlat) else None
-            md = set((r["matched_depts"] or "").split(","))
-            hit = [d for d in dept_list if d in md]
-            hit_w = sum(matched[d][0] for d in hit)
-            total_w = sum(matched[d][0] for d in dept_list)
-            frac = min(1.0, hit_w / total_w) if total_w else 0.0
-            # 专科强度：命中科室中，该院被标注为国家级/市级重点专科或擅长科室的加权占比
-            nat = _split_ann(r["national_specialty"])
-            mun = _split_ann(r["municipal_specialty"])
-            feat = _split_ann(r["feature"])
-            spec_w, best_lv, spec_label = 0.0, 0.0, ""
-            for d in hit:
-                lv, lb = _dept_specialty_level(d, nat, mun, feat)
-                spec_w += matched[d][0] * lv
-                if lv > best_lv:
-                    best_lv, spec_label = lv, lb
-            spec = min(1.0, (spec_w / total_w) if total_w else 0.0)
-            level_c = w["level"] * (LEVEL_SCORE.get(r["level_norm"], 0.5) / 3.0)
-            dept_c = w["dept"] * frac
-            spec_c = w["spec"] * spec
-            dist_c = (w["dist"] * (1.0 / (1.0 + (dist or 999) / 5.0))
-                      if (located and dist is not None) else 0.0)
-            score = min(1.0, level_c + dept_c + spec_c + dist_c)
-            has_key = r["has_key"] in (1, "1", True)
-            results.append({
-                "id": r["id"], "name": r["name"], "district": r["district"],
-                "level": r["level"], "addr": r["addr"], "phone": r["phone"],
-                "distance_km": round(dist, 1) if dist is not None else None,
-                "matched_depts": hit,
-                "is_key_specialty": has_key,
-                "specialty_label": spec_label,
-                "specialty_level": best_lv,
-                "dept_focus": round(len(hit) / max(1, r["dept_count"] or 1), 3),
-                "score": round(score, 4),
-                "score_break": {
-                    "level": round(level_c, 3), "distance": round(dist_c, 3),
-                    "dept": round(dept_c, 3), "specialty": round(spec_c, 3),
-                },
-                # 推荐理由可视化：把加权评分的每一项摊开给用户看（可解释，非黑箱）
-                "reason_detail": [
-                    {"label": "科室契合", "weight": w["dept"], "score": round(dept_c, 3),
-                     "value": "、".join(hit) or "—",
-                     "desc": "命中科室权重之和 / 全部候选科室权重之和"},
-                    {"label": "专科实力", "weight": w["spec"], "score": round(spec_c, 3),
-                     "value": spec_label or "无专科标注",
-                     "desc": "该科室为国家级重点 / 市级重点 / 该院擅长科室"},
-                    {"label": "医院等级", "weight": w["level"], "score": round(level_c, 3),
-                     "value": r["level_norm"] or "未知",
-                     "desc": "等级越高得分越高（三级=满分）"},
-                ] + ([{"label": "距离", "weight": w["dist"], "score": round(dist_c, 3),
-                       "value": ("%.1f km" % dist) if dist is not None else "无坐标",
-                       "desc": "基于 Haversine 球面距离，越近得分越高"}]
-                     if located else []),
-                "reason": _triage_reason(hit, r["level"], dist, r["has_key"],
-                                         located=located, spec_label=spec_label),
-            })
-
-    # 急诊优先：命中科室含急诊的排前。
-    # 同分时依次比「专科强度档位」「科室专注度」「名称」，保证顺序稳定可复现
-    # （只按 score 排会退化成数据库返回序，同一病症多次查询结果不一致）。
-    results.sort(key=lambda x: (
-        not any(matched[d][1] for d in x["matched_depts"]),
-        -x["score"], -x["specialty_level"], -x["dept_focus"], x["name"]))
-    # 同院多院区/别名合并：只保留最高分的一条，其余折叠计数，
-    # 否则 6 个推荐名额里会重复出现同一家医院（如同仁本部 + 同仁东院区）
-    merged, by_main = [], {}
-    for h in results:
-        k = _main_name(h["name"])
-        if k in by_main:
-            by_main[k]["alias_count"] += 1
-            by_main[k]["alias_names"].append(h["name"])
-            continue
-        h["alias_count"] = 0
-        h["alias_names"] = []
-        by_main[k] = h
-        merged.append(h)
-    results = merged[:top_n]
-    # 歧义澄清：命中多个可能科室 → 反问一句（前端渲染为可点选项，点击后作为 extra 收窄）
-    # nocl=1：用户选择"不限科室，都看看"，本轮不再反问（前端澄清气泡的跳过按钮）
-    clarify = None if request.args.get("nocl") == "1" else _clarify_for(q_norm, matched, extra)
-    return jsonify({
-        "ok": True,
-        "query": q,
-        "query_norm": q_norm,
-        "correction": correction,
-        "clarify": clarify,
-        "extra": extra,
-        "engine": engine,
-        "model": AI_MODEL if engine == "llm" else None,
-        "ai_note": ai_note,
-        "matched_depts": [
-            {"dept": d, "weight": matched[d][0], "emergency": bool(matched[d][1]),
-             "source": engine}
-            for d in dept_list
-        ],
-        "count": len(results),
-        "located": located,
-        # 把导诊的排序口径显式告诉前端，避免与主检索的 0.5/0.3/0.2 混淆
-        "weight_profile": ("导诊按「科室优先」评分：科室契合 %.2f / 专科实力 %.2f / 医院等级 %.2f"
-                           % (w["dept"], w["spec"], w["level"])
-                           + (" / 距离 %.2f" % w["dist"] if located
-                              else "（未定位，不计距离）")),
-        "hospitals": results,
-    })
-
-
-# ---- 智能导诊：科室优先的评分权重 ----
-# 刻意区别于主检索的「等级 0.5 / 距离 0.3 / 科室 0.2」：
-#   主检索回答"哪家综合实力强"，导诊必须回答"哪个医院的这个科强"。
-# 若沿用主检索权重，大型综合医院因各科齐全（科室契合恒为满分）又等级最高，
-# 任何病症都会推出同一批三级医院——实测已复现该问题。
-# 距离项仅在用户真正提供坐标时计分：否则会以"默认基准点"臆造位置，
-# 把排序偏移到基准点所在的城区（实测顶端长期被东城区几家医院占据）。
-TRIAGE_W_LOC = {"dept": 0.30, "spec": 0.30, "level": 0.20, "dist": 0.20}
-TRIAGE_W_NO_LOC = {"dept": 0.45, "spec": 0.35, "level": 0.20}
-
-# 专科强度分级：权威认定越强，得分越高
-SPEC_NATIONAL, SPEC_MUNICIPAL, SPEC_FEATURE = 1.0, 0.7, 0.4
-
-
-def _split_ann(s):
-    """把「擅长科室 / 重点专科」字段切成集合。
-
-    字段形如 "眼科;耳鼻咽喉科;变态反应(鼻过敏)科;中医眼科学(国家级中医重点学科)"，
-    需先剔除括号注释，再按分隔符切分，并丢弃长度 < 2 的碎片
-    （原始数据里混入过 "医信平台口径）" 这类括号残片）。
-    """
-    if not s:
-        return set()
-    s = re.sub(r"[（(][^）)]*[）)]", "", s)
-    return {x.strip() for x in re.split(r"[;；、,，/]+", s) if len(x.strip()) >= 2}
-
-
-def _dept_specialty_level(dept, nat, mun, feat):
-    """该院在 dept 上的专科强度，返回 (分值, 可读标签)。"""
-    def hit(s):
-        return bool(s) and (dept in s or any(dept in a or a in dept for a in s))
-
-    if hit(nat):
-        return SPEC_NATIONAL, "国家级重点专科"
-    if hit(mun):
-        return SPEC_MUNICIPAL, "市级重点专科"
-    if hit(feat):
-        return SPEC_FEATURE, "擅长科室"
-    return 0.0, ""
-
-
-def _main_name(name):
-    """取主体名（截到首个括号），用于合并同院多院区/别名。
-
-    数据里同一家医院常有多条记录（如"北京同仁医院"与其"（东院区）"、
-    隆福医院的两个别名），不合并会让 6 个推荐名额被同一家医院占掉 2 个。
-    """
-    return re.sub(r"[（(].*$", "", (name or "").strip()).strip()
-
-
-def _triage_reason(hit_depts, level, dist, has_key, located=False, spec_label=""):
-    parts = ["命中科室：" + "、".join(hit_depts)]
-    if spec_label:
-        parts.append(spec_label)
-    if level:
-        parts.append(level)
-    if dist is not None:
-        # 未定位时基准点只是市中心参照物，不能声称"距您"
-        parts.append(("距您约 %.1f km" if located else "距市中心约 %.1f km") % dist)
-    if has_key in (1, "1", True):
-        parts.append("含重点专科")
-    return "；".join(parts)
-
-
 # ==============================================================================
-# 增强模块：医院详情（联系方式/挂号入口/周边配套/实时状态）+ 对比 + 行为埋点 + 运营后台
+# 增强模块：机构详情（联系方式/位置/重点专科）+ 对比 + 行为埋点 + 运营后台
 # ==============================================================================
-# 设计原则（与智能导诊一致）：
+# 设计原则（与自然语言筛选一致）：
 #   1) 一切"真实可得"的信息优先用真实数据：重点专科、联系方式、地址、坐标、距离；
 #   2) 需要外部数据的（周边地铁站/停车场）走高德开放平台实时查询，结果落库缓存；
 #   3) 拿不到真实数据的（实时排队人数）**明确标注"演示模拟"**，绝不伪装成真实数据；
@@ -1290,34 +866,11 @@ def api_geocode():
     return jsonify(out)
 
 
-def _mock_status(inst_id, level):
-    """就诊实时状态（**演示模拟数据**，非真实候诊信息）。
-
-    以机构 id 做确定性散列，保证同一医院每次显示一致（不像随机数那样跳变，
-    答辩演示时可复现）；三级医院整体偏繁忙，符合常识直觉。
-    """
-    h = int(hashlib.md5(str(inst_id).encode("utf-8")).hexdigest(), 16)
-    labels = ["空闲", "较少", "中等", "较多", "繁忙"]
-    bias = {"三级": 2, "二级": 1, "一级": 0}.get(level, -1)
-    idx = min(4, max(0, (h % 5) + bias - 1))
-    wait = [5, 12, 20, 35, 55][idx]
-    slots = ["上午号源充足", "上午偏紧、下午充足", "当日号源偏紧", "当日号源紧张", "当日号源已满"]
-    return {
-        "simulated": True,
-        "level": labels[idx],
-        "level_index": idx,
-        "queue_label": labels[idx],
-        "wait_min": wait,
-        "slots": slots[idx],
-        "note": "演示模拟数据 · 非医院实时候诊信息",
-    }
-
-
 def _consult_links(r):
-    """就诊入口链接：114 统一平台 / 电话 / 官网 / 导航。
+    """机构公开联系入口：官方平台外链 / 电话 / 官网 / 导航。
 
-    只给真实可用的入口，不伪造深度链接（114 平台为 JS 单页应用，
-    不存在可构造的按医院直达 URL，硬拼会得到死链）。
+    这里只做**公开信息的跳转**，不抓取也不展示号源与排班；
+    不伪造深度链接（114 平台为 JS 单页应用，不存在可构造的按医院直达 URL，硬拼会得到死链）。
     """
     lng, lat = _safe_float(r.get("lng")), _safe_float(r.get("lat"))
     nav = ""
@@ -1327,7 +880,6 @@ def _consult_links(r):
     phone = (r.get("phone") or "").strip()
     return {
         "guahao_114": GUAHao_114,
-        "guahao_114_tel": "010-114",
         "hospital_phone": phone,
         "hospital_tel_link": ("tel:" + phone) if phone else "",
         "website": (r.get("website") or "").strip(),
@@ -1401,7 +953,6 @@ def api_inst_detail(inst_id):
         "around": around,
         "around_online": around_ok,
         "around_enabled": bool(AMAP_KEY),
-        "status": _mock_status(r["id"], r["level_norm"]),
         "depts": query(
             "SELECT dept_name, is_key_specialty, source FROM dwd_dept_relation_clean"
             " WHERE hospital_id = %s ORDER BY is_key_specialty DESC, dept_name LIMIT 60",
@@ -1529,7 +1080,6 @@ def api_admin_stats():
         "total_events": (query("SELECT COUNT(*) AS n FROM fact_user_event", one=True) or {}).get("n", 0),
         "top_keywords": top("search", 10),
         "top_districts": top("filter_district", 10),
-        "top_triage": top("triage", 10),
         "top_detail": top("detail", 8),
         "top_nlq": top("nlq", 8),
         "daily": query(
@@ -1565,15 +1115,19 @@ def api_admin_stats():
 
 
 # -------- AI 就医提示（可选增强，绝不编造事实） --------
+# 定位纪律（答辩口径）：本系统是"机构资源数据平台"，不是就医助手。
+# 因此这里生成的是**机构数据画像解读**，不是就医建议——不判科、不推荐、不引导挂号。
 AI_ADVICE_RULES = (
-    "你是北京市就医助手。请基于用户给出的【该机构的真实数据】，写一段 80~120 字的就医提示。\n"
+    "你是「北京市医疗机构数据智能分析与筛选平台」的数据解读助手。"
+    "请基于用户给出的【该机构的真实数据】，写一段 80~120 字的**机构数据画像解读**。\n"
     "硬性要求：\n"
-    "① 只能引用给定的真实信息（等级、区域、重点专科名称、协作网络、类型），"
+    "① 只能引用给定的真实信息（等级、区域、类型、所有制、重点专科名称、协作网络、科室数量），"
     "不得添加任何未给出的信息；\n"
     "② 严禁编造医生姓名、职称、出诊时间、号源数量、价格、治愈率或任何具体数字；\n"
     "③ 严禁使用「全国第一」「最好的医院」等无法核实的绝对化表述；\n"
-    "④ 语气客观，最后用一句提示用户「具体号源与出诊信息请以 114 平台及医院官方公布为准」；\n"
-    "⑤ 只输出这段文字，不要标题、不要 Markdown、不要 JSON。\n"
+    "④ 严禁给出就诊建议、科室推荐、疾病相关判断或挂号引导——本系统只做机构资源数据查询；\n"
+    "⑤ 语气客观，结尾用一句话说明这些字段来自哪些公开数据源；\n"
+    "⑥ 只输出这段文字，不要标题、不要 Markdown、不要 JSON。\n"
     "【该机构的真实数据】\n"
 )
 
@@ -1606,7 +1160,8 @@ def api_ai_advice():
         txt = _llm_chat([{"role": "user", "content": AI_ADVICE_RULES + facts}],
                         timeout=AI_TIMEOUT)
         return jsonify({"ok": True, "engine": "llm", "model": AI_MODEL,
-                        "advice": txt.strip(), "constraint": "仅基于真实字段生成，禁止编造医生与数字"})
+                        "advice": txt.strip(),
+                        "constraint": "仅基于数据库真实字段生成机构数据画像，禁止编造医生、数字与就诊建议"})
     except LLMRateLimited:
         return jsonify({"ok": False, "reason": "llm_rate_limited",
                         "hint": "Agnes 免费额度限流（约 1 次/30 秒），稍后重试"})
@@ -1632,7 +1187,6 @@ def api_about():
                 " WHERE table_schema='hospital'")["n"],
             "with_coord": one(
                 "SELECT COUNT(*) AS n FROM ads_inst_search WHERE lng IS NOT NULL")["n"],
-            "triage_dict": one("SELECT COUNT(*) AS n FROM dim_disease_dept")["n"],
         },
         "warehouse": query(
             "SELECT table_schema AS db, table_name AS name, table_rows AS rows_,"
@@ -1654,506 +1208,353 @@ def api_about():
             {"step": 7, "name": "索引优化", "tool": "etl/create_indexes.py",
              "desc": "为筛选主表建立复合前缀索引，实测典型多维筛选扫描行数由 9,777 降至 33。"},
             {"step": 8, "name": "服务与可视化", "tool": "Flask + ECharts",
-             "desc": "Flask 提供筛选/排序/详情/导诊接口，ECharts 渲染地图与多维分析图表，并可导出零依赖离线单文件。"},
+             "desc": "Flask 提供自然语言筛选/条件筛选/维度统计/详情/概览/对比等接口，ECharts 渲染地图与多维分析图表，并可导出零依赖离线单文件。"},
         ],
         "sources": [
             {"name": "北京市卫生健康委员会", "url": "https://wjw.beijing.gov.cn/",
              "desc": "医疗机构名录、重点专科公示、协作网络名单"},
-            {"name": "北京市预约挂号统一平台（114）", "url": GUAHao_114,
-             "desc": "预约挂号官方入口（仅做链接跳转，不抓取号源数据）"},
             {"name": "北京市政务数据资源网", "url": "https://data.beijing.gov.cn/",
              "desc": "医疗机构基础信息开放数据"},
             {"name": "高德开放平台", "url": "https://lbs.amap.com/",
              "desc": "地理编码与周边配套（地铁站/停车场）POI 查询"},
         ],
-        "updated_at": "2026-09-18",
+        "updated_at": "2026-09-20",
         "update_log": [
             {"date": "2026-09-08", "desc": "快照数据更新（9,789 家机构）；修正机构更名与别名映射"},
-            {"date": "2026-09-11", "desc": "新增智能导诊、多维分析、详情抽屉、机构对比、运营后台模块"},
+            {"date": "2026-09-11", "desc": "新增智能导诊、多维分析、详情抽屉、机构对比、运营后台模块（导诊模块已于 2026-09-20 下线）"},
             {"date": "2026-09-17", "desc": "多维分析数据联网完善：办别与等级在线核实（公立 3,085 / 民营 5,323 / 未标注 1,381）；352 家等级缺失经核实确为数据边界"},
             {"date": "2026-09-18", "desc": "信息架构重构为七视图；新增 Vue 3 + Flask 前后端分离形态（/spa/），与零依赖离线单文件并存"},
+            {"date": "2026-09-20", "desc": "「就医决策 / 智能导诊」下线，重构为「自然语言智能筛选」：新增 web/nlq.py（条件解析 + 真实数据查询 + 维度统计）与 /api/nlq/* 、/api/statistics/* 接口；AI 定位收敛为机构数据筛选助手"},
         ],
     })
 
 
-# ============== API：就医决策（任务主线）==============
-# 与"展示页"的根本区别：这里是一条**任务流**——用户带一个真实就医需求进来，
-# 系统给出分诊结论、候选机构，以及**可带走、可留痕的决策方案**。
-#
-# 推荐打分用的专科实力信号来自 spark/jobs/dim_dept_strength.py 预计算的
-# ads_dept_strength（科室实力指数）：把 200 多种科室写法归一后，按
-# 国家临床重点专科 / 市级重点专科 / 官网重点科室 / 登记重点专科 / 已开设
-# 五级证据打分。这一步让大数据链路直接支撑业务决策。
-PLAN_PREFER = {
-    "specialty": {"strength": 0.50, "dist": 0.22, "level": 0.10, "net": 0.08, "dept": 0.10},
-    "distance": {"strength": 0.28, "dist": 0.44, "level": 0.10, "net": 0.08, "dept": 0.10},
-    "level": {"strength": 0.32, "dist": 0.14, "level": 0.36, "net": 0.08, "dept": 0.10},
-    "balanced": {"strength": 0.36, "dist": 0.26, "level": 0.20, "net": 0.08, "dept": 0.10},
-}
-PLAN_PREFER_LABEL = {
-    "specialty": "专科实力优先", "distance": "就近优先",
-    "level": "等级优先", "balanced": "综合平衡",
-}
-# 人群词 → 应当优先的科室。
-# 说"孩子发烧"时，"孩子"是人群限定而非并列科室，儿科应比同时命中的感染科更贴合意图。
-PLAN_CROWD_BOOST = {
-    "儿科": ("孩子", "儿童", "小儿", "宝宝", "婴幼儿", "新生儿", "小孩", "娃娃", "娃"),
-    "老年病科": ("老年", "老人", "高龄"),
-    "妇产科": ("怀孕", "产妇", "备孕", "产检", "孕妇"),
-}
-PLAN_CROWD_FACTOR = 1.6
-PLAN_NET_LABEL = {"net_pediatric": "儿科", "net_stroke": "卒中",
-                  "net_neonatal": "新生儿", "net_maternal": "孕产妇"}
-PLAN_NET_DEPT = {
-    "net_pediatric": ["儿科"],
-    "net_stroke": ["神经内科", "神经外科", "急诊科", "重症医学科", "康复医学科"],
-    "net_neonatal": ["儿科"],
-    "net_maternal": ["妇产科", "妇科", "产科"],
-}
-
-# 科室族：同一批医生、同一栋楼，但各家登记写法不同。
-# 只按字面匹配会漏掉专科医院——北京妇产医院的国家临床重点专科写的是"妇科、产科"，
-# 用户说"孕检"命中的却是"妇产科"，结果这家最该出现的机构反而排不上来。
-# 族内兄弟科室按 0.9 倍权重一并纳入候选（原科室仍占优），只在评分里体现，不改变分诊结论。
-PLAN_DEPT_FAMILY = {
-    "妇产科": ["妇科", "产科"],
-    "妇科": ["妇产科", "产科"],
-    "产科": ["妇产科", "妇科"],
-    "耳鼻咽喉科": ["耳鼻喉科"],
-    "耳鼻喉科": ["耳鼻咽喉科"],
-}
+# ==============================================================================
+#  API：自然语言智能筛选（项目主线）
+# ==============================================================================
+# 设计要点（答辩必答）：
+#   ① 规则优先：web/nlq.py 用词表 + 正则把中文转成结构化条件，完全离线、可复现。
+#   ② 大模型只兜底：规则零命中时才问 Agnes，且提示词里写死"只输出条件，
+#      不许输出机构名与数字"，从设计上堵死幻觉。
+#   ③ 真实数据：条件最终编译成**参数化 SQL** 打到 MySQL 的 ads_inst_search，
+#      所有机构名称与统计数字都来自查询结果，AI 不产生任何数字。
+#   ④ 用户可改：解析出的条件在前端是可增删的卡片，用户确认后才真正查询。
 
 
-
-def _plan_match_depts(q, extra, forced_dept):
-    """文本 → 目标科室。复用导诊知识库、口语别名归一与区名错别字纠正。
-
-    返回 (matched, district, correction)；
-    matched: {标准科室: (权重, 是否急诊, 命中词)}
-    """
-    correction = _correct_district(q) if q else None
-    q_norm = q.replace(correction["from"], correction["to"]) if correction else q
-    district = ""
-    for dz in BJ_DISTRICTS:
-        if dz in q_norm:
-            district = dz
-            break
-    if not district and correction:
-        district = correction["to"]
-
-    matched = {}
-    if forced_dept:
-        matched[forced_dept] = (1.0, forced_dept == "急诊科", "手动选择科室")
-        return matched, district, correction
-
-    pairs = load_triage_map()
-    match_text = _norm_depts(q_norm + (" " + extra if extra else ""))
-    for kw, dept, wt, emg in pairs:
-        if kw and kw in match_text:
-            old = matched.get(dept)
-            if old is None or wt > old[0]:
-                matched[dept] = (wt, emg, kw)
-    for kw, dept, wt, emg in pairs:          # 直接说科室名也能命中
-        if dept in match_text and dept not in matched:
-            matched[dept] = (wt, emg, "科室名")
-    # 人群词加权（见 PLAN_CROWD_BOOST 的说明）
-    for dept, words in PLAN_CROWD_BOOST.items():
-        if dept in matched and any(x in match_text for x in words):
-            w0, e0, k0 = matched[dept]
-            matched[dept] = (round(w0 * PLAN_CROWD_FACTOR, 3), e0, k0)
-    # 科室族展开（见 PLAN_DEPT_FAMILY 的说明）
-    for dept in list(matched.keys()):
-        w0, e0, k0 = matched[dept]
-        for sib in PLAN_DEPT_FAMILY.get(dept, []):
-            w1 = round(w0 * 0.9, 3)
-            if sib not in matched or w1 > matched[sib][0]:
-                matched[sib] = (w1, e0, k0 + "·同类科室")
-    return matched, district, correction
-
-
-def _ensure_plan_table():
-    """惰性建表：首次保存方案时自动创建，避免额外的部署步骤。"""
-    db = get_db()
-    with db.cursor() as cur:
-        cur.execute(
-            "CREATE TABLE IF NOT EXISTS user_plan ("
-            "  id VARCHAR(36) NOT NULL PRIMARY KEY,"
-            "  created_at DATETIME NOT NULL,"
-            "  title VARCHAR(200) NOT NULL,"
-            "  query_text VARCHAR(255) NOT NULL DEFAULT '',"
-            "  depts VARCHAR(255) NOT NULL DEFAULT '',"
-            "  chosen_id VARCHAR(64) NULL,"
-            "  chosen_name VARCHAR(200) NULL,"
-            "  candidate_cnt INT NOT NULL DEFAULT 0,"
-            "  payload MEDIUMTEXT NOT NULL"
-            ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
-    db.commit()
-
-
-def _best_row_key(r):
-    """同院多科室 / 多名条时挑选「代表记录」的确定序。
-
-    一家医院同时命中妇产科、妇科、产科时，要选一条作为展示、其余折叠。
-    原先只比 strength，同分时保留谁取决于 MySQL 返回行的先后——而 SQL 不保证顺序，
-    于是同一问题可能给出「产科」也可能给出「妇科」。对一个要给用户看的推荐结果来说，
-    这种不确定性不可接受（也让离线复算无法对齐）。这里补上科室名与机构 id 作为兜底，
-    比较键完全确定，与 web/app.plan.js 的 tiebreak 保持同序。
-    """
-    return (-(r["strength"] or 0), r["dept_name"] or "", str(r["id"]))
-
-
-@app.route("/api/plan", methods=["POST"])
-def api_plan():
-    """就医决策：生成一次完整的就医方案（任务主线核心接口）。
-
-    入参 JSON：
-      q / dept     症状描述 或 直接指定科室（至少给一个）
-      extra        补充信息（多轮对话已确认的内容）
-      district     限定行政区（写在 q 里也会被自动抽取）
-      lng / lat    位置基准；不传则不计算距离
-      base_name    基准点名称（回显用）
-      prefer       specialty | distance | level | balanced
-      max_km       最大可接受直线距离（0 = 不限）
-      public_only  仅公立机构
-      level        限定等级（三级/二级/一级/未定级）
-      top_n        返回候选数（默认 6，上限 20）
-    """
-    body = request.get_json(silent=True) or {}
-    q = (body.get("q") or "").strip()
-    forced_dept = (body.get("dept") or "").strip()
-    extra = (body.get("extra") or "").strip()
-    if not q and not forced_dept:
-        return jsonify({"ok": False, "reason": "empty",
-                        "hint": "请描述症状（如「心慌」「骨折」），或直接选择科室"})
-
-    located = body.get("lng") is not None and body.get("lat") is not None
+def _dept_dict():
+    """取库里真实存在的科室名，用于识别"骨科相关机构"这类查询（真实科室表，非疾病库）。"""
     try:
-        ulng = float(body["lng"]) if located else DEFAULT_LNG
-        ulat = float(body["lat"]) if located else DEFAULT_LAT
-    except (TypeError, ValueError, KeyError):
-        located, ulng, ulat = False, DEFAULT_LNG, DEFAULT_LAT
-    base_name = (body.get("base_name") or "").strip()
-
-    prefer = body.get("prefer") if body.get("prefer") in PLAN_PREFER else "specialty"
-    wt = PLAN_PREFER[prefer]
-    try:
-        top_n = max(1, min(20, int(body.get("top_n") or 6)))
-    except (TypeError, ValueError):
-        top_n = 6
-    try:
-        max_km = float(body.get("max_km") or 0)
-    except (TypeError, ValueError):
-        max_km = 0.0
-    public_only = bool(body.get("public_only"))
-    level_filter = (body.get("level") or "").strip()
-
-    matched, district_from_q, correction = _plan_match_depts(q, extra, forced_dept)
-    district = (body.get("district") or "").strip() or district_from_q
-    if not matched:
-        return jsonify({
-            "ok": False, "reason": "no_match",
-            "hint": "没能从描述里识别出科室，换个说法或补充更具体的症状试试",
-            "examples": ["头痛", "心慌", "骨折", "高血压", "儿童发烧", "孕检", "牙痛"],
-        })
-
-    dept_list = list(matched.keys())
-    emergency = any(matched[d][1] for d in dept_list)
-
-    placeholders = ",".join(["%s"] * len(dept_list))
-    sql = (
-        "SELECT s.id, s.name, s.district, s.addr, s.phone, s.lng, s.lat, "
-        "       s.level, s.level_norm, s.ownership, s.ownership_src, "
-        "       s.dept_count, s.key_specialty_count, s.coord_level, "
-        "       s.net_pediatric, s.net_stroke, s.net_neonatal, s.net_maternal, "
-        "       ds.dept_name, ds.dept_category, ds.tier, ds.tier_label, "
-        "       ds.strength, ds.concentration, ds.is_network "
-        "FROM ads_dept_strength ds "
-        "JOIN ads_inst_search s ON s.id = ds.hospital_id "
-        "WHERE ds.dept_name IN (" + placeholders + ") "
-        "  AND ds.dept_category <> '医技'"
-    )
-    args = list(dept_list)
-    if district:
-        sql += " AND s.district = %s"
-        args.append(district)
-    if level_filter:
-        sql += " AND s.level_norm = %s"
-        args.append(level_filter)
-    if public_only:
-        sql += " AND s.ownership = %s"
-        args.append("公立")
-
-    rows = query(sql, args)
-    if not rows:
-        return jsonify({
-            "ok": False, "reason": "no_candidate",
-            "hint": "条件下没有匹配到机构，试着放宽区域或等级限制",
-            "triage": {"target_depts": dept_list, "district": district},
-        })
-
-    # 同一家机构可能命中多个科室：取实力最强的一条作为展示，其余折叠进 depts
-    by_hosp = {}
-    for r in rows:
-        rec = by_hosp.setdefault(r["id"], {"row": r, "depts": []})
-        rec["depts"].append(r["dept_name"])
-        if _best_row_key(r) < _best_row_key(rec["row"]):
-            rec["row"] = r
-
-    # 同院多名称合并：库里同一家医院可能以「隆福医院」「隆福医院（东城区老年病医院）」
-    # 等多个名条各存一份，不合并会让推荐位被同一家占满（实测隆福医院占 3 席）。
-    # 判同院的口径 = 去掉括号后缀后的名称。
-    merged = {}
-    for rec in by_hosp.values():
-        key = _norm_hosp_name(rec["row"]["name"])
-        m = merged.get(key)
-        if m is None:
-            rec["alias"] = []
-            merged[key] = rec
-        else:
-            m["depts"] = list(set(m["depts"]) | set(rec["depts"]))
-            m["alias"].append(rec["row"]["name"])
-            if _best_row_key(rec["row"]) < _best_row_key(m["row"]):
-                keep_depts, keep_alias = m["depts"], m["alias"]
-                m["row"] = rec["row"]
-                m["depts"], m["alias"] = keep_depts, keep_alias
-    by_hosp = merged
-    total_candidates = len(by_hosp)
-
-    max_w = max(matched[d][0] for d in dept_list) or 1.0
-    candidates = []
-    for hid, rec in by_hosp.items():
-        r = rec["row"]
-        dist = None
-        try:
-            dlng, dlat = float(r["lng"]), float(r["lat"])
-            if dlng and dlat:
-                dist = haversine(ulng, ulat, dlng, dlat)
-        except (TypeError, ValueError):
-            dist = None
-        if max_km and (dist is None or dist > max_km):
-            continue
-
-        strength_n = float(r["strength"] or 0) / 100.0
-        level_n = LEVEL_SCORE.get(r["level_norm"], 0.5) / 3.0
-        net_n = 1.0 if r["is_network"] else 0.0
-        # 科室契合度：候选所在科室在本次命中的权重 / 最高权重
-        dept_n = matched[r["dept_name"]][0] / max_w
-        if located and dist is not None:
-            dist_n = 1.0 / (1.0 + dist / 5.0)
-            parts = {"strength": wt["strength"] * strength_n,
-                     "distance": wt["dist"] * dist_n,
-                     "level": wt["level"] * level_n,
-                     "network": wt["net"] * net_n,
-                     "dept": wt["dept"] * dept_n}
-        else:
-            # 未设基准点：距离项无处可算，权重按比例并入实力与等级，保证总分可比
-            wd = wt["dist"]
-            base_w = wt["strength"] + wt["level"]
-            parts = {"strength": (wt["strength"] + wd * wt["strength"] / base_w) * strength_n,
-                     "distance": 0.0,
-                     "level": (wt["level"] + wd * wt["level"] / base_w) * level_n,
-                     "network": wt["net"] * net_n,
-                     "dept": wt["dept"] * dept_n}
-        score = sum(parts.values())
-
-        reasons = []
-        if r["tier"] == 4:
-            reasons.append("%s为国家临床重点专科" % r["dept_name"])
-        elif r["tier"] == 3:
-            reasons.append("%s为市级重点专科" % r["dept_name"])
-        elif r["tier"] == 2:
-            reasons.append("%s为官网公示重点科室" % r["dept_name"])
-        elif r["tier"] == 1:
-            reasons.append("%s为登记重点专科" % r["dept_name"])
-        else:
-            reasons.append("已开设%s" % r["dept_name"])
-        nets = [PLAN_NET_LABEL[k] for k in PLAN_NET_LABEL
-                if (r.get(k) or "") and r["dept_name"] in PLAN_NET_DEPT.get(k, [])]
-        if nets:
-            reasons.append("本市%s协作网络成员" % "、".join(nets))
-        # 集中度 >= 0.4 说明这家机构的重点专科高度集中在本专科方向（专科医院特征）
-        if (r["concentration"] or 0) >= 0.4:
-            reasons.append("%s方向专科机构（重点专科有 %d%% 集中在本专科）"
-                           % (r["dept_name"], round(r["concentration"] * 100)))
-        if r["level_norm"]:
-            reasons.append("机构等级 %s" % r["level_norm"])
-        if dist is not None:
-            reasons.append("距%s %.1f 公里" % (base_name or "基准点", dist))
-
-        candidates.append({
-            # ⚠️ 这里必须取机构真实 id，不能取 hid：
-            #    上面的同院合并把 by_hosp 换成了以 _norm_hosp_name() 为键的 merged，
-            #    于是 hid 变成了「机构名」——前端拿它当主键用不会出错（仍唯一），
-            #    但语义错位：离线形态 / 详情跳转 / 与 ads_inst_search.id 对齐都会对不上。
-            "id": rec["row"]["id"], "name": r["name"], "district": r["district"],
-            "addr": r["addr"], "phone": r["phone"],
-            "lng": r["lng"], "lat": r["lat"],
-            "level": r["level"], "level_norm": r["level_norm"],
-            "ownership": r["ownership"], "ownership_src": r["ownership_src"],
-            "distance_km": round(dist, 1) if dist is not None else None,
-            "dept_name": r["dept_name"], "dept_category": r["dept_category"],
-            "matched_depts": sorted(set(rec["depts"])),
-            "alias_count": len(rec.get("alias") or []),
-            "tier": r["tier"], "tier_label": r["tier_label"],
-            "strength": r["strength"],
-            "concentration": float(r["concentration"] or 0),
-            "is_network": bool(r["is_network"]),
-            "dept_count": r["dept_count"],
-            "match_score": round(min(1.0, score), 4),
-            "score_break": {k: round(v, 3) for k, v in parts.items()},
-            "reasons": reasons,
-        })
-
-    if not candidates:
-        return jsonify({
-            "ok": False, "reason": "filtered_out",
-            "hint": "符合科室条件的机构都不满足距离或等级限制，试着放宽条件",
-            "triage": {"target_depts": dept_list, "district": district},
-            "stats": {"candidate_total": total_candidates, "returned": 0},
-        })
-
-    # 排序：评分 → 同分时看实力分 → 再看开设科室数（规模更全的机构），最后才按名称。
-    # 不做这个兜底，同分机构会退化成按机构名拼音排序，出现"专科医院排在综合医院后面"的怪结果。
-    candidates.sort(key=lambda x: (-x["match_score"], -(x["strength"] or 0),
-                                   -(x["dept_count"] or 0), x["name"]))
-
-    return jsonify({
-        "ok": True,
-        "generated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "input": {
-            "q": q, "extra": extra, "forced_dept": forced_dept,
-            "district": district, "located": located, "base_name": base_name,
-            "prefer": prefer, "prefer_label": PLAN_PREFER_LABEL[prefer],
-            "weights": wt, "max_km": max_km, "public_only": public_only,
-            "level": level_filter, "top_n": top_n,
-        },
-        "triage": {
-            "target_depts": [
-                {"name": d, "category": _dept_category_of(d),
-                 "weight": matched[d][0], "matched_by": matched[d][2],
-                 "is_emergency": bool(matched[d][1])}
-                for d in sorted(dept_list, key=lambda x: -matched[x][0])
-            ],
-            "emergency": emergency,
-            "corrected_district": correction,
-            "engine": "local",
-        },
-        "stats": {"candidate_total": total_candidates, "returned": len(candidates)},
-        "candidates": candidates[:top_n],
-    })
-
-
-def _norm_hosp_name(name):
-    """机构名规范化（判同院用）。
-
-    两步：① 去掉括号内容（院区 / 别名 / 曾用名）；
-          ② 截断到第一个机构类型词——库里存在"名称拼接"的名条，例如
-             「北京市隆福医院（北京中西医结合老年医院）北京市东城区景山社区卫生服务中心」，
-             不截断会被当成两家医院，把推荐位占满。
-    """
-    s = re.sub(r"[（(][^）)]*[）)]", "", name or "").strip()
-    m = re.match(r"^(.*?(?:医院|门诊部|卫生院|卫生服务中心|疗养院|诊所))", s)
-    return m.group(1) if m else s
-
-
-def _dept_category_of(dept):
-    """科室大类（与 Spark 侧 dept_dict.DEPT_CATEGORY 同源，此处为服务端轻量副本）。"""
-    for cat, names in (
-        ("内科", ("心血管内科", "呼吸内科", "消化内科", "神经内科", "内分泌科",
-                  "肾病科", "风湿免疫科", "血液内科", "感染科", "肝病科",
-                  "老年病科", "普内科", "变态反应科")),
-        ("外科", ("普通外科", "骨科", "泌尿外科", "神经外科", "胸外科",
-                  "心脏大血管外科", "整形外科", "乳腺外科", "肛肠外科")),
-        ("妇儿", ("妇产科", "妇科", "产科", "儿科", "生殖医学科")),
-        ("中医", ("中医科", "中医内科", "中医骨伤科", "针灸推拿科", "中西医结合科")),
-        ("急诊", ("急诊科", "重症医学科")),
-        ("全科", ("全科医疗科",)),
-    ):
-        if dept in names:
-            return cat
-    return "专科"
-
-
-@app.route("/api/plans", methods=["POST"])
-def api_plan_save():
-    """保存就医方案（留痕）——让"做过什么"可回溯，这是系统区别于看板的关键。"""
-    body = request.get_json(silent=True) or {}
-    payload = body.get("payload")
-    if not payload:
-        return jsonify({"ok": False, "reason": "empty_payload"})
-    if not payload.get("ok"):
-        # 只允许保存成功生成的方案：否则会把"没匹配到科室"这类失败响应也存进历史
-        return jsonify({"ok": False, "reason": "invalid_payload",
-                        "hint": "只能保存成功生成的方案"})
-    _ensure_plan_table()
-    pid = str(uuid.uuid4())
-    triage = payload.get("triage") or {}
-    dept_names = "、".join(d.get("name", "") for d in (triage.get("target_depts") or [])[:3])
-    candidates = payload.get("candidates") or []
-    primary_id = str(body.get("primary_id") or "")
-    chosen = next((c for c in candidates if str(c.get("id")) == primary_id), None) \
-        or (candidates[0] if candidates else {})
-    # 标题以"用户当时怎么说的"为主，读起来像任务记录而不是数据条目
-    asked = ((payload.get("input") or {}).get("q") or
-             (payload.get("input") or {}).get("forced_dept") or "").strip()
-    if asked and dept_names:
-        default_title = "%s · %s" % (asked[:24], dept_names)
-    else:
-        default_title = asked or dept_names or "未指定科室"
-    title = (body.get("title") or "").strip() or default_title
-    db = get_db()
-    with db.cursor() as cur:
-        cur.execute(
-            "INSERT INTO user_plan (id, created_at, title, query_text, depts, "
-            " chosen_id, chosen_name, candidate_cnt, payload) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-            (pid, datetime.datetime.now(), title[:200],
-             ((payload.get("input") or {}).get("q") or "")[:255],
-             dept_names[:255], chosen.get("id"), (chosen.get("name") or "")[:200],
-             len(candidates), json.dumps(payload, ensure_ascii=False)))
-    db.commit()
-    return jsonify({"ok": True, "id": pid, "title": title})
-
-
-@app.route("/api/plans")
-def api_plan_list():
-    """历史方案列表（不含完整 payload，列表页轻量加载）。"""
-    try:
-        rows = query("SELECT id, created_at, title, query_text, depts, "
-                     "chosen_id, chosen_name, candidate_cnt "
-                     "FROM user_plan ORDER BY created_at DESC LIMIT 50")
+        rows = query("SELECT DISTINCT dept_name FROM dwd_dept_relation_clean"
+                     " WHERE dept_name IS NOT NULL AND dept_name <> ''")
+        return sorted(r["dept_name"] for r in rows)
     except Exception:
-        rows = []
-    for r in rows:
-        if r.get("created_at"):
-            r["created_at"] = r["created_at"].strftime("%Y-%m-%d %H:%M")
-    return jsonify({"ok": True, "items": rows, "total": len(rows)})
+        return []
 
 
-@app.route("/api/plans/<plan_id>")
-def api_plan_get(plan_id):
-    """取回某个方案（完整还原，含候选与决策依据）。"""
-    row = query("SELECT * FROM user_plan WHERE id=%s", (plan_id,), one=True)
-    if not row:
-        return jsonify({"ok": False, "reason": "not_found"}), 404
-    row["payload"] = json.loads(row.pop("payload") or "{}")
-    if row.get("created_at"):
-        row["created_at"] = row["created_at"].strftime("%Y-%m-%d %H:%M")
-    return jsonify({"ok": True, "plan": row})
+def _merge_llm_conditions(rule_cond, llm_cond):
+    """把模型给出的条件并入规则结果：规则已识别的字段优先（规则是确定性的）。"""
+    merged = dict(rule_cond or {})
+    for key in ("district", "level", "category", "ownership", "source", "dept",
+                "level_min", "kw", "_sort"):
+        if merged.get(key):
+            continue
+        val = (llm_cond or {}).get(key) or (llm_cond or {}).get(key.lstrip("_"))
+        if not val:
+            continue
+        if isinstance(val, list):
+            val = [str(v).strip() for v in val if str(v).strip()]
+            if not val:
+                continue
+        merged[key] = val
+    return merged
 
 
-@app.route("/api/plans/<plan_id>", methods=["DELETE"])
-def api_plan_delete(plan_id):
-    """删除某个方案。"""
+def _try_llm_parse(text, rule_result):
+    """规则零命中时的长尾兜底。任何异常都吞掉——兜底绝不能拖垮主流程。"""
+    if not (AI_LLM_ENABLED and AI_API_KEY):
+        return None, "llm_disabled"
+    if rule_result.get("applied"):
+        return None, "rule_hit"
     try:
-        db = get_db()
-        with db.cursor() as cur:
-            cur.execute("DELETE FROM user_plan WHERE id=%s", (plan_id,))
-            n = cur.rowcount
-        db.commit()
+        cond = _llm_json(AI_PARSE_PROMPT + text, "parse", text)
+    except LLMRateLimited:
+        return None, "llm_rate_limited"
     except Exception as e:
-        return jsonify({"ok": False, "reason": str(e)[:120]}), 500
-    return jsonify({"ok": True, "deleted": n})
+        return None, "llm_error:" + str(e)[:60]
+    if cond.get("unsupported"):
+        return None, "llm_unsupported"
+    return cond, "ok"
+
+
+@app.route("/api/nlq/parse", methods=["GET", "POST"])
+def api_nlq_parse():
+    """自然语言 → 结构化筛选条件（只做理解，不查数据）。
+
+    入参：?q=... （GET）或 {"q": "..."}（POST JSON）
+    返回：{ok, intent, conditions, applied[], unmatched[], engine, message, notice}
+    """
+    if request.method == "POST":
+        body = request.get_json(silent=True) or {}
+        text = (body.get("q") or "").strip()
+    else:
+        text = (request.args.get("q") or "").strip()
+    if not text:
+        return jsonify({"ok": False, "reason": "empty",
+                        "message": "请输入您想查找的机构条件。"})
+    res = nlq.parse(text, dept_names=_dept_dict())
+    if res["intent"] != "unsupported":
+        llm_cond, why = _try_llm_parse(text, res)
+        if llm_cond:
+            res["conditions"] = _merge_llm_conditions(res["conditions"], llm_cond)
+            res["applied"] = nlq.describe(res["conditions"])
+            res["engine"] = "llm"
+        else:
+            res["llm"] = why
+    return jsonify(res)
+
+
+def _nlq_base(body):
+    """距离基准点：(lng, lat) 或 None（None = 按天安门计算，前端标注为"距市中心"）。
+
+    口径与 /api/institutions 完全一致——同一个基准点、同一套 Haversine 公式，
+    这样"自然语言筛选出的距离"和"机构查询里的距离"不会对不上。
+    """
+    def num(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+    lng = num(body.get("lng", request.args.get("lng")))
+    lat = num(body.get("lat", request.args.get("lat")))
+    if lng is None or lat is None:
+        return None
+    return (lng, lat)
+
+
+def _nlq_execute(parsed, text="", base=None):
+    """条件 → 真实数据（筛选清单 或 维度统计）。parsed 是 nlq.parse 的产物。"""
+    if parsed.get("intent") == "unsupported":
+        return {"ok": False, "intent": "unsupported", "message": parsed.get("message"),
+                "conditions": {}, "applied": [],
+                "data_source": _data_source_note()}
+    cond = dict(parsed.get("conditions") or {})
+    cn = dict(parsed.get("conditions") or {})
+    try:
+        if parsed.get("intent") == "stats":
+            stats = nlq.run_stats(query, cond, parsed.get("dimension") or "district")
+            return {"ok": True, "intent": "stats", "conditions": cond,
+                    "applied": parsed.get("applied") or nlq.describe(cond),
+                    "dimension": stats["dimension"], "dimension_label": stats["label"],
+                    "chart": stats["chart"], "rows": stats["rows"],
+                    "summary": nlq.summarize_stats(cond, stats),
+                    "total": sum(r["cnt"] for r in stats["rows"]),
+                    "data_source": _data_source_note()}
+        page = max(1, int(cn.pop("_page", 1) or 1))
+        size = min(100, max(1, int(cn.pop("_page_size", 20) or 20)))
+        data = nlq.run_filter(query, cn, page=page, page_size=size, base=base)
+        return {"ok": True, "intent": "filter", "conditions": cn,
+                "applied": parsed.get("applied") or nlq.describe(cn),
+                "total": data["total"], "page": data["page"], "page_size": data["page_size"],
+                "sort": data["sort"], "base": data.get("base"), "items": data["items"],
+                "summary": nlq.summarize_filter(cn, data),
+                "stats": _result_overview(cn),
+                "data_source": _data_source_note()}
+    except Exception as e:
+        return {"ok": False, "intent": "error",
+                "message": "查询失败：" + str(e)[:160],
+                "conditions": cond, "applied": parsed.get("applied") or [],
+                "data_source": _data_source_note()}
+
+
+def _result_overview(cond):
+    """筛选结果的小统计（总数 / 三级 / 二级 / 公立 / 民营 / 含坐标）。"""
+    try:
+        where, params = nlq.build_where(cond)
+        row = query(
+            "SELECT COUNT(*) AS total,"
+            " SUM(CASE WHEN level_norm='三级' THEN 1 ELSE 0 END) AS level3,"
+            " SUM(CASE WHEN level_norm='二级' THEN 1 ELSE 0 END) AS level2,"
+            " SUM(CASE WHEN ownership='公立' THEN 1 ELSE 0 END) AS public_cnt,"
+            " SUM(CASE WHEN ownership='民营' THEN 1 ELSE 0 END) AS private_cnt,"
+            " SUM(CASE WHEN lng IS NOT NULL AND lat IS NOT NULL THEN 1 ELSE 0 END) AS coord_ok"
+            " FROM ads_inst_search t WHERE " + where, params, one=True)
+        return {k: int(v or 0) for k, v in (row or {}).items()}
+    except Exception:
+        return {}
+
+
+def _data_source_note():
+    """对外展示的数据来源说明——保证用户随时能看到「这些数字是哪来的」。"""
+    batch = ""
+    total = 0
+    files = 0
+    try:
+        row = query("SELECT CAST(MAX(batch_date) AS CHAR) AS d FROM ads_etl_snapshot", one=True)
+        batch = (row or {}).get("d") or ""
+        total = query("SELECT COUNT(*) AS n FROM ads_inst_search", one=True)["n"]
+        files = query("SELECT COUNT(*) AS n FROM (SELECT source_files FROM ads_inst_search"
+                      " WHERE source_files <> '' GROUP BY source_files) x", one=True)["n"]
+    except Exception:
+        pass
+    return {
+        "database": "MySQL hospital 库 · ads_inst_search（由 Spark 数仓 ADS 层写入）",
+        "institutions": total,
+        "batch_date": batch,
+        "source_files": files,
+        "detail": ("原始数据来自北京市卫健委、市 / 区医保局、各区卫健委公开数据及社区"
+                   "卫生服务机构名录等多源材料，经 HDFS 入湖 → Spark 清洗整合 → "
+                   "ADS 层落库 MySQL。"),
+        "note": nlq.AI_SCOPE_NOTE,
+    }
+
+
+@app.route("/api/nlq/query", methods=["GET", "POST"])
+def api_nlq_query():
+    """自然语言 → 解析 → 真实数据查询（项目主线接口，一站到底）。
+
+    POST {"q": "帮我找朝阳区三级公立医院"}
+    POST {"conditions": {...}}          # 条件筛选 Tab：结构化条件直接查询
+    可选 {"lng": 116.40, "lat": 39.91}  # 距离基准点；缺省按天安门计算（标注为"距市中心"）
+    返回：筛选结果（含统计概览）或维度统计（含图表数据），以及模板生成的中文说明。
+    """
+    body = (request.get_json(silent=True) or {}) if request.method == "POST" else {}
+    text = (body.get("q") or request.args.get("q") or "").strip()
+    conditions = body.get("conditions") if isinstance(body.get("conditions"), dict) else None
+    if not text and not conditions:
+        return jsonify({"ok": False, "reason": "empty",
+                        "message": "请先描述您想查找的机构条件。"})
+    if conditions is not None:
+        parsed = {"ok": True, "intent": "stats" if conditions.get("dimension") else "filter",
+                  "conditions": conditions, "districts": conditions.get("district") or [],
+                  "applied": nlq.describe(conditions), "unmatched": [], "message": ""}
+        if parsed["intent"] == "stats":
+            parsed["dimension"] = conditions["dimension"]
+    else:
+        parsed = nlq.parse(text, dept_names=_dept_dict())
+    res = _nlq_execute(parsed, text, base=_nlq_base(body))
+    if text:
+        res["parsed"] = {"intent": parsed.get("intent"),
+                         "dimension": parsed.get("dimension"),
+                         "engine": parsed.get("engine", "rule"),
+                         "unmatched": parsed.get("unmatched") or [],
+                         "notice": parsed.get("notice"),
+                         "districts": parsed.get("districts") or []}
+    return jsonify(res)
+
+
+@app.route("/api/nlq/ask")
+def api_nlq_ask():
+    """为本次查询结果生成一段中文说明（可选增强）。
+
+    GET /api/nlq/ask?facts=...&local=...
+    三级降级：Agnes 润色 → 命中缓存 → 调用方回传的本地模板。
+    本地模板由 nlq.summarize_* 在服务端生成，因此**断网也一定有说明可看**。
+    """
+    facts = (request.args.get("facts") or "").strip()[:4000]
+    local = (request.args.get("local") or "").strip()[:1200]
+    if not facts:
+        return jsonify({"ok": False, "reason": "empty", "summary": local})
+    if not (AI_LLM_ENABLED and AI_API_KEY):
+        return jsonify({"ok": True, "engine": "local", "summary": local})
+    ck = AI_MODEL + "|nqsummary|" + hashlib.sha1(facts.encode("utf-8")).hexdigest()[:24]
+    if ck in _LLM_CACHE:
+        return jsonify({"ok": True, "engine": "llm", "model": AI_MODEL,
+                        "summary": _LLM_CACHE[ck], "cached": True})
+    cached = _ai_cache_get(ck)
+    if cached is not None:
+        _LLM_CACHE[ck] = cached
+        return jsonify({"ok": True, "engine": "llm", "model": AI_MODEL,
+                        "summary": cached, "cached": True})
+    try:
+        txt = (_llm_chat([{"role": "user", "content": SUMMARY_PROMPT + facts}],
+                         temperature=0.2) or "").strip()
+        if not txt:
+            raise ValueError("模型返回空")
+        _LLM_CACHE[ck] = txt
+        _ai_cache_put(ck, "nqsummary", txt)
+        return jsonify({"ok": True, "engine": "llm", "model": AI_MODEL, "summary": txt})
+    except LLMRateLimited:
+        return jsonify({"ok": True, "engine": "local", "summary": local,
+                        "note": "Agnes 免费额度限流（约 1 次/30 秒），已用本地模板生成"})
+    except Exception as e:
+        return jsonify({"ok": True, "engine": "local", "summary": local,
+                        "note": "大模型不可用，已用本地模板生成：" + str(e)[:80]})
+
+
+@app.route("/api/statistics/<dim>")
+def api_statistics(dim):
+    """按维度取真实统计结果（ECharts 直接消费）。
+
+    dim ∈ overview | district | category | level | ownership | source | quality
+    可选筛选：district / level / category / ownership / source（逗号分隔多值）
+    """
+    if dim == "overview":
+        row = query(
+            "SELECT COUNT(*) AS total,"
+            " COUNT(DISTINCT district) AS districts,"
+            " COUNT(DISTINCT category_norm) AS categories,"
+            " SUM(CASE WHEN category_norm='医院' THEN 1 ELSE 0 END) AS hospital,"
+            " SUM(CASE WHEN level_norm='三级' THEN 1 ELSE 0 END) AS level3,"
+            " SUM(CASE WHEN level_norm='二级' THEN 1 ELSE 0 END) AS level2,"
+            " SUM(CASE WHEN level_norm='一级' THEN 1 ELSE 0 END) AS level1,"
+            " SUM(CASE WHEN ownership='公立' THEN 1 ELSE 0 END) AS public_cnt,"
+            " SUM(CASE WHEN ownership='民营' THEN 1 ELSE 0 END) AS private_cnt,"
+            " SUM(CASE WHEN lng IS NOT NULL AND lat IS NOT NULL THEN 1 ELSE 0 END) AS coord_ok,"
+            " SUM(CASE WHEN addr IS NOT NULL AND addr<>'' THEN 1 ELSE 0 END) AS addr_ok,"
+            " SUM(CASE WHEN source_files<>'' THEN 1 ELSE 0 END) AS source_ok,"
+            " SUM(CASE WHEN src_count_int>=2 THEN 1 ELSE 0 END) AS multi_source"
+            " FROM ads_inst_search t", one=True)
+        return jsonify({"ok": True, "dimension": "overview",
+                        "stats": {k: int(v or 0) for k, v in (row or {}).items()},
+                        "data_source": _data_source_note()})
+    if dim == "quality":
+        total = query("SELECT COUNT(*) AS n FROM ads_inst_search", one=True)["n"]
+        fields = [
+            ("district", "行政区", "district IS NOT NULL AND district<>''"),
+            ("addr", "地址", "addr IS NOT NULL AND addr<>''"),
+            ("phone", "联系电话", "phone IS NOT NULL AND phone<>''"),
+            ("lng", "坐标", "lng IS NOT NULL AND lat IS NOT NULL"),
+            ("level", "医院等级", "level_norm <> '不适用医院分级'"),
+            ("category", "机构类型", "category_norm IS NOT NULL AND category_norm<>''"),
+            ("ownership", "所有制", "ownership IS NOT NULL AND ownership<>''"),
+            ("source", "数据来源", "source_files IS NOT NULL AND source_files<>''"),
+        ]
+        rows = []
+        for key, label, expr in fields:
+            n = query("SELECT COUNT(*) AS n FROM ads_inst_search WHERE " + expr, one=True)["n"]
+            rows.append({"field": key, "label": label, "nonnull": n,
+                         "pct": round(n * 100.0 / total, 1) if total else 0})
+        return jsonify({"ok": True, "dimension": "quality", "total": total,
+                        "fields": rows, "data_source": _data_source_note()})
+    if dim not in ("district", "category", "level", "ownership", "source"):
+        return jsonify({"ok": False, "reason": "unknown_dimension",
+                        "hint": "可用维度：overview / district / category / level /"
+                                " ownership / source / quality"}), 400
+    cond = {}
+    for key in ("district", "level", "category", "ownership", "source"):
+        raw = (request.args.get(key) or "").strip()
+        if raw:
+            cond[key] = [x.strip() for x in raw.split(",") if x.strip()]
+    if "level_min" in request.args:
+        try:
+            cond["level_min"] = int(request.args.get("level_min"))
+        except ValueError:
+            pass
+    try:
+        stats = nlq.run_stats(query, cond, dim)
+    except Exception as e:
+        return jsonify({"ok": False, "message": "统计失败：" + str(e)[:160]}), 500
+    stats["ok"] = True
+    stats["summary"] = nlq.summarize_stats(cond, stats)
+    stats["data_source"] = _data_source_note()
+    return jsonify(stats)
+
+
+@app.route("/api/nlq/lexicon")
+def api_nlq_lexicon():
+    """词表导出：前端（尤其离线单文件形态）据此与后端保持同源，避免手抄漂移。"""
+    return jsonify(nlq.export_lexicon())
+
 
 
 if __name__ == "__main__":

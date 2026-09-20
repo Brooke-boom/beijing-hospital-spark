@@ -6,7 +6,7 @@
     </div>
     <div class="topmeta">
       <span class="chipmeta">机构总数 <b>{{ fmt(store.total || store.health?.institutions) }}</b></span>
-      <span class="chipmeta">筛选命中 <b>{{ fmt(store.total) }}</b></span>
+      <span class="chipmeta">最近一次筛选 <b>{{ hitText }}</b></span>
       <span class="chipmeta">基准点 <b>{{ store.base ? store.base.name : '未设定' }}</b></span>
       <!-- 从工作台回查阅形态（单文件大屏）的入口：进来之后得能回去，不能是单向门 -->
       <a v-if="!isFile" class="lookbtn" href="/"
@@ -33,9 +33,17 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useDataStore } from '../store'
 const store = useDataStore()
 const fmt = (n) => (n === null || n === undefined || n === '' ? '—' : Number(n).toLocaleString())
+// 顶栏展示"最近一次筛选"，而不是机构查询页的命中数：
+// 前者是主线动作的结果，后者只是某个支撑页的分页总数，两者口径不同不能混用。
+const hitText = computed(() => {
+  const r = store.nlq.result
+  if (!r || !r.ok) return '—'
+  return fmt(r.total)
+})
 // 直接用 dist/index.html 双击打开（file://）时 "/" 指向文件系统根，链接无意义 → 隐藏
 const isFile = typeof location !== 'undefined' && location.protocol === 'file:'
 </script>

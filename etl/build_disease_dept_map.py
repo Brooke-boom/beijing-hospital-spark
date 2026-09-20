@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-构建「疾病 / 症状 → 科室」知识库（智能导诊的核心词典）
+构建「症状 → 科室」知识库（旧智能导诊能力的核心词典；该能力已于 2026-09-20 随主线重构下线）
 ========================================================
 输出：data/processed/disease_dept_map.csv
   columns: keyword, dept_name, dept_category, weight, is_emergency, note

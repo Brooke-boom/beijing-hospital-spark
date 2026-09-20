@@ -318,197 +318,66 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
 
 /* ---------------- 响应式 ---------------- */
 /* ============================================================================
-   就医决策（任务主线）—— 步骤条 / 需求表单 / 候选卡 / 对比表 / 方案输出
-   这一块是「系统」与「大屏」的分界：有任务态、有产出物、可留痕、可打印。
+   智能筛选（任务主线）—— 双通道输入 / 条件卡 / 统计图表 / 结果清单
+   这是「系统」与「看板」的分界：入口是一句中文，出口是一份可复盘的筛选结果。
+   条件解析与数据查询都在后端完成，这里只负责把「理解了什么」如实呈现出来。
    ========================================================================== */
 .navgroup{font-size:10.5px;color:var(--ink-4);padding:16px 13px 6px;letter-spacing:.06em}
 .navtab.main{background:rgba(var(--acc-rgb),.07)}
 .navtab.main.active{background:rgba(var(--acc-rgb),.14)}
 
-/* 方案页顶栏：步骤条 + 常驻「重新开始」入口（任何一步都能回起始页） */
-.planbar{display:flex;gap:10px;align-items:stretch;margin-bottom:var(--gap)}
-.planbar .stepper{flex:1;margin-bottom:0}
-.pl-home{flex:none;display:flex;align-items:center;gap:7px;padding:0 15px;
-  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-  font:inherit;font-size:12.5px;color:var(--ink-3);cursor:pointer;transition:.15s}
-.pl-home:hover:not(:disabled){border-color:var(--line-2);color:var(--ink-1)}
-.pl-home:active:not(:disabled){transform:scale(.98)}
-.pl-home:disabled{opacity:.45;cursor:default}
-@media (max-width:640px){.planbar{flex-wrap:wrap}.pl-home{padding:9px 15px}}
-
-.stepper{display:flex;gap:6px;margin-bottom:var(--gap)}
-.step{flex:1;display:flex;align-items:center;gap:10px;padding:11px 13px;text-align:left;
-  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-  cursor:pointer;transition:.15s;font:inherit;color:inherit}
-.step:hover:not(:disabled){border-color:var(--line-2)}
-.step:disabled{opacity:.45;cursor:not-allowed}
-.step .n{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;flex:none;
-  font-size:11.5px;font-weight:500;background:var(--panel-3);color:var(--ink-3)}
-.step .tx{display:flex;flex-direction:column;min-width:0}
-.step .tx b{font-size:13px;font-weight:500;color:var(--ink-2)}
-.step .tx i{font-size:11px;font-style:normal;color:var(--ink-4)}
-.step.done .n{background:var(--teal);color:var(--on-accent)}
-.step.on{border-color:var(--acc);background:var(--panel-2)}
-.step.on .n{background:var(--acc);color:var(--on-accent)}
-.step.on .tx b{color:var(--ink-strong)}
-
-.ask{width:100%;resize:vertical;line-height:1.6;font-size:14px;min-height:78px;font-family:inherit}
-.exchips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
-.chip.tap{cursor:pointer;transition:.14s}
-.chip.tap:hover{border-color:var(--acc);color:var(--acc)}
-.prefergrp{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
-.prefer{display:flex;flex-direction:column;gap:2px;padding:9px 11px;text-align:left;cursor:pointer;
-  background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius-sm);
-  transition:.14s;font:inherit;color:inherit}
-.prefer:hover{border-color:var(--line-2)}
-.prefer.on{border-color:var(--acc);background:rgba(var(--acc-rgb),.09)}
-.prefer b{font-size:12.5px;font-weight:500;color:var(--ink-2)}
-.prefer.on b{color:var(--acc)}
-.prefer i{font-size:11px;font-style:normal;color:var(--ink-4)}
-.switch{display:flex;align-items:center;gap:7px;height:34px;font-size:13px;
-  color:var(--ink-2);cursor:pointer}
-.switch input{width:15px;height:15px;accent-color:var(--acc)}
-.hintline{font-size:11.5px;color:var(--ink-3);margin-top:6px}
-.actbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
-  margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
-.btn.lg{padding:10px 20px;font-size:13.5px}
-.btnrow{display:inline-flex;gap:6px;margin-left:auto}
-.errbox{margin-top:14px;padding:11px 13px;border-radius:var(--radius-sm);font-size:12.5px;
-  border:1px solid var(--crit);color:var(--crit);background:var(--panel-2)}
-
-.histlist{display:flex;flex-direction:column;gap:6px}
-.hist{display:flex;align-items:center;gap:10px}
-.hmain{flex:1;display:flex;flex-direction:column;gap:2px;padding:9px 12px;text-align:left;cursor:pointer;
-  background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius-sm);
-  transition:.14s;font:inherit;color:inherit}
-.hmain:hover{border-color:var(--acc)}
-.hmain b{font-size:12.5px;font-weight:500;color:var(--ink)}
-.hmain i{font-size:11px;font-style:normal;color:var(--ink-4)}
-
-.triagecard{padding:13px 15px;border-radius:var(--radius);background:var(--panel-2);
-  border:1px solid var(--line);margin-bottom:12px}
-.triagecard .tl{font-size:11.5px;color:var(--ink-4);margin-bottom:8px}
-.triagecard .td{display:flex;flex-wrap:wrap;gap:7px}
-.deptpill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
-  background:rgba(var(--acc-rgb),.12);color:var(--acc);font-size:12.5px;font-weight:500}
-.deptpill em{font-style:normal;font-size:10.5px;opacity:.75}
-.deptpill i.emg{font-style:normal;font-size:10px;padding:1px 5px;border-radius:4px;
-  background:var(--crit);color:#fff}
-.triagecard .tn{font-size:11.5px;color:var(--ink-4);margin-top:9px}
-
-.candlist{display:flex;flex-direction:column;gap:9px;margin-top:4px}
-.cand{padding:13px 15px;border-radius:var(--radius);background:var(--panel-2);
-  border:1px solid var(--line);transition:.15s}
-.cand:hover{border-color:var(--line-2)}
-.cand.main{border-color:var(--acc)}
-.cand.picked{border-color:var(--teal)}
-.chead{display:flex;align-items:flex-start;gap:10px;margin-bottom:7px}
-.cname{flex:1;min-width:0}
-.cname b{font-size:14px;font-weight:500;color:var(--ink-strong)}
-.cname .alias{font-size:11px;color:var(--ink-4);margin-left:6px}
-.tier{flex:none;font-size:11px;padding:2px 8px;border-radius:6px;white-space:nowrap;
-  background:var(--panel-3);color:var(--ink-3)}
-.tier.top{background:rgba(var(--acc-rgb),.14);color:var(--acc)}
-.cmeta{display:flex;flex-wrap:wrap;gap:7px;align-items:center;
-  font-size:12px;color:var(--ink-3);margin-bottom:9px}
-.cmeta b{color:var(--ink-2);font-weight:500}
-.cmeta .sep{color:var(--ink-4)}
-.netbadge{font-size:11px;padding:1px 7px;border-radius:5px;
-  background:rgba(63,191,144,.16);color:var(--teal)}
-.creasons{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:3px}
-.creasons li{font-size:12px;color:var(--ink-2);padding-left:13px;position:relative}
-.creasons li::before{content:'';position:absolute;left:2px;top:7px;
-  width:4px;height:4px;border-radius:50%;background:var(--acc)}
-.cfoot{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
-  padding-top:10px;border-top:1px solid var(--line)}
-.cscore{display:flex;align-items:center;gap:8px;flex:1;min-width:180px}
-.cscore .sl{font-size:11.5px;color:var(--ink-4)}
-.cscore b{font-size:12.5px;color:var(--ink-2);font-variant-numeric:tabular-nums}
-.minibar{flex:1;height:5px;border-radius:3px;background:var(--panel-3);overflow:hidden;min-width:56px}
-.minibar i{display:block;height:100%;border-radius:3px;background:var(--acc)}
-.cact{display:flex;gap:6px;flex-wrap:wrap}
-
-.cmpwrap{overflow-x:auto;margin-top:4px}
-table.tbl.cmp{min-width:540px}
-table.tbl.cmp th{vertical-align:top}
-table.tbl.cmp .rowh{width:100px;color:var(--ink-4);font-weight:400}
-.cmpname{font-size:12.5px;font-weight:500;color:var(--ink);margin-bottom:6px;white-space:normal}
-.reasons{display:flex;flex-direction:column;gap:2px}
-.reasons span{font-size:11.5px;color:var(--ink-3)}
-table.tbl.cmp td.addr{font-size:11px;color:var(--ink-4);max-width:180px;white-space:normal}
-
-.plancard{padding:20px 22px;border-radius:var(--radius);
-  background:var(--panel-2);border:1px solid var(--line)}
-.ph{display:flex;align-items:flex-start;gap:14px;
-  padding-bottom:14px;border-bottom:1px solid var(--line)}
-.ptitle{font-size:19px;font-weight:500;color:var(--ink-strong);line-height:1.3}
-.pmeta{font-size:12.5px;color:var(--ink-3);margin-top:4px}
-.ptag{flex:none;font-size:11.5px;padding:4px 11px;border-radius:7px;white-space:nowrap;
-  background:rgba(var(--acc-rgb),.14);color:var(--acc)}
-.ps{padding:14px 0;border-bottom:1px solid var(--line)}
-.prow{display:flex;gap:12px;padding:3px 0;font-size:13px}
-.prow label{flex:none;width:52px;color:var(--ink-4);font-size:12.5px}
-.prow div{color:var(--ink-2);min-width:0}
-.psec{padding:14px 0;border-bottom:1px solid var(--line)}
-.psec:last-of-type{border-bottom:none}
-.psec h4{margin:0 0 8px;font-size:13px;font-weight:500;color:var(--ink)}
-.psec ul,.psec ol{margin:0;padding-left:18px}
-.psec li{font-size:12.5px;color:var(--ink-2);line-height:1.75}
-.psec li b{color:var(--ink);font-weight:500}
-.pfoot{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);
-  font-size:11px;color:var(--ink-4);line-height:1.7}
-
-@media (max-width:900px){
-  .stepper{flex-wrap:wrap}
-  .step{flex:1 1 46%}
+/* 通道切换：自然语言 / 条件筛选。两个通道共用同一套结果区与同一份条件 schema， */
+/* 因此切换不会丢结果，也不会出现两套口径。 */
+.nlqtabs{display:flex;align-items:stretch;gap:2px;margin:14px 0 0;border-bottom:1px solid var(--line)}
+.nlqtabs button{
+  appearance:none;background:transparent;border:0;border-bottom:2px solid transparent;
+  padding:9px 14px;font:inherit;font-size:12.5px;color:var(--ink-3);cursor:pointer;transition:.15s;
 }
-@media (max-width:640px){
-  .stepper{flex-direction:column}
-  .step{width:100%}
-  .prefergrp{grid-template-columns:minmax(0,1fr)}
-  .ph{flex-direction:column}
+.nlqtabs button:hover{color:var(--ink)}
+.nlqtabs button.on{color:var(--ink-strong);border-bottom-color:var(--acc);font-weight:650}
+.nlqscope{margin:0 0 0 auto;align-self:center;font-size:11px;color:var(--ink-4)}
+
+/* 自然语言输入区 */
+.nlqask{display:flex;gap:10px;align-items:flex-end;margin-top:14px;flex-wrap:wrap}
+.nlqask .field{flex:1 1 320px}
+.nlqask textarea{
+  width:100%;min-height:64px;resize:vertical;font:inherit;font-size:13px;padding:10px 12px;
+  background:var(--bg-soft);border:1px solid var(--line-2);border-radius:var(--radius-sm);
+  color:var(--ink);line-height:1.6;
 }
-/* 打印：只留方案正文，让「带走」这件事真的成立 */
-/* ==========================================================================
-   查阅支撑页（HubView）：一个页面一个问题，页内子标签切换看法
-   2026-09-19：把原来 7 个平级查阅入口收敛成 4 个支撑页
-   ========================================================================== */
-.hubpage{gap:14px}
-.hubpage > .page{padding:0}
-.hubhead{display:flex;align-items:flex-start;gap:14px}
-.hubhead h2{margin:0 0 5px;font-size:17px;font-weight:650;letter-spacing:-.01em}
-.hubhead p{margin:0;font-size:12.5px;line-height:1.72;color:var(--ink-3);max-width:760px}
-.hubkind{flex:none;margin-left:auto;font-size:10.5px;color:var(--ink-4);
-  border:1px solid var(--line);border-radius:999px;padding:3px 9px;white-space:nowrap}
-.subtabs{display:flex;gap:6px;border-bottom:1px solid var(--line);padding-bottom:0}
-.subtab{
-  position:relative;border:0;background:transparent;cursor:pointer;
-  padding:8px 13px 10px;font-size:12.5px;font-weight:550;color:var(--ink-3);
-  border-radius:7px 7px 0 0;transition:.16s
+.nlqask textarea:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(var(--acc-rgb),.14)}
+.nlqex{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
+.nlqex .ex{
+  appearance:none;cursor:pointer;font-size:11.5px;color:var(--ink-2);
+  background:var(--panel-2);border:1px solid var(--line-2);border-radius:999px;padding:4px 11px;
 }
-.subtab:hover{background:var(--panel-2);color:var(--ink)}
-.subtab.on{color:var(--acc);font-weight:650}
-.subtab.on::after{content:'';position:absolute;left:9px;right:9px;bottom:-1px;height:2px;
-  background:var(--acc);border-radius:2px}
-.subtab:active{transform:scale(.98)}
-@media (max-width:640px){
-  .hubhead{flex-direction:column;gap:8px}
-  .hubkind{margin-left:0}
-  .subtabs{overflow-x:auto;scrollbar-width:none}
-  .subtabs::-webkit-scrollbar{display:none}
+.nlqex .ex:hover{color:var(--ink);border-color:var(--acc)}
+
+/* 提示条：拒答用左侧红条，普通说明用左侧蓝条 —— 不靠颜色堆砌，靠位置区分严重度 */
+.nlqmsg{margin-top:13px;border-radius:var(--radius-sm);padding:11px 14px;font-size:12.5px;line-height:1.7}
+.nlqmsg.refuse{background:var(--panel-2);border:1px solid var(--line-2);border-left:3px solid var(--crit);color:var(--ink-2)}
+.nlqmsg.info{background:var(--panel-2);border:1px solid var(--line);border-left:3px solid var(--acc);color:var(--ink-2)}
+.nlqmsg strong{color:var(--ink-strong)}
+
+/* 结果区的数据来源说明 */
+.nlqsrc{display:flex;flex-direction:column;gap:7px;font-size:12px;color:var(--ink-2)}
+.nlqsrc .sline{display:flex;gap:9px;line-height:1.6}
+.nlqsrc .sline b{flex:0 0 76px;color:var(--ink-3);font-weight:600}
+
+/* 本次会话的查询留痕：答辩演示时可一键回到上一步的查询 */
+.nlqhist{display:flex;flex-direction:column;gap:6px}
+.nlqhist .h{
+  display:flex;align-items:center;gap:9px;width:100%;text-align:left;cursor:pointer;
+  font:inherit;font-size:12px;color:var(--ink-2);
+  background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 11px;
 }
+.nlqhist .h:hover{border-color:var(--acc);color:var(--ink)}
+.nlqhist .h b{font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nlqhist .h i{margin-left:auto;flex:none;font-style:normal;color:var(--ink-4);font-size:11px}
 
 @media print{
-  .sidebar,.topbar,.stepper,.actbar,.btnrow,.panel>h3,.histlist,.candlist,.cmpwrap{display:none!important}
-  body{background:#fff;color:#000}
-  .page{padding:0}
-  .panel{background:transparent;border:none;padding:0;margin:0}
-  .plancard{background:#fff;border:none;padding:0}
-  .ptitle{color:#000;font-size:22px}
-  .pmeta,.prow div,.psec li,.ps{color:#111}
-  .prow label,.pfoot{color:#555}
-  .ptag{background:#eee;color:#000}
-  .pfoot{display:block}
+  .sidebar,.topbar,.btnrow,.nlqask,.nlqtabs,.nlqex,.pager{display:none!important}
+  .panel{background:transparent;border:none;padding:0}
 }
 
 @media (max-width:1260px){

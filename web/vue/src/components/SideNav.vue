@@ -13,11 +13,10 @@
       </div>
     </div>
 
-    <!-- 主任务：一条从需求到方案的就医决策主线 -->
-    <!-- 点它就是"回到任务起点"：进行中也会被清回起始页（有提示），不再是点了没反应的死链 -->
+    <!-- 主任务：一句话 → 一组条件 → 一份真实结果 -->
+    <!-- 点它就是回到任务起点；起始页本身不重复渲染"重新开始"，页内那个按钮才是有意义的那个 -->
     <router-link v-for="n in NAV_MAIN" :key="n.name" :to="{ name: n.name }" class="navtab main"
-                 :class="{ active: route.name === n.name }" :title="n.title + ' · 回到起始页'"
-                 @click="store.planHome()">
+                 :class="{ active: route.name === n.name }" :title="n.title">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
            stroke-linecap="round" stroke-linejoin="round" v-html="n.icon" />
       <span class="lbl">{{ n.title }}</span>
@@ -33,22 +32,20 @@
     </router-link>
 
     <div class="sidefoot">
-      就医决策为任务主线<br>其余为数据查阅支撑
+      智能筛选为任务主线<br>其余为数据查阅支撑
     </div>
   </aside>
 </template>
 
 <script setup>
 import { useRoute } from 'vue-router'
-import { useDataStore } from '../store'
 
 const route = useRoute()
-const store = useDataStore()
 
 // 导航分两层：主线（办事）与查阅（看数据）。
 // 平级的 7 个入口会让人以为这是个看板，分层之后主次关系才明确。
 const NAV_MAIN = [
-  { name: 'plan', title: '就医决策', icon: '<circle cx="6" cy="18" r="2.6"/><circle cx="18" cy="6" r="2.6"/><path d="M8.4 17.2h4.1a3.5 3.5 0 000-7H10a3.5 3.5 0 010-7h2"/>' }
+  { name: 'filter', title: '智能筛选', icon: '<path d="M4 5h16l-6.2 7.2V19l-3.6 1.8v-8.6L4 5z"/>' }
 ]
 
 const NAV_LOOK = [

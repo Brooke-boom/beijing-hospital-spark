@@ -148,6 +148,50 @@ def main():
         print("  ✗ 内联快照不一致：%s" % {k: v[:12] for k, v in snapshots.items()})
         ok = False
 
+    # ---- 智能筛选页（自然语言 + 条件双通道）的离线能力是否真的进了产物 ----
+    # 这三件套缺任何一件，单文件形态的"智能筛选"就会退化成空壳（页面在、点了没反应），
+    # 且因为不报错，很容易在提交前被漏掉。
+    print("\n▶ 智能筛选页离线能力（app.nlq.js + app.nlq.ui.js + 词表）")
+    lex_js = os.path.join(WEB, "nlq_lexicon.json")
+    if not os.path.exists(lex_js):
+        print("  ✗ 缺少 web/nlq_lexicon.json（跑：python3 etl/export_nlq_lexicon.py）"); ok = False
+    else:
+        payload = json.load(open(lex_js, encoding="utf-8"))
+        lex = payload.get("lex") or payload          # 外层是 {meta, lex}，真正的词表在 .lex
+        print("  ✓ 词表 %s：区 %d / 类型 %d / 来源规则 %d / 科室别名 %d"
+              % ("{:,}".format(os.path.getsize(lex_js)),
+                 len(lex.get("districts") or []), len(lex.get("categories") or []),
+                 len(lex.get("source_rules") or []), len(lex.get("category_alias") or {})))
+        if not (lex.get("districts") and lex.get("categories") and lex.get("source_rules")):
+            print("  ✗ 词表内容为空（导出脚本可能写错了层级）"); ok = False
+    lex_hash = hashlib.sha1(open(lex_js, encoding="utf-8").read().encode("utf-8")).hexdigest() \
+        if os.path.exists(lex_js) else ""
+    for rel, _desc in ARTIFACTS:
+        path = os.path.join(BASE, rel)
+        if not os.path.exists(path):
+            continue
+        html = open(path, encoding="utf-8").read()
+        problems = []
+        for mark, label in (("window.__NLQ_LEX__", "内联词表"),
+                            ("app.nlq.js", "解析引擎 app.nlq.js"),
+                            ("app.nlq.ui.js", "界面层 app.nlq.ui.js")):
+            if mark not in html:
+                problems.append("缺 " + label)
+        if "app.plan.js" in html or "app.plan.ui.js" in html:
+            problems.append("残留已下线的 app.plan*.js")
+        # 「就医决策」可以出现在**历史说明**里（更新日志写"已于某日下线/重构"是正常的，
+        # 也是应该保留的），只有当成在跑的模块才算残留 —— 故用否定前行排除"下线 / 重构"语境。
+        stale_plan = re.search(r"就医决策(?![^。；\n]{0,24}(?:下线|重构))", html)
+        if stale_plan or "view-workbench" in html:
+            problems.append("残留已下线的就医决策工作台")
+        n_lex = len(re.findall(r"window\.__NLQ_LEX__\s*=", html))
+        if n_lex != 1:
+            problems.append("词表赋值 %d 次（应为 1）" % n_lex)
+        if problems:
+            print("  ✗ %s：%s" % (rel, "；".join(problems))); ok = False
+        else:
+            print("  ✓ %s：词表 + 引擎 + 界面层齐备，无下线模块残留" % rel)
+
     # ---- Vue 构建产物（前后端分离形态，Flask 挂在 /spa/）----
     print("\n▶ web/vue/dist（Vue 3 构建产物，由 Flask 挂载在 /spa/）")
     vue_dist = os.path.join(BASE, "web", "vue", "dist")
@@ -186,7 +230,7 @@ def main():
                 files = sorted(os.listdir(assets))
                 asize = sum(os.path.getsize(os.path.join(assets, f)) for f in files)
                 expect_chunks = ["app.js", "charts.js", "index.css",
-                                 "PlanView.js", "HubView.js",
+                                 "SmartFilterView.js", "HubView.js",
                                  "OverviewView.js", "AnalyticsView.js", "InstitutionsView.js",
                                  "FilterView.js", "IntegrationView.js", "QualityView.js",
                                  "AboutView.js"]
@@ -195,6 +239,12 @@ def main():
                       % ("✓" if not miss else "✗", len(files), asize / 1024 / 1024))
                 if miss:
                     print("  ✗ 缺少预期 chunk：%s（九个视图应各自成块）" % miss); ok = False
+                # 已下线的就医决策工作台不应再被打进产物
+                stale = [f for f in files if f.startswith("PlanView") or f.startswith("PlanCandidateCard")]
+                if stale:
+                    print("  ✗ 残留已下线视图 chunk：%s" % stale); ok = False
+                else:
+                    print("  ✓ 无「就医决策」残留 chunk")
         # 源码比产物新 → 提示需要重新构建（只比 mtime，够用且零依赖）
         src_newest = 0.0
         for root, _dirs, files in os.walk(os.path.join(BASE, "web", "vue", "src")):

@@ -65,6 +65,8 @@ def build_institution_dwd(inst_ods, geo_ods):
         )
         .withColumn(
             "category_norm",
+            # 顺序有讲究：先长后短、先具体后笼统，避免"社区卫生服务站"被"医院/诊所"之类的
+            # 宽泛词提前吃掉；"中医医院"含"医院"→ 归入医院，与 /api/meta/filters 的口径一致。
             F.when(F.col("category").contains("医院"), F.lit("医院"))
             .when(F.col("category").contains("诊所"), F.lit("诊所"))
             .when(F.col("category").contains("门诊"), F.lit("门诊部"))
@@ -73,6 +75,14 @@ def build_institution_dwd(inst_ods, geo_ods):
             .when(F.col("category").contains("急救"), F.lit("急救中心"))
             .when(F.col("category").contains("血液"), F.lit("血站"))
             .when(F.col("category").contains("体检"), F.lit("体检中心"))
+            # ---- 基层医疗机构单列（2026-09-19 修正）----
+            # 原始 category 里本来就有"社区卫生服务中心 / 社区卫生服务站 / 村卫生室"
+            # 三个取值，但归一化分支缺失，于是 3,463 家基层机构被统一并进"其他机构"，
+            # 导致"按机构类型"筛选里选这三类永远 0 条、其他机构虚高。
+            # 这里补齐分支，让 category_norm 与 nlq.CATEGORIES 声明的 10 类真正对齐。
+            .when(F.col("category").contains("社区卫生服务中心"), F.lit("社区卫生服务中心"))
+            .when(F.col("category").contains("社区卫生服务站"), F.lit("社区卫生服务站"))
+            .when(F.col("category").contains("卫生室"), F.lit("村卫生室"))
             .otherwise(F.lit("其他机构"))
         )
         .join(

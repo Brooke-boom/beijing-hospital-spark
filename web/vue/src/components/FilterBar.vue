@@ -77,7 +77,7 @@
     </div>
 
     <div class="chips" style="margin-top:12px">
-      <span v-if="!store.chips.length" class="muted">未设置筛选条件（显示全部机构，按综合评分排序）</span>
+      <span v-if="!store.chips.length" class="muted">未设置筛选条件（显示全部机构，按条件匹配度排序）</span>
       <span v-for="c in store.chips" :key="c.key" class="chip">
         {{ c.label }}：{{ c.value }}
         <button type="button" @click="store.setQuery({ [c.key]: '' })" title="移除该条件">×</button>
