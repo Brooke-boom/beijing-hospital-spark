@@ -513,6 +513,11 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 .dw-tab.active::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--acc)}
 .dw-body{flex:1;overflow-y:auto;padding:18px 20px 26px}
 .dwchart{width:100%;height:250px;margin-top:4px}
+.dwscope{margin:1px 0 5px;color:var(--ink-3);font-size:11.5px;line-height:1.65}
+.dwscope b{color:var(--ink);font-weight:650}
+.dwfoot{margin-top:7px;color:var(--ink-2);font-size:11.5px;line-height:1.7}
+.dwfoot b{color:var(--ink-strong);font-weight:650}
+.dwfoot .sub{display:block;margin-top:2px;color:var(--ink-4);font-size:10.6px;line-height:1.6}
 .dw-pane{display:none} .dw-pane.active{display:block;animation:vf .22s}
 .infogrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:9px}
 .ibox{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-m);padding:9px 12px;min-width:0}
@@ -3269,8 +3274,10 @@ function paintDrawerLocal(r) {
       (netDetail(r) ? netDetail(r).split('、').map(x => '<span class="chip acc">' + esc(x) + '</span>').join('')
                     : '<span style="color:' + DIM + ';font-size:12px">未纳入市级协作网络</span>') +
     '</div></div>' +
-    '<div class="blk"><h4><span class="bar"></span>同区科室数 TOP10 对比 <span class="r">红色为本机构</span></h4>' +
-      '<div class="dwchart" id="dw_chart"></div></div>';
+    '<div class="blk"><h4><span class="bar"></span>同区同类机构 · 距离对标 <span class="r">红色为本机构</span></h4>' +
+      '<div class="dwscope" id="dw_scope"></div>' +
+      '<div class="dwchart" id="dw_chart" style="height:292px"></div>' +
+      '<div class="dwfoot" id="dw_foot"></div></div>';
   paintDwChart(r);
   // 离线单文件（file://）没有后端，联系方式必须用快照里的 addr/phone 本地渲染，
   // 否则面板会永远停在「正在获取联系方式…」——这是必须避免的空转假象。
@@ -3319,28 +3326,122 @@ function contactLocalHTML(r) {
     '本系统只呈现<b>机构资源数据</b>，不涉及号源、出诊与候诊信息。</div>';
 }
 
-// 同区科室数横向对比（在当前区县内看该机构的相对位置）
+// 同区同类机构 · 距离对标（同区 + 同类型 + 同等级的可比机构，按与基准点的距离排）
+// ---------------------------------------------------------------------------
+// 这里**刻意不再用「科室数」做横向对比**。dept_count 由三种不可比的口径拼成：
+//   ① 源数据只登记了 1~2 个科室（7,500+ 家基层机构），反映的是收录深度；
+//   ② 102 家机构的「19 个科室」在源数据里是 source=rule / raw_name=推导，
+//      即规则补出的一份通用名单，不是该机构真实的科室设置；
+//   ③ 45 家为百科自述口径（dept_count_src=baike_claim），机构自己声明的数字。
+// 三者同图比高矮，比出来的是「数据怎么来的」，不是机构规模 —— 会误导读者，
+// 也答不了「我该不该去这家」。换成**距离**：由坐标实时算出、口径统一，
+// 且正是使用者选机构时最在意的量；再给出本机构在同类中的位次。
 let DW_CHART = null;
+
+function dwMedian(arr) {
+  if (!arr.length) return 0;
+  const a = arr.slice().sort((x, y) => x - y), m = a.length >> 1;
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+
+// 可比机构池：同区 + 同类型 + 同等级；不足 6 家时逐级放宽，并把实际口径写进界面
+function dwPeerSet(r) {
+  const all = DATA.institutions.filter(x => x.district === r.district && x.lng != null && x.lat != null);
+  const cat = all.filter(x => x.category === r.category);
+  const lvl = cat.filter(x => String(x.level) === String(r.level));
+  if (lvl.length >= 6) return { rows: lvl, scope: '同区 · 同类型 · 同等级' };
+  if (cat.length >= 6) return { rows: cat, scope: '同区 · 同类型' };
+  return { rows: all, scope: '同区全部机构' };
+}
+
+// 机构名标签：超过 n 字自动折成两行（"首都医科大学附属北京世纪坛医院" 这类长名，
+// 一刀截断会把几家不同的医院都变成同一个前缀）；折行后仍撞车的加序号。
+function dwLabels(list, n) {
+  const wrap = s => {
+    s = String(s || '');
+    if (s.length <= n) return s;
+    if (s.length <= n * 2) return s.slice(0, n) + '\n' + s.slice(n);
+    return s.slice(0, n) + '\n' + s.slice(n, n * 2 - 1) + '…';
+  };
+  const labels = list.map(x => wrap(x.name)), seen = {};
+  labels.forEach((s, i) => {
+    seen[s] = (seen[s] || 0) + 1;
+    if (seen[s] > 1) labels[i] = s + '(' + seen[s] + ')';
+  });
+  return labels;
+}
+
 function paintDwChart(r) {
-  const el = $('dw_chart');
+  const el = $('dw_chart'), sc = $('dw_scope'), ft = $('dw_foot');
+  if (DW_CHART) { try { DW_CHART.dispose(); } catch (e) { } DW_CHART = null; }
   if (!el || typeof echarts === 'undefined') return;
-  const same = DATA.institutions.filter(x => x.district === r.district && x.dept_count);
-  const top10 = same.slice().sort((a, b) => (b.dept_count || 0) - (a.dept_count || 0)).slice(0, 10);
-  if (!top10.some(x => String(x.id) === String(r.id))) top10.push(r);
-  top10.reverse();
+  const base = curBase();
+  const anchor = BASE_NOW ? '距' + BASE_NOW.name : '距市中心（天安门）';
+  if (r.lng == null || r.lat == null) {
+    if (sc) sc.textContent = '';
+    if (ft) ft.textContent = '';
+    el.innerHTML = '<div class="empty">该机构缺经纬度，无法与同类机构做距离对标</div>';
+    return;
+  }
+  const peers = dwPeerSet(r);
+  const rows = peers.rows.map(x => ({
+    id: x.id, name: x.name, level: x.level, category: x.category,
+    km: Math.round(haversine(base.lng, base.lat, x.lng, x.lat) * 10) / 10,
+  })).sort((a, b) => a.km - b.km);
+  const idx = rows.findIndex(x => String(x.id) === String(r.id));
+  if (sc) {
+    sc.innerHTML = '对标范围：' + esc(r.district) + ' · ' + esc(peers.scope) + ' · 共 <b>' + rows.length +
+      '</b> 家 · 按' + esc(anchor) + '由近到远';
+  }
+  if (rows.length < 3 || idx < 0) {
+    if (ft) ft.textContent = '同类机构样本不足 3 家，暂不做距离对标。';
+    el.innerHTML = '<div class="empty">可比机构太少，不做距离对标</div>';
+    return;
+  }
+  const mine = rows[idx], kms = rows.map(x => x.km);
+  const mid = dwMedian(kms), far = kms[kms.length - 1];
+  // 图上画「最近的 8 家 + 本机构」；本机构若不在前 8 名则补一张柱子，保证它一定可见
+  const shown = rows.slice(0, 8);
+  if (idx >= 8) shown.push(mine);
+  const labels = dwLabels(shown, 11);
+  if (ft) {
+    ft.innerHTML = '本机构 <b>' + mine.km.toFixed(1) + ' km</b> · 在 ' + rows.length + ' 家同类机构中排<b>第 ' +
+      (idx + 1) + ' 近</b>' +
+      '<span class="sub">' + esc(anchor) + '：最近 ' + kms[0].toFixed(1) + ' km / 中位 ' + mid.toFixed(1) +
+      ' km / 最远 ' + far.toFixed(1) + ' km　·　图中为最近 ' + (shown.length - 1) + ' 家 + 本机构' +
+      '　·　只比地理位置，不含医疗水平评价；同类机构不足 6 家时逐级放宽对标范围</span>';
+  }
   if (!DW_CHART) DW_CHART = echarts.init(el);
   DW_CHART.setOption({
-    tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, TIP),
-    grid: { left: 108, right: 34, top: 6, bottom: 6 },
-    xAxis: Object.assign({ type: 'value' }, AXIS),
-    yAxis: Object.assign({ type: 'category', data: top10.map(x => trunc(x.name, 12)) }, AXIS),
+    tooltip: Object.assign({
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      // 注意：formatter 传函数时 ECharts **不会**替换 {b}/{c} 模板，必须自己拼字符串
+      formatter: function (ps) {
+        const p = ps[0], d = shown[p.dataIndex];
+        if (!d) return '';
+        return d.name + '<br/>' + anchor + ' ' + d.km.toFixed(1) + ' km<br/>' + d.level + ' · ' + d.category;
+      },
+    }, TIP),
+    // bottom 留出横轴刻度位（刻度画在网格下方，bottom 太小会被画布裁掉）
+    grid: { left: 122, right: 56, top: 8, bottom: 20 },
+    xAxis: Object.assign({ type: 'value', min: 0 }, AXIS, {
+      axisLabel: Object.assign({}, AXIS.axisLabel, { formatter: '{value} km' }),
+    }),
+    // inverse: 让最近的机构落在最上面，读起来与「由近到远」一致
+    // lineHeight: 机构名可能折成两行，不给显式行高两行会叠在一起
+    yAxis: Object.assign({ type: 'category', inverse: true, data: labels }, AXIS, {
+      axisLabel: Object.assign({}, AXIS.axisLabel, { lineHeight: 12 }),
+    }),
     series: [{
       type: 'bar', barMaxWidth: 13,
-      data: top10.map(x => ({
-        value: x.dept_count || 0,
+      data: shown.map(x => ({
+        value: x.km,
         itemStyle: { color: String(x.id) === String(r.id) ? CRIT : ACC, borderRadius: [0, 4, 4, 0] },
       })),
-      label: { show: true, position: 'right', color: INK, fontSize: 10 },
+      label: {
+        show: true, position: 'right', color: INK, fontSize: 10,
+        formatter: function (p) { return Number(p.value).toFixed(1); },
+      },
     }],
   }, true);
   setTimeout(() => { try { DW_CHART.resize(); } catch (e) { } }, 60);

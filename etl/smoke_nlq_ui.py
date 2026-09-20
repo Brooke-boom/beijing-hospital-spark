@@ -117,6 +117,14 @@ setTimeout(function(){
                     }
                     r.push('drawer_depthead=' + h4);
                     r.push('drawer_deptchips=' + document.querySelectorAll('#pane-spec .deptchips .chip').length);
+                    // ── H2. 概览页的「同区同类机构 · 距离对标」
+                    //    过去这里是「同区科室数 TOP10」——科室数混着三种口径
+                    //    （源数据只登记 1~2 个 / 规则推导的通用 19 科室名单 / 百科自述值），
+                    //    柱子高矮反映的是"数据怎么来的"，横向比会误导，故整块换掉。
+                    r.push('dw_scope=' + tx('dw_scope'));
+                    r.push('dw_foot=' + tx('dw_foot'));
+                    r.push('dw_oldblock=' + (document.getElementById('pane-ov').textContent.indexOf('同区科室数') >= 0));
+                    r.push('dw_empty=' + cnt('#dw_chart .empty'));
                     // ── I. 口语化输入：不该被当成机构名关键词（本轮修复）
                     //    过去「想找个靠谱的大医院」会解析出 kw="想找靠谱大" → 0 家，
                     //    「海淀那边有哪些大医院」会解析出 kw="那边大" → 0 家。
@@ -253,6 +261,15 @@ def main():
                    kv.get("drawer_depthead", "?")))
     checks.append(("科室明细列出了科室", int(kv.get("drawer_deptchips", "0") or 0) > 0,
                    "chips=%s" % kv.get("drawer_deptchips")))
+    # ── 概览页的「同区同类机构 · 距离对标」（本轮替换掉「同区科室数 TOP10」）
+    _sc = kv.get("dw_scope", "")
+    checks.append(("对标范围写出同区与家数", "同区" in _sc and "家" in _sc, _sc[:64]))
+    checks.append(("给出本机构在同类中的位次", "排第" in kv.get("dw_foot", "")
+                   and "km" in kv.get("dw_foot", ""), kv.get("dw_foot", "?")[:64]))
+    checks.append(("旧的「同区科室数」整块已移除", kv.get("dw_oldblock") == "false",
+                   "pane-ov 含旧块=%s" % kv.get("dw_oldblock")))
+    checks.append(("该机构有坐标时不显示空态", kv.get("dw_empty") == "0",
+                   "empty 块=%s" % kv.get("dw_empty")))
     # ── 口语化输入（本轮修复：填充词曾被当成机构名关键词 → 结果恒 0 家）
     checks.append(("口语输入不产出机构名关键词卡片", kv.get("oral1_kwchip") == "0",
                    "kw 卡片=%s / %s" % (kv.get("oral1_kwchip"),
