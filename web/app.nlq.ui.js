@@ -523,8 +523,9 @@ var NLQ_UI = (function () {
   }
 
   // 科室数的展示口径统一走 app.js 里的 deptLabel（同一份判据，不在本文件重复实现）。
-// dept_count 由三种不可比的口径拼成（在线核实 / 登记科目 / 通用清单推导），
-// 直接甩一个数字会误导——判据与注释见 app.js 中的 deptLabel。
+// dept_count 只有「在线核实值」（dept_count_src 非空，实测 34 家）可对外显数字；
+// 其余 9,755 家的值 96.8% 由「等级×类型」规则与机构名推导而来（含既往的百科模板污染），
+// 统一回落为「科室资料待补全」——判据与注释见 app.js 中的 deptLabel。
 // 这里用运行时判断，避免两个文件的加载顺序耦合。
 function deptTag(r) {
   if (typeof deptLabel === 'function') return deptLabel(r);

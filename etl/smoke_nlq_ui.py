@@ -121,6 +121,8 @@ setTimeout(function(){
                     //    过去这里是「同区科室数 TOP10」——科室数混着三种口径
                     //    （源数据只登记 1~2 个 / 规则推导的通用 19 科室名单 / 百科自述值），
                     //    柱子高矮反映的是"数据怎么来的"，横向比会误导，故整块换掉。
+                    //    补充（2026-09-20）：科室数已收敛为「仅在线核实值显数字」，
+                    //    其余 9,755 家显示「科室资料待补全」（96.8% 的值由规则/名称推导而来）。
                     r.push('dw_scope=' + tx('dw_scope'));
                     r.push('dw_foot=' + tx('dw_foot'));
                     r.push('dw_oldblock=' + (document.getElementById('pane-ov').textContent.indexOf('同区科室数') >= 0));

@@ -123,7 +123,7 @@ def api_institutions():
       net       协作网络（ped_core/ped_member/stroke/neonatal/maternal）
       lng/lat   参考点坐标（默认天安门），用于距离计算与排序
       sort      排序策略：score（条件匹配度加权）| distance（近→远）| level（等级优先）
-                          | depts（科室数量多→少）| name（机构名称，默认 score）
+                          | depts（科室收录量多→少）| name（机构名称，默认 score）
       page      页码（默认 1）
       page_size 每页条数（默认 20，最大 100）
     返回：{total, page, page_size, items[], meta{}}
