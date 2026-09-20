@@ -16,7 +16,7 @@
             <th style="width:74px">等级</th>
             <th style="width:74px">办别</th>
             <th style="width:80px">类型</th>
-            <th style="width:70px">科室数</th>
+            <th style="width:104px">科室数</th>
             <th style="width:74px">距离</th>
             <th style="width:70px">评分</th>
           </tr>

@@ -143,28 +143,38 @@ setTimeout(function(){
                         r.push('oral2_kwchip=' + cnt('#nlq_chips .nlqchip[data-ck="kw"]'));
                         r.push('oral2_count=' + tx('nlq_count'));
                         r.push('oral2_rows=' + cnt('#nlq_list .row'));
-                        // ── J. 科室数的展示口径（本轮修复：22 家医院凭空多出「59 个科室」）
-                        //    百度百科上这几家词条共用同一段模板文字
-                        //    「开放编制床位2500张；共设59个临床、医技科室」，
-                        //    抓取时被当成了每家各自的科室数。现在列表里必须带口径提示，
-                        //    且「59 个科室」不再出现。
+                        // ── J. 科室数的展示口径（两轮整治）
+                        //    第一轮：22 家医院凭空多出「59 个科室」（百度百科模板文字污染）；
+                        //    第二轮：撤掉污染后暴露出 dept_count 有 97% 是 rule/name 推导，
+                        //    1,805 家会重复显示同一个模板数字（2/6/7/13/19），另有 468 家只登记到 1 条。
+                        //    定版口径：**只有 dept_count_src 非空（在线核实值）才显示数字**，其余「科室资料待补全」。
                         var _metas = document.querySelectorAll('#nlq_list .row .meta');
-                        var _n59 = 0, _tipOn = 0, _tipRule = 0, _tipPend = 0;
+                        var _n59 = 0, _tipOn = 0, _tipPend = 0, _tipOther = 0, _numeric = 0;
                         for (var _mi = 0; _mi < _metas.length; _mi++) {
                           var _mt = _metas[_mi].innerText || '';
                           if (_mt.indexOf('59 个科室') >= 0) _n59++;
                           var _sps = _metas[_mi].querySelectorAll('span[title]');
                           for (var _si = 0; _si < _sps.length; _si++) {
-                            var _ti = _sps[_si].getAttribute('title') || '';
+                            var _sp = _sps[_si];
+                            var _ti = _sp.getAttribute('title') || '';
+                            var _tx = (_sp.textContent || '').trim();
+                            // 数字判定用手写循环，避免把正则的反斜杠塞进 Python 字符串
+                            var _hasNum = false;
+                            for (var _ci = 0; _ci < _tx.length; _ci++) {
+                              var _cc = _tx.charCodeAt(_ci);
+                              if (_cc >= 48 && _cc <= 57) { _hasNum = true; break; }
+                            }
+                            if (_hasNum) _numeric++;
                             if (_ti.indexOf('在线核实') === 0) _tipOn++;
-                            else if (_ti.indexOf('通用科室清单') >= 0) _tipRule++;
-                            else if (_ti.indexOf('仅收录到') >= 0) _tipPend++;
+                            else if (_ti.indexOf('源数据未收录该机构的科室设置') >= 0) _tipPend++;
+                            else if (_tx.indexOf('个科室') >= 0 || _tx.indexOf('待补全') >= 0) _tipOther++;
                           }
                         }
                         r.push('dept59=' + _n59);
                         r.push('dept_tiponline=' + _tipOn);
-                        r.push('dept_tiprule=' + _tipRule);
                         r.push('dept_tippending=' + _tipPend);
+                        r.push('dept_tipother=' + _tipOther);
+                        r.push('dept_numeric=' + _numeric);
                         r.push('dept_head=' + (_metas.length ? _metas[0].innerText.replace(/\s+/g, ' ').trim() : ''));
                         done();
                       }, 1300);
@@ -284,6 +294,11 @@ def main():
                    kv.get("drawer_depthead", "?")))
     checks.append(("科室明细列出了科室", int(kv.get("drawer_deptchips", "0") or 0) > 0,
                    "chips=%s" % kv.get("drawer_deptchips")))
+    # 明细表头必须标注这份名录的来源，不能把它当成该院的科室总数
+    _dh = kv.get("drawer_depthead", "")
+    checks.append(("科室明细表头标注名录来源",
+                   ("推导清单" in _dh) or ("已收录明细" in _dh),
+                   _dh[:56]))
     # ── 概览页的「同区同类机构 · 距离对标」（本轮替换掉「同区科室数 TOP10」）
     _sc = kv.get("dw_scope", "")
     checks.append(("对标范围写出同区与家数", "同区" in _sc and "家" in _sc, _sc[:64]))
@@ -310,13 +325,20 @@ def main():
                    "家" in kv.get("oral2_count", "") and "—" not in kv.get("oral2_count", "")
                    and int(kv.get("oral2_rows", "0") or 0) > 0,
                    "%s / rows=%s" % (kv.get("oral2_count", "?"), kv.get("oral2_rows"))))
-    checks.append(("科室数不再出现「59 个科室」", int(kv.get("dept59", "-1") or -1) == 0,
+    checks.append(("「59 个科室」不再出现", int(kv.get("dept59", "-1") or -1) == 0,
                    "命中=%s" % kv.get("dept59")))
-    checks.append(("科室数带口径提示", int(kv.get("dept_tiponline", "0") or 0) > 0
-                   or int(kv.get("dept_tiprule", "0") or 0) > 0,
-                   "在线核实=%s 通用清单=%s 待补全=%s | 首行=%s" % (
-                       kv.get("dept_tiponline"), kv.get("dept_tiprule"),
-                       kv.get("dept_tippending"), (kv.get("dept_head", "") or "")[:46])))
+    _ton = int(kv.get("dept_tiponline", "0") or 0)
+    _tpd = int(kv.get("dept_tippending", "0") or 0)
+    _toth = int(kv.get("dept_tipother", "0") or 0)
+    checks.append(("科室数只对在线核实值显数字",
+                   int(kv.get("dept_numeric", "-1") or -1) == _ton and _ton > 0,
+                   "显数字=%s 在线核实=%s" % (kv.get("dept_numeric"), _ton)))
+    checks.append(("无在线值的机构显示「科室资料待补全」",
+                   _tpd > 0,
+                   "待补全=%s 在线核实=%s | 首行=%s" % (
+                       _tpd, _ton, (kv.get("dept_head", "") or "")[:44])))
+    checks.append(("科室项口径提示无未归类分支", _toth == 0,
+                   "未归类=%s" % kv.get("dept_tipother")))
     errs = kv.get("ERR", "?")
     checks.append(("无运行时错误", errs == "none", errs))
 

@@ -112,7 +112,7 @@ const PRESETS = [
 
 const SORTS = {
   score: '条件匹配度', distance: '距离（近 → 远）', level: '医院等级',
-  depts: '科室数量', name: '机构名称'
+  depts: '科室收录量', name: '机构名称'
 }
 const sortLabel = computed(() => SORTS[store.query.sort] || store.query.sort)
 const netLabel = computed(() => {

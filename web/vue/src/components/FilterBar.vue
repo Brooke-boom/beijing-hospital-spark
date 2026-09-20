@@ -59,7 +59,7 @@
           <option value="score">条件匹配度</option>
           <option value="distance">距离（近 → 远）</option>
           <option value="level">医院等级</option>
-          <option value="depts">科室数量</option>
+          <option value="depts">科室收录量</option>
           <option value="name">机构名称</option>
         </select>
       </div>

@@ -205,8 +205,9 @@ def main():
         inst = pg.evaluate("() => document.querySelectorAll('.tbl tbody tr').length")
         checks.append(("找机构页有列表行", inst > 0, "rows=%d" % inst))
 
-        # 科室数口径：dept_count 有三种来源（在线核实 / 登记科目 / 通用清单推导），
-        # 单元格必须带 title 说明来路，且不再出现被百科模板污染的「59」。
+        # 科室数口径（定版）：dept_count 97% 由 rule/name 推导——1,805 家会重复显示同一个
+        # 模板数字（2/6/7/13/19），另有 468 家只登记到 1 条。因此**只有 dept_count_src 非空
+        # （在线核实值，实测 34 家）才显示数字**，其余一律「科室资料待补全」。
         dc = pg.evaluate("""() => {
           const tds = [...document.querySelectorAll('.tbl tbody tr')]
             .map(tr => tr.children[5]).filter(Boolean);
@@ -214,12 +215,17 @@ def main():
             n: tds.length,
             texts: tds.map(td => td.innerText.trim()),
             tips: tds.filter(td => td.getAttribute('title')).length,
+            num: tds.filter(td => /[0-9]/.test(td.innerText)).length,
+            pending: tds.filter(td => td.innerText.indexOf('科室资料待补全') >= 0).length,
           };
         }""")
         checks.append(("科室数列不再出现「59」", '59' not in dc["texts"],
                        "取值=%s" % dc["texts"][:8]))
-        checks.append(("科室数列带口径提示", dc["tips"] > 0,
+        checks.append(("科室数列逐格带口径提示", dc["n"] > 0 and dc["tips"] == dc["n"],
                        "带提示 %d/%d 行" % (dc["tips"], dc["n"])))
+        checks.append(("科室数只对在线核实值显数字",
+                       dc["n"] > 0 and dc["num"] + dc["pending"] == dc["n"],
+                       "显数字=%d 待补全=%d / 共 %d 行" % (dc["num"], dc["pending"], dc["n"])))
 
         pg.goto("%s#/find?t=institutions" % BASE, wait_until="networkidle", timeout=45000)
         time.sleep(2.2)

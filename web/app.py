@@ -981,7 +981,7 @@ COMPARE_FIELDS = [
     ("name", "机构名称"), ("level", "医院等级"), ("category", "机构类型"),
     ("ownership", "办别性质"), ("district", "所属区域"),
     ("key_specialty_count", "重点专科数"), ("national_specialty_count", "国家级重点专科"),
-    ("municipal_specialty_count", "市级重点专科"), ("dept_count", "科室数量"),
+    ("municipal_specialty_count", "市级重点专科"), ("dept_count", "科室数量（含推导）"),
     ("networks_text", "协作网络"), ("national_specialty", "国家级专科清单"),
     ("municipal_specialty", "市级专科清单"), ("feature", "擅长科室"),
     ("addr", "地址"), ("phone", "联系电话"), ("distance_text", "距离基准点"),
@@ -1122,7 +1122,7 @@ AI_ADVICE_RULES = (
     "你是「北京市医疗机构数据智能分析与筛选平台」的数据解读助手。"
     "请基于用户给出的【该机构的真实数据】，写一段 80~120 字的**机构数据画像解读**。\n"
     "硬性要求：\n"
-    "① 只能引用给定的真实信息（等级、区域、类型、所有制、重点专科名称、协作网络、科室数量），"
+    "① 只能引用给定的真实信息（等级、区域、类型、所有制、重点专科名称、协作网络），"
     "不得添加任何未给出的信息；\n"
     "② 严禁编造医生姓名、职称、出诊时间、号源数量、价格、治愈率或任何具体数字；\n"
     "③ 严禁使用「全国第一」「最好的医院」等无法核实的绝对化表述；\n"

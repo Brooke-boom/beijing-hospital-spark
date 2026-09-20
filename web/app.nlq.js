@@ -444,8 +444,9 @@ var NLQ = (function () {
         category_sub: it.category_sub || '', level: it.level, ownership: it.ownership,
         addr: it.addr || '', phone: it.phone || '', lng: it.lng, lat: it.lat,
         coord_precision: it.coord_precision, dept_count: it.dept_count,
-        // 科室数的口径字段必须一并带出：前端靠它区分「在线核实 / 登记科目 / 通用清单推导」，
-        // 漏带会让所有机构都按「登记科目」展示，口径提示形同虚设。
+        // 科室数的口径字段必须一并带出：前端靠它判定「在线核实值可显数字 / 其余一律待补全」
+        // （hospital_depts.csv 97% 的行是 rule/name 推导，只有 dept_count_src 非空才是核实值）。
+        // 漏带会让所有机构都退化成「无核实值」，列表整列变成「科室资料待补全」而无法区分。
         dept_count_src: it.dept_count_src || '', rule_dept_count: it.rule_dept_count || 0,
         // 来源计数：带库构建的快照叫 src_count_int，手工回填的老快照叫 src_count，两者都认
         src_count_int: (it.src_count_int != null ? it.src_count_int

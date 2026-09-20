@@ -290,7 +290,7 @@ const FLT_FIELDS = [
 ];
 const FLT_DEFAULT = { f_base: '', f_sort: 'score' };   // 距离基准默认空：进页自动定位，或输入任意地址
 // 排序 = 维度 × 方向；距离维度的语义就是「近 → 远」，固定为升序
-const SORT_LABEL = { score: '条件匹配度', distance: '距离', level: '医院等级', depts: '科室数量', name: '机构名称' };
+const SORT_LABEL = { score: '条件匹配度', distance: '距离', level: '医院等级', depts: '科室收录量', name: '机构名称' };
 const SORT_DIR_DEFAULT = { score: 'desc', distance: 'asc', level: 'desc', depts: 'desc', name: 'asc' };
 const SORT_FIXED_ASC = { distance: true };
 let SORT_DIR = 'desc';
@@ -1145,8 +1145,9 @@ function renderKPI() {
   if (vmt) { vmt.classList.remove('pop'); void vmt.offsetWidth; vmt.classList.add('pop'); }
   setText('v_l3', FILTERED.filter(r => r.level === '三级').length.toLocaleString());
   setText('v_coord', FILTERED.filter(r => r.lng != null).length.toLocaleString());
-  const avg = FILTERED.length ? (FILTERED.reduce((s, r) => s + (r.dept_count || 0), 0) / FILTERED.length).toFixed(1) : '0';
-  setText('v_dept', avg);
+  // KPI 由「平均科室数」改为「科室数已核实」：dept_count 97% 由 rule/name 推导，
+  // 求平均得到的是模板值的均值（全局 1.8），无任何实际含义。改为如实报告覆盖面。
+  setText('v_dept', FILTERED.filter(r => String(r.dept_count_src || '')).length.toLocaleString());
   setText('v_feat', FILTERED.filter(r => (r.key_specialty_count || 0) > 0).length.toLocaleString());
   const netN = FILTERED.filter(r => r.net_pediatric || r.net_stroke === '1' || r.net_neonatal === '市级' || r.net_maternal === '市级').length;
   setText('v_net', netN.toLocaleString());
@@ -1523,7 +1524,7 @@ function scatterTipFmt(p) {
     '<b style="font-size:13px">' + esc(r.name) + '</b>' +
     '<div style="color:' + SUB + ';margin:3px 0 6px;font-size:12px">' + esc(r.district) + ' · ' + esc(lvl) + '</div>' +
     (r.addr ? '<div style="font-size:12px;color:' + BODY2 + ';line-height:1.4">' + esc(r.addr) + '</div>' : '') +
-    '<div style="font-size:12px;color:' + BODY2 + ';margin-top:3px">科室 ' + num(r.dept_count) + ' 个 · 重点专科 ' + num(r.key_specialty_count) + ' 项</div>' +
+    '<div style="font-size:12px;color:' + BODY2 + ';margin-top:3px">' + deptText(r) + ' · 重点专科 ' + num(r.key_specialty_count) + ' 项</div>' +
     '<div style="font-size:11px;color:' + ACC + ';margin-top:6px">点击查看机构详情 →</div>' +
     '</div>';
 }
@@ -1802,12 +1803,8 @@ function paintDrawerLocal(r) {
       box('医院等级', levelBadge(r.level) + '<div class="mini" style="color:' + FAINT + ';font-size:11px;margin-top:4px">' + esc(r.level === '不适用医院分级' ? '该类型不参加等级评审' : r.level) + '</div>' +
         (r.level_src === 'baike_level' ? '<div style="color:' + FAINT + ';font-size:10px;margin-top:3px">百科信息栏 · 在线核实</div>' : '')) +
       box('办别性质', (r.ownership || '未标注') + (r.ownership_basis ? '<div style="color:' + FAINT + ';font-size:10px;margin-top:3px">依据 ' + esc(r.ownership_basis) + '</div>' : OWN_SRC_LABEL[r.ownership_src] || '')) +
-      box('科室数量', num(r.dept_count) + ' 个' +
-        (r.dept_count_src === 'baike_claim'
-          ? '<div style="color:' + FAINT + ';font-size:10px;margin-top:3px">官网口径 · 在线核实</div>'
-          : r.dept_count_src === 'baike_table'
-            ? '<div style="color:' + FAINT + ';font-size:10px;margin-top:3px">百科科室表 · 在线核实</div>'
-            : '')) +
+      box('科室数量', deptText(r) +
+        '<div style="color:' + FAINT + ';font-size:10px;margin-top:3px">' + deptSourceNote(r) + '</div>') +
       box('重点专科', num(r.key_specialty_count) + ' 项') +
       box('距' + (BASE_NOW ? base.name : '市中心'), dist) +
     '</div>' +
@@ -1832,44 +1829,56 @@ function paintDrawerLocal(r) {
 // 不含「是否重点专科 / 归属来源」两列——那两列要连本地服务才有。
 // 这一段的意义：用户在智能筛选里按科室筛出机构后，点进来能看见同一批科室名，
 // 而不是"筛得到、详情里却看不到"。
-// 科室数的展示口径。
-// dept_count 有三种来源，列表里直接甩一个数字会误导：
-//   ① 在线核实（dept_count_src）：机构官网 / 百科词条自述，最接近真实；
-//   ② 登记诊疗科目（specialty / key_depts）：来自医疗机构登记的诊疗科目；
-//   ③ 规则推导（rule_dept_count）：源数据没收录时，按「机构等级 × 类型」套的一份
-//      通用清单（如三级医院 19 个），**不是**这家机构真实的科室构成。
-// 另有一批头部医院在源数据里只登记到 1~5 个科室（宣武医院只登记了「神经内科」一条
-// 国家级重点专科），此时把收录条数当科室数展示反而误导，统一回落为「科室资料待补全」。
+// 科室数的展示口径（2026-09-20 定版，勿回退）
+// dept_count 字面是 hospital_depts.csv 中该机构的行数，但该表 97% 的行是推导出来的：
+//   source='rule'      11,840 行 —— 按「机构等级 × 类型」套的通用清单（三级 19 / 二级 13 / 一级 6、7）
+//   source='name'       3,900 行 —— 按机构名推导（「中医医院」→ 中医内科、针灸推拿科）
+//   source='key_depts'    488 行 + source='specialty' 23 行 —— 源数据登记的真实科室，仅占 3%
+// 于是：
+//   · 9,755 家没有在线核实值，其中 1,805 家会重复显示同一个模板数字（2→1,107 / 7→295 / 6→226 / 19→91 / 13→86）；
+//   · 另有 468 家只登记到 1 条，含东直门医院、东方医院等三甲中医医院——显示「1 个科室」比 59 更荒谬。
+// 结论：**唯一可对外的数字只有在线的核实值**（dept_count_src 非空，实测 34 家），
+// 其余一律「科室资料待补全」。推导出的科室名仍参与「科室」维度检索与排序，但不作为事实展示。
 function deptLabel(r) {
-  const n = Number(r.dept_count || 0);
-  if (!n) return '';
-  const src = String(r.dept_count_src || '');
-  const rule = Number(r.rule_dept_count || 0);
-  const lv = String(r.level || '');
-  if (src) {
+  if (String(r.dept_count_src || '')) {
+    const n = Number(r.dept_count || 0);
     return '<span title="在线核实：来自机构官网 / 百科词条的科室设置，共 ' + n + ' 个">' +
       n + ' 个科室</span>';
   }
-  if (rule >= n) {
-    return '<span title="源数据未收录该机构的科室设置，当前数量按「' + (lv || '同类型') +
-      '」通用科室清单推导，仅供筛选参考，不代表真实科室构成">' + n + ' 个科室</span>';
-  }
-  if ((lv === '三级' || lv === '二级') && n <= 5) {
-    return '<span title="源数据仅收录到 ' + n + ' 个科室，与该院实际规模不符，故不展示具体数字">' +
-      '科室资料待补全</span>';
-  }
-  return '<span title="来自医疗机构登记的诊疗科目，共 ' + n + ' 个">' + n + ' 个科室</span>';
+  return '<span title="源数据未收录该机构的科室设置。检索用的科室清单系按机构等级与名称推导，' +
+    '仅用于科室维度筛选，不代表真实科室构成。">科室资料待补全</span>';
+}
+
+// 纯文本版：供 ECharts tooltip 与 infogrid 复用，避免口径判断散落在各渲染点
+function deptText(r) {
+  return String(r.dept_count_src || '')
+    ? (Number(r.dept_count || 0) + ' 个科室')
+    : '科室资料待补全';
+}
+
+// 详情抽屉的小字注脚：说清数字的出处
+function deptSourceNote(r) {
+  const src = String(r.dept_count_src || '');
+  if (src === 'baike_claim') return '官网口径 · 在线核实';
+  if (src === 'baike_table') return '百科科室表 · 在线核实';
+  return '源数据未收录 · 不展示推导值';
 }
 
 function deptsLocalHTML(r) {
   const ds = String(r.depts || '').split(';').filter(Boolean);
   if (!ds.length) return '';
-  return '<div class="blk"><h4><span class="bar"></span>科室明细 <span class="r">共 ' + ds.length +
-    ' 个科室</span></h4><div class="deptchips">' +
-    ds.map(x => '<span class="chip">' + esc(x) + '</span>').join('') + '</div>' +
-    '<div style="color:' + FAINT + ';font-size:10.5px;margin-top:9px">科室名录来自 ' +
-    'dwd_dept_relation_clean（Spark 数仓 DWD 层，随离线快照内嵌）；' +
-    '「是否重点专科 / 归属来源」两列在本地服务在线时展示。</div></div>';
+  const online = !!String(r.dept_count_src || '');
+  // 表头必须描述**这份列表**，不能把它当成该院的科室总数：
+  // 在线核实的机构 dept_count 是机构自述总数（如 39），与快照里收录到的明细条数（如 19）不同。
+  const head = '共 ' + ds.length + ' 条' + (online ? ' · 已收录明细' : ' · 推导清单');
+  const note = online
+    ? '以上为系统收录到的科室明细；该机构在线核实的科室总数为 <b style="color:' + ACC + '">' +
+      Number(r.dept_count || 0) + ' 个</b>（机构官网 / 百科自述口径）。'
+    : '⚠️ 该机构源数据未收录科室设置，以上名录系按「机构等级 × 类型」或机构名称推导，' +
+      '仅用于科室维度检索，<b style="color:' + ACC + '">不代表该院真实科室构成</b>。';
+  return '<div class="blk"><h4><span class="bar"></span>科室明细 <span class="r">' + head + '</span></h4>' +
+    '<div class="deptchips">' + ds.map(x => '<span class="chip">' + esc(x) + '</span>').join('') + '</div>' +
+    '<div style="color:' + FAINT + ';font-size:10.5px;margin-top:9px">' + note + '</div></div>';
 }
 
 // 离线模式的「联系方式与导航」面板：只用快照数据，不依赖任何接口
@@ -1898,12 +1907,12 @@ function contactLocalHTML(r) {
 
 // 同区同类机构 · 距离对标（同区 + 同类型 + 同等级的可比机构，按与基准点的距离排）
 // ---------------------------------------------------------------------------
-// 这里**刻意不再用「科室数」做横向对比**。dept_count 由三种不可比的口径拼成：
-//   ① 源数据只登记了 1~2 个科室（7,500+ 家基层机构），反映的是收录深度；
-//   ② 102 家机构的「19 个科室」在源数据里是 source=rule / raw_name=推导，
-//      即规则补出的一份通用名单，不是该机构真实的科室设置；
-//   ③ 45 家为百科自述口径（dept_count_src=baike_claim），机构自己声明的数字。
-// 三者同图比高矮，比出来的是「数据怎么来的」，不是机构规模 —— 会误导读者，
+// 这里**刻意不再用「科室数」做横向对比**。dept_count 由四种来源拼成，且 97% 是推导：
+//   source='rule'      11,840 行 —— 按「机构等级 × 类型」套的通用清单（三级 19 / 二级 13 / 一级 6、7）
+//   source='name'       3,900 行 —— 按机构名推导（「中医医院」→ 中医内科、针灸推拿科）
+//   source='key_depts'    488 行 + 'specialty' 23 行 —— 源数据登记的真实科室，仅 3%
+//   dept_count_src 非空    34 家 —— 官网 / 百科在线核实值，才是可对外的数字
+// 同图比高矮，比出来的是「数据怎么来的」，不是机构规模 —— 会误导读者，
 // 也答不了「我该不该去这家」。换成**距离**：由坐标实时算出、口径统一，
 // 且正是使用者选机构时最在意的量；再给出本机构在同类中的位次。
 let DW_CHART = null;
@@ -2140,10 +2149,16 @@ function paintDrawerFull(d) {
     feature: (d.specialty.feature || []).join(';'),
   } : DW_CUR);
   if (d.depts && d.depts.length) {
+    // 与离线路径同判据：无在线核实值 → 这份名录是推导的，必须标注
+    const derivedOnly = !String((DW_CUR && DW_CUR.dept_count_src) || '');
     const rows = d.depts.slice(0, 40).map(x =>
       '<tr><td>' + esc(x.dept_name) + '</td><td>' + (String(x.is_key_specialty) === '1' || x.is_key_specialty === 1 || x.is_key_specialty === true ? '<span class="chip emg">重点专科</span>' : '<span style="color:' + DIM + '">普通</span>') + '</td>' +
       '<td class="mono">' + esc(x.source || '—') + '</td></tr>').join('');
-    sp += '<div class="blk"><h4><span class="bar"></span>科室明细 <span class="r">共 ' + d.depts.length + ' 条（最多显示 40）</span></h4>' +
+    sp += '<div class="blk"><h4><span class="bar"></span>科室明细 <span class="r">共 ' + d.depts.length + ' 条（最多显示 40）' +
+      (derivedOnly ? ' · 推导清单' : '') + '</span></h4>' +
+      (derivedOnly ? '<div style="color:' + FAINT + ';font-size:10.5px;margin-bottom:8px">该机构源数据未收录科室设置，' +
+        '以下名录系按「机构等级 × 类型」或机构名称推导，仅用于科室维度检索，' +
+        '<b style="color:' + ACC + '">不代表该院真实科室构成</b>。</div>' : '') +
       '<div class="tblbox"><table class="tiny"><thead><tr><th>科室</th><th>是否重点</th><th>来源</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
   }
   $('pane-spec').innerHTML = sp;
@@ -2299,14 +2314,15 @@ function apiCompareRow(it) {
 }
 
 // 需要"越大越好 / 越小越好"判定的数值行
+// ⚠️ dept_count 刻意不在此列：97% 由 rule/name 推导，比高矮等于比"数据怎么来的"。
 const CMP_NUM = {
   key_specialty_count: 'high', national_specialty_count: 'high', municipal_specialty_count: 'high',
-  dept_count: 'high', distance_km: 'low',
+  distance_km: 'low',
 };
 const CMP_ROWS = [
   ['level', '医院等级'], ['category', '机构类型'], ['ownership', '办别性质'], ['district', '所属区域'],
   ['key_specialty_count', '重点专科数'], ['national_specialty_count', '国家级重点专科'],
-  ['municipal_specialty_count', '市级重点专科'], ['dept_count', '科室数量'],
+  ['municipal_specialty_count', '市级重点专科'], ['dept_count', '科室数量（含推导）'],
   ['distance_km', '距离基准点'], ['networks_text', '协作网络'],
   ['national_specialty', '国家级专科清单'], ['municipal_specialty', '市级专科清单'],
   ['feature', '擅长科室'], ['addr', '地址'], ['phone', '联系电话'], ['coord_precision', '坐标精度'],

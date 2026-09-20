@@ -664,7 +664,7 @@ ORDER_BY = {
     "name": "t.name ASC",
 }
 SORT_LABEL = {"score": "条件匹配度", "distance": "距离（近→远）", "level": "医院等级",
-              "depts": "科室数量", "name": "机构名称"}
+              "depts": "科室收录量", "name": "机构名称"}
 
 
 def match_score_sql(cond):

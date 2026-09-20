@@ -57,7 +57,14 @@
         </div>
         <div v-if="!nat && !mun && !inst.feature" class="muted">暂无专科标注</div>
 
-        <h3 style="font-size:13px;margin:16px 0 8px">科室清单（最多 60 条）</h3>
+        <h3 style="font-size:13px;margin:16px 0 8px">
+          科室清单（最多 60 条）
+          <span v-if="deptListKind(inst) === 'derived'" class="tag">推导清单</span>
+        </h3>
+        <div v-if="deptListKind(inst) === 'derived'" class="notice" style="margin-bottom:8px">
+          该机构源数据未收录科室设置，以下名录系按「机构等级 × 类型」或机构名称推导，
+          仅用于科室维度检索，<b>不代表该院真实科室构成</b>。
+        </div>
         <div class="chips">
           <span v-for="x in (d.depts || [])" :key="x.dept_name" class="chip"
                 :style="x.is_key_specialty ? 'border-color:rgba(var(--acc-rgb),.5)' : ''">
@@ -103,7 +110,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useDataStore } from '../store'
-import { deptText, deptExplain } from '../deptLabel'
+import { deptText, deptExplain, deptListKind } from '../deptLabel'
 
 const store = useDataStore()
 const d = computed(() => store.drawer.data)
