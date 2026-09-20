@@ -27,6 +27,8 @@ print(('  OK 数据来源字段存在（%s）' % (', '.join(k for k in ('src_cou
        if have_src else '  WARN 缺少数据来源计数字段（按来源筛选会失效，请带库重跑）'))
 print(('  OK 字段 source_files 存在' if 'source_files' in inst
        else '  WARN 缺少 source_files（按来源筛选会失效，请重跑 etl/export_inst_source.py）'))
+print(('  OK 字段 depts 存在（离线可按科室筛选）' if 'depts' in inst
+       else '  WARN 缺少 depts（离线按科室筛选会失效，请带库重跑 build_spa.sh）'))
 "
 else
 echo "=== 1. 拉 MySQL 全量精简数据 ==="
@@ -65,6 +67,25 @@ for r in rows:
     for k in ('dept_count','key_specialty_count','lng','lat','national_specialty_count',
               'municipal_specialty_count','src_count_int'):
         r[k] = None if r.get(k) in (None, '') else r[k]
+
+# 科室隶属关系：快照原先只有科室「词表」（meta.depts，来自 dws_dept_coverage），
+# 没有「哪家机构有哪些科室」的隶属关系 —— 于是离线形态能认出"骨科"这个词、
+# 也把它解析成了筛选条件，却查不出来（只得 0 家，并提示"离线形态不支持按科室筛选"）。
+# 这里把 dwd_dept_relation_clean（29 类科室 / 16,251 条隶属 / 覆盖 9,335 家，
+# 约 200KB）一并内嵌，单文件形态即可与后端按同一张表、同一种语义筛选科室。
+# 命名用 depts，与已有的 key_depts（重点专科挂牌）区分开。
+_dept_rows = q("SELECT hospital_id, dept_name FROM dwd_dept_relation_clean")
+_dmap = {}
+for _r in _dept_rows:
+    _dmap.setdefault(str(_r['hospital_id']).strip(), []).append(_r['dept_name'])
+_n_dept = 0
+for r in rows:
+    _ds = _dmap.get(r['id'])
+    r['depts'] = ';'.join(sorted(_ds)) if _ds else ''
+    if _ds:
+        _n_dept += 1
+print('  OK 科室隶属(dwd_dept_relation_clean): %d 条 / %d 家有明细 / 快照已带 depts 字段'
+      % (len(_dept_rows), _n_dept))
 overviews = {
     'districts':  q("SELECT district, inst_count, coord_high_count FROM ads_district_overview ORDER BY inst_count DESC"),
     # 等级分布仅统计"应参评医院等级评审"的机构；

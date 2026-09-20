@@ -65,7 +65,11 @@ function svgIcon(name) {
 
 
 const BASE_POINTS = {
-  tiananmen:       { name: '天安门',   lng: 116.397, lat: 39.909 },
+  // ⚠️ tiananmen 的经纬度必须与后端 web/nlq.py 的 DEFAULT_BASE **逐位相同**。
+  // 这里曾是三位小数（116.397 / 39.909），与后端的六位小数不同，
+  // 于是"距市中心"的距离在前端本地算与后端 SQL 算之间会有第三位小数的差异——
+  // 单看不错，但双端一致性校验一比就露馅。改这里等于改所有距离值，谨慎。
+  tiananmen:       { name: '天安门',   lng: 116.397428, lat: 39.90923 },
   capital_airport: { name: '首都机场', lng: 116.609, lat: 40.080 },
   daxing_airport:  { name: '大兴机场', lng: 116.411, lat: 39.510 },
   geo:             { name: '我的位置', lng: null,    lat: null },
@@ -97,6 +101,11 @@ const ENV = {
   api: false,          // /api/health 探活结果
   amap: false,
 };
+// ⚠️ 必须显式挂到 window 上：`const ENV` 只创建**全局词法绑定**，不会成为 window 的属性。
+// web/app.nlq.ui.js 里判的是 window.ENV（语音门禁、后端兜底），一旦为 undefined，
+// 这些功能会在"后端明明正常"的情况下静默失效：语音永远提示"需要在本机使用"，
+// 智能筛选永远走本地分支 —— 且不报错、不白屏，只有对比结果才看得出来。
+window.ENV = ENV;
 const SID = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
 // 图表实例
@@ -1812,8 +1821,24 @@ function paintDrawerLocal(r) {
   // 离线单文件（file://）没有后端，联系方式必须用快照里的 addr/phone 本地渲染，
   // 否则面板会永远停在「正在获取联系方式…」——这是必须避免的空转假象。
   $('pane-contact').innerHTML = ENV.api ? '<div class="empty">正在获取联系方式…</div>' : contactLocalHTML(r);
-  $('pane-spec').innerHTML = specialtyHTML(r);
+  $('pane-spec').innerHTML = specialtyHTML(r) + deptsLocalHTML(r);
   $('pane-near').innerHTML = aroundPlaceholder(r);
+}
+
+// 离线快照的「科室明细」。
+// 快照里带的是科室**名录**（dwd_dept_relation_clean 按机构聚合后的结果），
+// 不含「是否重点专科 / 归属来源」两列——那两列要连本地服务才有。
+// 这一段的意义：用户在智能筛选里按科室筛出机构后，点进来能看见同一批科室名，
+// 而不是"筛得到、详情里却看不到"。
+function deptsLocalHTML(r) {
+  const ds = String(r.depts || '').split(';').filter(Boolean);
+  if (!ds.length) return '';
+  return '<div class="blk"><h4><span class="bar"></span>科室明细 <span class="r">共 ' + ds.length +
+    ' 个科室</span></h4><div class="deptchips">' +
+    ds.map(x => '<span class="chip">' + esc(x) + '</span>').join('') + '</div>' +
+    '<div style="color:' + FAINT + ';font-size:10.5px;margin-top:9px">科室名录来自 ' +
+    'dwd_dept_relation_clean（Spark 数仓 DWD 层，随离线快照内嵌）；' +
+    '「是否重点专科 / 归属来源」两列在本地服务在线时展示。</div></div>';
 }
 
 // 离线模式的「联系方式与导航」面板：只用快照数据，不依赖任何接口

@@ -207,6 +207,23 @@ var NLQ = (function () {
     masked = masked.replace(/\u0000([和与及或、])\u0000/g, '');
     var rest = masked.split('\u0000').join('');
     LEX.stop_phrases.forEach(function (ph) { rest = rest.split(ph).join(''); });
+    // 排序说法是"意图"而不是"机构名"（「按距离从近到远」命中了"从近到远"，却剩下"按距离"）
+    (LEX.sort_words || []).forEach(function (sw) { rest = rest.split(sw[0]).join(''); });
+    // ① 城市作用域词：剥掉之后什么都不剩才是"整个北京市"这个范围；
+    //    只要还剩东西（"北京协和"→"协和"）就原样保留，所以裸"北京"不在 stop_phrases 里。
+    var cityScope = LEX.city_scope_words || ['北京市', '北京'];
+    var probe = rest;
+    cityScope.forEach(function (w) { probe = probe.split(w).join(''); });
+    if (!probe) rest = '';
+    // ② 纯程度残渣（"大医院"剩下一个"大"）：不是机构名关键词，也不算"没听懂"
+    var degreeOnly = LEX.degree_only_chars || '大小好多少远近高低';
+    if (rest && rest.length <= 2) {
+      var allDegree = true;
+      for (var di = 0; di < rest.length; di++) {
+        if (degreeOnly.indexOf(rest.charAt(di)) < 0) { allDegree = false; break; }
+      }
+      if (allDegree) rest = '';
+    }
     if (rest.length >= 2 && !/^[0-9]+$/.test(rest)) cond.kw = rest;
     else if (rest.length && !/^[0-9]+$/.test(rest)) out.unmatched.push(rest);
 
@@ -327,10 +344,13 @@ var NLQ = (function () {
       if (!okSrc) return false;
     }
     if (cond.dept) {
-      // 刻意不做近似匹配：离线快照只带"重点专科/擅长科室"（仅 831 行有值），
-      // 用它筛科室会得到一个**看起来合理但其实是错的**数量。
-      // 宁可明确说"这个条件离线算不了"，也不要给出可疑的数字。
-      return false;
+      // 与后端同语义。后端的 sql 是：
+      //   t.id IN (SELECT hospital_id FROM dwd_dept_relation_clean WHERE dept_name = %s)
+      // 即「该机构在科室隶属表里恰好有这条科室名」——精确相等，不做包含匹配
+      // （否则"骨科"会把"中医骨伤科"也吞进来，数字就错了）。
+      // inst.depts 正是这张表按机构聚合的结果（';' 分隔），由 build_spa.sh 带库导出。
+      var ds = String(inst.depts || '');
+      if (!ds || (';' + ds + ';').indexOf(';' + cond.dept + ';') < 0) return false;
     }
     if (cond.has_addr && !(inst.addr || '')) return false;
     if (cond.has_coord && !(inst.lng != null && inst.lat != null)) return false;
@@ -345,6 +365,18 @@ var NLQ = (function () {
   var ORDER = {
     score: null, distance: null, level: null, depts: null, name: null
   };
+
+  // 距离基准：与后端 nlq.DEFAULT_BASE 完全同一口径 —— 不传基准点即按天安门，
+  // 前端把这种情况的文案标成「距市中心」，避免出现一个说不清距离哪里的"距离"。
+  var DEFAULT_BASE = { lng: 116.397428, lat: 39.90923 };
+
+  function haversineKm(lng1, lat1, lng2, lat2) {
+    var R = 6371, rad = Math.PI / 180;
+    var dLat = (lat2 - lat1) * rad, dLng = (lng2 - lng1) * rad;
+    var a = Math.pow(Math.sin(dLat / 2), 2) +
+      Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.pow(Math.sin(dLng / 2), 2);
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
 
   function sortItems(items, sort) {
     var s = ORDER[sort] != null ? sort : (ORDER.hasOwnProperty(sort) ? sort : 'score');
@@ -378,19 +410,35 @@ var NLQ = (function () {
     return x < y ? -1 : (x > y ? 1 : 0);
   }
 
-  function runFilter(institutions, cond, page, pageSize) {
+  // 快照是否带科室隶属关系字段（旧版构建脚本产出的快照没有 depts）。
+  // 只抽样看前若干家即可：depts 是 build_spa.sh 一次性给所有行写上的。
+  function hasDeptField(institutions) {
+    var n = Math.min(institutions.length, 200);
+    for (var i = 0; i < n; i++) {
+      if (institutions[i] && 'depts' in institutions[i]) return true;
+    }
+    return false;
+  }
+
+  function runFilter(institutions, cond, page, pageSize, baseIn) {
     page = page || 1; pageSize = pageSize || 20;
-    if (cond.dept) {
+    if (cond.dept && !hasDeptField(institutions)) {
+      // 快照版本过旧：宁可明说算不了，也不要给一个"看起来合理但其实是错的"数量。
       return { total: 0, page: 1, page_size: pageSize, sort: 'score',
         items: [], all: [], stats: overview([]), unsupported: 'dept',
-        message: '离线形态的内嵌快照不含全量科室明细，无法按科室筛选（联网形态可查）。'
-          + '请改用行政区、机构类型、医院等级或所有制等条件。' };
+        message: '当前内嵌快照未包含科室隶属关系（旧版构建脚本产出），无法按科室筛选。'
+          + '请用 bash web/build_spa.sh 带库重建快照；或先改用行政区、机构类型、医院等级等条件。' };
     }
-    var base = null;
+    // 距离必须**在排序之前**算好：此前 distance_km 恒为 null，于是"按距离排序"
+    // 会静默退化成按名称排序——条件看着生效、其实没生效，正是最该避免的一类缺陷。
+    var base = baseIn || DEFAULT_BASE;
     var out = [];
     for (var i = 0; i < institutions.length; i++) {
       var it = institutions[i];
       if (!matches(it, cond)) continue;
+      // 与后端 haversine_sql 对齐：缺坐标给 null，有坐标则四舍五入到 2 位小数
+      var dkm = (it.lng == null || it.lat == null) ? null
+        : Math.round(haversineKm(base.lng, base.lat, +it.lng, +it.lat) * 100) / 100;
       out.push({
         id: it.id, name: it.name, district: it.district, category: it.category,
         category_sub: it.category_sub || '', level: it.level, ownership: it.ownership,
@@ -400,7 +448,7 @@ var NLQ = (function () {
         src_count_int: (it.src_count_int != null ? it.src_count_int
           : (it.src_count != null ? it.src_count : null)),
         source_files: it.source_files || '',
-        key_depts: it.key_depts || '', distance_km: null,
+        key_depts: it.key_depts || '', depts: it.depts || '', distance_km: dkm,
         score: matchScore(it, cond)
       });
     }

@@ -56,7 +56,8 @@ process.stdin.on('end', () => {
   });
 
   (req.cases || []).forEach((c) => {
-    const r = NLQ.runFilter(INSTS, c.conditions || {}, 1, c.page_size || 20);
+    // base 可选：给了就按它算距离，没给则由引擎回退天安门（与后端 DEFAULT_BASE 同口径）
+    const r = NLQ.runFilter(INSTS, c.conditions || {}, 1, c.page_size || 20, c.base || null);
     const first = r.items[0] || null;
     const rec = {
       name: c.name,
@@ -65,6 +66,7 @@ process.stdin.on('end', () => {
       sort: r.sort,
       first_id: first ? String(first.id) : null,
       first_name: first ? first.name : null,
+      first_dist: first ? first.distance_km : null,
       stats: r.stats || null,
       unsupported: r.unsupported || null,
     };

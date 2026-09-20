@@ -88,7 +88,58 @@ setTimeout(function(){
                 r.push('stats_kpi=' + tx('nlq_kpis'));
                 r.push('stats_grid=' + document.getElementById('nlq_kpis').className);
                 r.push('stats_list=' + tx('nlq_list'));
-                done();
+                // ── G. 科室维度：本轮修复的重点。
+                //    此前离线快照只有科室**词表**、没有"哪家机构有哪些科室"的隶属关系，
+                //    于是「海淀区骨科」解析成功（条件卡片都在）却查出 0 家，
+                //    并提示"离线形态不支持按科室筛选"。
+                document.querySelector('#nlq_tabs .nlqtab[data-ntab="nl"]').click();
+                setQ('海淀区骨科'); go();
+                setTimeout(function(){
+                  r.push('env_win=' + (typeof window.ENV === 'object'));
+                  r.push('dept_chips=' + tx('nlq_chips'));
+                  r.push('dept_count=' + tx('nlq_count'));
+                  r.push('dept_rows=' + cnt('#nlq_list .row'));
+                  r.push('dept_list=' + tx('nlq_list'));
+                  var drows = document.querySelectorAll('#nlq_list .row'), hd = 0;
+                  for (var di = 0; di < drows.length; di++) {
+                    if (drows[di].textContent.indexOf('海淀区') >= 0) hd++;
+                  }
+                  r.push('dept_in_haidian=' + hd + '/' + drows.length);
+                  // ── H. 点开首行详情：专科页应能看到科室明细（来自离线快照的 depts）
+                  if (drows[0]) drows[0].click();
+                  setTimeout(function(){
+                    r.push('drawer_show=' + (document.getElementById('drawer').className.indexOf('show') >= 0));
+                    var heads = document.querySelectorAll('#pane-spec .blk h4'), h4 = 'NONE';
+                    for (var hi = 0; hi < heads.length; hi++) {
+                      if (heads[hi].textContent.indexOf('科室明细') >= 0) {
+                        h4 = heads[hi].textContent.replace(/\\s+/g, ' ').slice(0, 30);
+                      }
+                    }
+                    r.push('drawer_depthead=' + h4);
+                    r.push('drawer_deptchips=' + document.querySelectorAll('#pane-spec .deptchips .chip').length);
+                    // ── I. 口语化输入：不该被当成机构名关键词（本轮修复）
+                    //    过去「想找个靠谱的大医院」会解析出 kw="想找靠谱大" → 0 家，
+                    //    「海淀那边有哪些大医院」会解析出 kw="那边大" → 0 家。
+                    //    这类错误**两端一致地错**，一致性校验查不出来，只有真跑页面才看得见。
+                    var closeBtn = document.querySelector('#drawer .dw-hd button, #drawer .dw-close');
+                    if (closeBtn) closeBtn.click();
+                    setQ('想找个靠谱的大医院'); go();
+                    setTimeout(function(){
+                      r.push('oral1_chips=' + tx('nlq_chips'));
+                      r.push('oral1_kwchip=' + cnt('#nlq_chips .nlqchip[data-ck="kw"]'));
+                      r.push('oral1_count=' + tx('nlq_count'));
+                      r.push('oral1_rows=' + cnt('#nlq_list .row'));
+                      setQ('海淀那边有哪些大医院'); go();
+                      setTimeout(function(){
+                        r.push('oral2_chips=' + tx('nlq_chips'));
+                        r.push('oral2_kwchip=' + cnt('#nlq_chips .nlqchip[data-ck="kw"]'));
+                        r.push('oral2_count=' + tx('nlq_count'));
+                        r.push('oral2_rows=' + cnt('#nlq_list .row'));
+                        done();
+                      }, 1300);
+                    }, 1300);
+                  }, 800);
+                }, 1200);
               }, 900);
             }, 900);
           }, 900);
@@ -182,6 +233,43 @@ def main():
     checks.append(("统计 KPI 换口径", "统计机构总数" in kv.get("stats_kpi", ""), kv.get("stats_kpi", "?")[:64]))
     checks.append(("统计 KPI 用四列栅格", "k4" in kv.get("stats_grid", ""), kv.get("stats_grid", "?")))
     checks.append(("统计结果区不谎报列表", "统计" in kv.get("stats_list", ""), kv.get("stats_list", "?")[:64]))
+    # ── 科室筛选（本轮修复：离线形态此前一律 0 家并提示"不支持按科室筛选"）
+    checks.append(("window.ENV 已挂到 window", kv.get("env_win") == "true",
+                   "实测 typeof window.ENV = %s（const 声明不会成为 window 属性）" % kv.get("env_win")))
+    checks.append(("科室条件解析成卡片",
+                   "科室" in kv.get("dept_chips", "") and "骨科" in kv.get("dept_chips", ""),
+                   kv.get("dept_chips", "?")[:64]))
+    checks.append(("海淀区+骨科 = 40 家", kv.get("dept_count", "").replace(" ", "").startswith("40"),
+                   kv.get("dept_count", "?")))
+    checks.append(("科室筛选有结果行", int(kv.get("dept_rows", "0") or 0) > 0,
+                   "rows=%s" % kv.get("dept_rows")))
+    _hd = (kv.get("dept_in_haidian", "0/0") or "0/0").split("/")
+    checks.append(("命中结果全部落在海淀区", len(_hd) == 2 and _hd[0] == _hd[1] and _hd[0] != "0",
+                   kv.get("dept_in_haidian", "?")))
+    checks.append(("不再提示「不支持按科室筛选」", "不支持按科室" not in kv.get("dept_list", ""),
+                   kv.get("dept_list", "?")[:64]))
+    checks.append(("点行可打开机构详情", kv.get("drawer_show") == "true", kv.get("drawer_show", "?")))
+    checks.append(("详情专科页有科室明细", "科室明细" in kv.get("drawer_depthead", ""),
+                   kv.get("drawer_depthead", "?")))
+    checks.append(("科室明细列出了科室", int(kv.get("drawer_deptchips", "0") or 0) > 0,
+                   "chips=%s" % kv.get("drawer_deptchips")))
+    # ── 口语化输入（本轮修复：填充词曾被当成机构名关键词 → 结果恒 0 家）
+    checks.append(("口语输入不产出机构名关键词卡片", kv.get("oral1_kwchip") == "0",
+                   "kw 卡片=%s / %s" % (kv.get("oral1_kwchip"),
+                                        kv.get("oral1_chips", "?")[:52])))
+    checks.append(("「想找个靠谱的大医院」有结果",
+                   "家" in kv.get("oral1_count", "") and "—" not in kv.get("oral1_count", ""),
+                   kv.get("oral1_count", "?")))
+    checks.append(("「想找个靠谱的大医院」有结果行",
+                   int(kv.get("oral1_rows", "0") or 0) > 0, "rows=%s" % kv.get("oral1_rows")))
+    checks.append(("「海淀那边有哪些大医院」解析出海淀区",
+                   "海淀区" in kv.get("oral2_chips", ""), kv.get("oral2_chips", "?")[:52]))
+    checks.append(("「海淀那边有哪些大医院」不产出关键词卡片", kv.get("oral2_kwchip") == "0",
+                   "kw 卡片=%s" % kv.get("oral2_kwchip")))
+    checks.append(("「海淀那边有哪些大医院」有结果",
+                   "家" in kv.get("oral2_count", "") and "—" not in kv.get("oral2_count", "")
+                   and int(kv.get("oral2_rows", "0") or 0) > 0,
+                   "%s / rows=%s" % (kv.get("oral2_count", "?"), kv.get("oral2_rows"))))
     errs = kv.get("ERR", "?")
     checks.append(("无运行时错误", errs == "none", errs))
 

@@ -129,6 +129,20 @@ def main():
         except Exception as e:
             checks.append(("主线·病征输入被拒答且无结果", False, str(e)[:140]))
 
+        # 口语化输入：填充词（想找 / 靠谱 / 那边 / 附近）是**意图**而不是机构名关键词。
+        # 被误收成 kw 的话机构表里一个都匹配不到 → 句子读得懂、结果却是 0 条，且不报错。
+        try:
+            r4 = ask("想找个靠谱的大医院")
+            r5 = ask("海淀那边有哪些大医院")
+            bad = [c for c in r4["chips"] + r5["chips"] if "机构名称关键词" in c]
+            ok = (not bad and r4["rows"] > 0 and r5["rows"] > 0
+                  and any("海淀区" in c for c in r5["chips"]))
+            checks.append(("主线·口语化输入不被当成机构名", ok,
+                           "垃圾关键词=%s / 口语=%d行 / 海淀=%d行 %s" % (
+                               bad, r4["rows"], r5["rows"], r5["chips"][:3])))
+        except Exception as e:
+            checks.append(("主线·口语化输入不被当成机构名", False, str(e)[:140]))
+
         # 条件通道：逐项填条件也能查出结果
         try:
             pg.goto("%s#/filter" % BASE, wait_until="networkidle", timeout=45000)

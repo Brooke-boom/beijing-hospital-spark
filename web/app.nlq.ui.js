@@ -93,15 +93,28 @@ var NLQ_UI = (function () {
   //  执行：两条通道共用的唯一入口
   //    req = {q: '...'}  或  {conditions: {...}}
   // --------------------------------------------------------------------------
+  // 查询策略：**本地内嵌快照优先，后端只做兜底**。
+  //   ① 单文件形态的目标是"打开链接就能用"（GitHub Pages / file:// 都算），
+  //      内嵌快照由同一套 ETL 从同一个库导出、字段与 MySQL 同源，
+  //      因此本地复算与后端结果一致 —— etl/verify_offline_nlq.py 逐字段盯着这件事。
+  //   ② 本地优先还保住两件事：地图与结果概览按**全量**结果算（后端分页只回当前页，
+  //      用它画地图会只亮一页的点），以及断网时行为完全不变。
+  //   ③ 只有本地明确"算不了"（unsupported，例如快照版本过旧没有科室隶属关系）
+  //      且后端可达时，才回退 /api/nlq/query。医疗边界拒答不走回退——
+  //      本地规则已给出结论，再往返一次没有意义。
   function execute(req, opts) {
     if (BUSY) return;
     setBusy(true);
+    var local = null, localErr = null;
+    try { local = localExecute(req); } catch (e) { localErr = e; }
+    var canLocal = local && local.ok !== false && !local.unsupported;
     var p;
-    if (backend()) {
+    if (canLocal) {
+      p = Promise.resolve(local);
+    } else if (backend() && local && local.unsupported) {
       p = jsonPost('/api/nlq/query', req);
     } else {
-      try { p = Promise.resolve(localExecute(req)); }
-      catch (e) { p = Promise.reject(e); }
+      p = localErr ? Promise.reject(localErr) : Promise.resolve(local);
     }
     p.then(function (res) {
       setBusy(false);
@@ -162,7 +175,10 @@ var NLQ_UI = (function () {
                dimension: st.dimension, dimension_label: st.label, chart: st.chart, rows: st.rows,
                summary: st.summary, total: tot, data_source: offlineSourceNote() };
     }
-    var r = NLQ.runFilter(DATA.institutions, cond, 1, 1e9);
+    // 距离基准点：用户设过就用它；没设过 curBase() 会回退天安门，文案显示"距市中心"，
+    // 与后端 nlq.DEFAULT_BASE 同一口径。距离必须在筛选内算好，否则"按距离排序"无效。
+    var base = (typeof curBase === 'function') ? curBase() : null;
+    var r = NLQ.runFilter(DATA.institutions, cond, 1, 1e9, base);
     return { ok: true, intent: 'filter', conditions: cond,
              applied: parsed.applied || NLQ.describe(cond),
              total: r.total, page: 1, page_size: PAGE_SIZE, sort: r.sort,
@@ -232,17 +248,87 @@ var NLQ_UI = (function () {
       note.textContent = n || '';
     }
 
-    // —— 查询说明（模板拼接，数字全部来自本次查询）——
+    // —— 查询说明（本地模板先生成，联网时再交给 Agnes 润色）——
     var sum = el('nlq_summary');
     if (sum) {
       if (res && res.summary) {
         sum.style.display = '';
         sum.innerHTML = '<span class="ai-badge">' + svgIcon('spark') + '结果说明</span>' +
           '<span class="ai-txt">' + esc(res.summary) + '</span>';
+        enhanceSummary(res, sum);
       } else {
         sum.style.display = 'none';
       }
     }
+  }
+
+  // --------------------------------------------------------------------------
+  //  结果说明：Agnes 润色（三级降级 —— Agnes → 本地模板，失败一律保留本地模板）
+  //  · 大模型只负责"把已经查到的事实讲成人话"：数字与机构名照抄事实，不得新增；
+  //    且明确禁止输出就诊建议 / 科室推荐（提示词见 web/app.py 的 SUMMARY_PROMPT）。
+  //  · 只有后端可达时才发请求；离线形态（Pages / file://）完全不发网络请求。
+  //  · 事实里不含任何机构名（避免模型把名字编造或错配），只给统计口径。
+  // --------------------------------------------------------------------------
+  var SUM_CACHE = {};   // facts 签名 → 已润色文本 / 引擎，避免同一查询反复消耗额度
+  var SUM_SEQ = 0;      // 只允许最后一次请求回写，防止慢响应覆盖新结果
+
+  function summaryFacts(res) {
+    var s = res.stats || {}, cond = res.conditions || {};
+    var applied = (res.applied || []).map(function (c) { return c.label + '=' + c.text; }).join('、');
+    var sortKey = res.sort || cond._sort || 'score';
+    var f = {
+      '场景': res.intent === 'stats' ? '维度统计查询' : '机构筛选查询',
+      '筛选条件': applied || '（无条件，全市全量）',
+      '命中机构数': res.total,
+      '三级医院': s.level3, '二级医院': s.level2,
+      '公立机构': s.public_cnt, '民营机构': s.private_cnt,
+      '含坐标机构': s.coord_ok,
+      '排序方式': (typeof SORT_LABEL !== 'undefined' && SORT_LABEL[sortKey]) || sortKey,
+      '数据来源': (res.data_source && res.data_source.database) || '',
+      '快照批次': (res.data_source && res.data_source.batch_date) || '',
+    };
+    if (res.intent === 'stats') {
+      f['分组明细（前8组）'] = (res.rows || []).slice(0, 8)
+        .map(function (r) { return r.name + ' ' + r.cnt + ' 家'; });
+      delete f['命中机构数'];
+    }
+    return f;
+  }
+
+  function enhanceSummary(res, host) {
+    if (!backend() || !res || !res.summary) return;
+    var txt = host.querySelector('.ai-txt');
+    if (!txt) return;
+    var facts = summaryFacts(res);
+    var key = JSON.stringify(facts);
+    if (SUM_CACHE[key] != null) {
+      txt.textContent = SUM_CACHE[key];
+      setEngineBadge(host, SUM_CACHE[key + '|engine']);
+      return;
+    }
+    var seq = ++SUM_SEQ;
+    fetch('/api/nlq/ask?facts=' + encodeURIComponent(key) +
+          '&local=' + encodeURIComponent(res.summary))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.summary || seq !== SUM_SEQ) return;   // 丢弃过期响应
+        SUM_CACHE[key] = j.summary;
+        SUM_CACHE[key + '|engine'] = j.engine || 'local';
+        txt.textContent = j.summary;
+        setEngineBadge(host, SUM_CACHE[key + '|engine']);
+        if (typeof track === 'function') track('nlq_summary', 'nlq', j.engine || 'local', 1);
+      })
+      .catch(function () { /* 失败即静默保留本地模板，不打扰用户 */ });
+  }
+
+  function setEngineBadge(host, engine) {
+    var b = host.querySelector('.ai-badge');
+    if (!b) return;
+    var llm = engine === 'llm';
+    b.innerHTML = svgIcon('spark') + (llm ? '结果说明 · Agnes 润色' : '结果说明 · 本地模板');
+    b.title = llm
+      ? '由 Agnes 大模型在给定事实范围内润色：数字与机构名照抄查询结果，不新增、不推断'
+      : '本地模板生成（未启用大模型或大模型不可用，此说明离线同样可用）';
   }
 
   // 删除单个条件 → 用剩余条件重新查询
