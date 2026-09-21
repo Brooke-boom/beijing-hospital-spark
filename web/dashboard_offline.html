@@ -2446,18 +2446,39 @@ function _applyGeoFix(lng, lat, acc, opts) {
   // opts: {manual:bool} —— 自动定位与手动定位共用同一落地逻辑
   const manual = !!(opts && opts.manual);
   const hint = locateHint(lng, lat);
-  const area = hint ? ('北京市' + hint.district) : null;
+  const outOfCity = !!(hint && hint.outOfCity);
+  const area = (hint && hint.district) ? ('北京市' + hint.district) : null;
+
+  // 自动定位落在市域外 → 不接管基准。否则整个列表会按 1,000+ km 排序，
+  // 对「北京医疗资源」这一主题毫无参考意义（全场都是一千多公里）。
+  // 保留默认起点「天安门」，并如实告知，比默默用一个错基准诚实。
+  if (!manual && outOfCity) {
+    toast(svgIcon('warn') + ' 当前位置不在北京市域内（距最近机构约 ' +
+      Math.round(hint.nearKm).toLocaleString() + ' km），已保留默认起点「天安门」；' +
+      '如需以当前位置为起点，请点「重新定位」', 6400);
+    track('locate_auto_outside', null, null, acc);
+    return;
+  }
+
   BASE_POINTS.geo.lng = lng; BASE_POINTS.geo.lat = lat;
-  BASE_POINTS.geo.name = '我的位置' + (area ? ' · ' + area : '') + '(±' + acc + 'm)';
+  // 精度用「 · ±435m」分隔而不是紧贴区名（原来写作「北京市大兴区(±435m)」，
+  // 视觉上像在说「这个区名有 435m 误差」）
+  BASE_POINTS.geo.name = '我的位置 · ' + (
+    area ? (area + ' · ±' + acc + 'm')
+      : (outOfCity ? ('市域外 · ±' + acc + 'm') : ('±' + acc + 'm')));
   setBase(BASE_POINTS.geo, true);   // silent：统一由下方 setSort+applyFilter 触发一次重算
   refreshBaseSummary();
   setSort('distance', 'asc', true);
   applyFilter();
-  const loc = hint
+  const loc = area
     ? (area + ' · 最近机构 ' + hint.near + '（约 ' + hint.nearKm.toFixed(1) + ' km）')
-    : (lng + ', ' + lat);
+    : (outOfCity
+      ? ('北京市域外 · 距最近机构 ' + hint.near + ' 约 ' + Math.round(hint.nearKm).toLocaleString() + ' km')
+      : (lng + ', ' + lat));
   toast(svgIcon('location') + (manual ? ' 已定位到 ' : ' 已自动定位到 ') + loc +
-    ' · 精度 ±' + acc + 'm · 已按距离升序排序（可输入任意地址替换起点）', 5600);
+    ' · 精度 ±' + acc + 'm · ' + (outOfCity
+      ? '距离排序超出常规范围、参考意义有限（可用「恢复默认」回到天安门）'
+      : '已按距离升序排序（可输入任意地址替换起点）'), 5600);
   track(manual ? 'locate' : 'locate_auto', null, null, acc);
 }
 
@@ -2531,6 +2552,13 @@ function initBase() {
   try {
     const p = JSON.parse(localStorage.getItem(BASE_STORE_KEY) || 'null');
     if (p && p.name && p.lng != null && p.lat != null) {
+      // 旧版定位 bug 的遗留脏数据：域外坐标被贴上了「北京市XX区」的假区名。
+      // 判据是「名字里带北京市、坐标却在域外」—— 正常情况这两者不可能同时成立。
+      // 见到就丢弃并回退默认起点，否则浏览器会一直带着错误的基准名。
+      if (p.name.indexOf('我的位置') === 0 && p.name.indexOf('北京市') > 0) {
+        const h = locateHint(p.lng, p.lat);
+        if (h && h.outOfCity) { try { localStorage.removeItem(BASE_STORE_KEY); } catch (e) { } return; }
+      }
       BASE_NOW = p;
       const i = $('f_base'); if (i) i.value = p.name;
     }
@@ -2629,6 +2657,11 @@ function haversine(lng1, lat1, lng2, lat2) {
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+// 判定「是否落在北京市域内」的阈值：与最近机构的球面距离超过此值即视为域外。
+// 北京南北约 176 km、东西约 160 km，市域内任意一点都能找到 60 km 内的机构；
+// 而域外城市（如南昌 → 大兴）直线约 1,200 km，必被拦下。
+const BEIJING_NEAR_KM = 60;
+
 // 定位成功后反查所在区，把经纬度翻译成「北京市XX区」
 function locateHint(lng, lat) {
   const rows = (DATA && DATA.institutions) || [];
@@ -2640,6 +2673,15 @@ function locateHint(lng, lat) {
     if (d < bd) { bd = d; best = r; }
   }
   if (!best) return null;
+  const nearKm = haversine(lng, lat, best.lng, best.lat);
+  // ⚠️ 域外不猜区名。原实现无条件取「最近机构」的 district，而最近机构永远存在，
+  //    于是任何坐标都会被贴上一个北京市的区名 —— 南昌会被判成「北京市大兴区」
+  //    （大兴是北京最南端的区，所以从南方来的点都落到它头上）。
+  //    这种「标签是假的、距离是真的」的组合最误导：页面同时显示
+  //    「北京市大兴区(±435m)」和「1175.9 km」，看起来像距离算错了。
+  if (nearKm > BEIJING_NEAR_KM) {
+    return { district: null, near: best.name, nearKm, centerKm: null, outOfCity: true };
+  }
   let sx = 0, sy = 0, n = 0;
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
@@ -2649,7 +2691,7 @@ function locateHint(lng, lat) {
   return {
     district: best.district,
     near: best.name,
-    nearKm: haversine(lng, lat, best.lng, best.lat),
+    nearKm,
     centerKm: n ? haversine(lng, lat, sx / n, sy / n) : null,
   };
 }

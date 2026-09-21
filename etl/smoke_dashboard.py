@@ -116,6 +116,23 @@ setTimeout(function(){
       r.push('qpanel_grow='+document.querySelectorAll('#view-quality .apanel.grow').length);
       if(typeof switchView==='function') switchView('overview');
     }catch(e){ r.push('layout_fail='+e.message); }
+    // ── 定位（2026-09-21 修）：域外坐标不得被贴上「北京市XX区」的假区名 ──
+    //    原实现无条件取「最近机构」的 district，而最近机构永远存在，
+    //    于是南昌被判成「北京市大兴区」（大兴是北京最南端的区，南方来的点都落它头上）。
+    //    危害是"标签假、距离真"：页面同显「北京市大兴区(±435m)」与「1175.9 km」。
+    try{
+      var hOut=(typeof locateHint==='function')?locateHint(115.89,28.68):null;  // 南昌
+      var hIn =(typeof locateHint==='function')?locateHint(116.34,39.73):null;  // 北京大兴
+      r.push('geo_out='+(hOut?((hOut.outOfCity?'y':'n')+'/'+(hOut.district||'-')+'/'+Math.round(hOut.nearKm)):'none'));
+      r.push('geo_in='+(hIn?((hIn.outOfCity?'y':'n')+'/'+(hIn.district||'-')):'none'));
+      // 自动定位落在域外时不得接管基准（否则整个列表按 1,000+ km 排序，毫无参考意义）。
+      // 判据用 localStorage：接管才会写基点，不接管则读写前后都是 null。
+      var b0=null,b1=null;
+      try{ b0=localStorage.getItem('bjyy_base_v1'); }catch(e){}
+      try{ if(typeof _applyGeoFix==='function') _applyGeoFix(115.89,28.68,435,{manual:false}); }catch(e){}
+      try{ b1=localStorage.getItem('bjyy_base_v1'); }catch(e){}
+      r.push('geo_auto_skip='+((b0===null&&b1===null)?'y':'n'));
+    }catch(e){ r.push('geo_fail='+e.message); }
     // 筛选联动：列表分页（PAGE_SIZE=20），行数恒等于页容量，不能用行数判断；
     // 要看筛选命中总数 FILTERED.length 是否真的收缩。
     try{
@@ -254,6 +271,14 @@ def main():
                    "escape=%s" % kv.get("qpanel_escape", "?")))
     checks.append(("质量页表格面板 grow", kv.get("qpanel_grow") == "3",
                    kv.get("qpanel_grow", "?")))
+    # ── 定位（2026-09-21）：域外判定 + 区名不臆造 ──
+    # 判据必须钉在「域外不给区名」这个效果上，而不是「有没有这个函数」。
+    go = kv.get("geo_out", "?")
+    checks.append(("域外坐标不猜区名", go.startswith("y/-/"), go))
+    gi = kv.get("geo_in", "?")
+    checks.append(("域内坐标解析区名", gi.startswith("n/大兴区"), gi))
+    checks.append(("自动定位域外不接管基准", kv.get("geo_auto_skip") == "y",
+                   "localStorage 未写入=%s" % kv.get("geo_auto_skip", "?")))
     errs = kv.get("ERR", "?")
     checks.append(("无运行时错误", errs == "none", errs))
 
