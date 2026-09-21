@@ -333,9 +333,19 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 }
 .panel > h3 .tag{color:var(--ink-4);font-size:9.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
   background:var(--panel-2);border:1px solid var(--line);padding:3px 8px;border-radius:999px;white-space:nowrap}
-.sec-title{display:flex;align-items:center;gap:9px;padding:20px var(--pad-x) 0;font-size:14px;color:var(--ink)}
-.sec-title .bar{width:3px;height:14px;border-radius:2px;background:var(--acc)}
-.sec-title .hint{color:var(--ink-4);font-size:11px;font-weight:400;margin-left:auto}
+/* 分段标题：承担“把长页面切成段”的职责，所以要比面板标题 h3 明显更重。
+   做法 = 主色渐变竖条 + 等宽序号 + 加粗加大字号 + 整行发丝线 + 线上一小段主色短横。 */
+.sec-title{position:relative;display:flex;align-items:center;gap:10px;
+  margin:0 var(--pad-x);padding:26px 0 11px;border-bottom:1px solid var(--line);
+  font-size:15.5px;font-weight:700;letter-spacing:-.01em;color:var(--ink-strong)}
+.sec-title .bar{width:4px;height:17px;border-radius:2px;flex:0 0 auto;
+  background:linear-gradient(180deg,var(--acc),var(--vio))}
+.sec-title .n{font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--acc);
+  letter-spacing:.08em;opacity:.9}
+.sec-title .hint{color:var(--ink-4);font-size:11.5px;font-weight:400;margin-left:auto;
+  max-width:58%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sec-title::after{content:'';position:absolute;left:0;bottom:-1px;width:64px;height:2px;
+  border-radius:2px;background:var(--acc)}
 
 /* ============================ 按钮 ============================ */
 .btn{
@@ -401,7 +411,7 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 .railcard .fh{margin:13px 0 10px}
 .railcard .nlqbar{margin-bottom:0}
 .railcard .field.wide{grid-column:span 2}
-.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,420px);gap:var(--gap);padding:var(--gap) var(--pad-x);align-items:start}
+.split{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(340px,1fr);gap:var(--gap);padding:var(--gap) var(--pad-x);align-items:start}
 .listhead{display:flex;justify-content:space-between;align-items:center;padding:0 0 9px;color:var(--ink-3);font-size:11px;border-bottom:1px solid var(--line);margin-bottom:7px;gap:10px;flex-wrap:wrap}
 .pager{display:flex;gap:6px;align-items:center}
 .pager button{background:var(--panel-2);color:var(--ink-2);border:1px solid var(--line);padding:4px 9px;border-radius:7px;cursor:pointer;font-size:11px;transition:.15s}
@@ -457,6 +467,13 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 .empty{padding:44px 20px;text-align:center;color:var(--ink-3);font-size:12.5px}
 
 .mapwrap{display:flex;flex-direction:column;position:sticky;top:74px;height:calc(100vh - 92px);min-height:560px}
+/* 右栏：与地图同高同 sticky，内部面板等分高度。
+   原来右栏只放一张 340px 的图，滚到下方就空掉 400 多像素 → 左右两栏高度差过大，页面失衡。 */
+.panel-stack{display:flex;flex-direction:column;gap:var(--gap);
+  position:sticky;top:74px;height:calc(100vh - 92px);min-height:560px}
+.panel-stack > .panel{flex:1 1 0;min-height:0}
+/* 面板内的图表容器（#ch2 / #ch3）：ID 选择器的 height:100% 会压过类选择器，用 ID+类 提权 */
+.panel-stack > .panel > #ch2,.panel-stack > .panel > #ch3{flex:1 1 0;min-height:0;height:auto}
 .mapstage{position:relative;flex:1;min-height:480px;display:flex}
 #map{flex:1;border-radius:var(--r-m);overflow:hidden;background:var(--bg-soft);border:1px solid var(--line);position:relative}
 .maplg{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:10px;font-size:10px;color:var(--ink-3)}
@@ -467,17 +484,28 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 
 /* ============================ 图表网格 ============================ */
 .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:var(--gap);padding:0 var(--pad-x) 22px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--gap);padding:0 var(--pad-x) 22px}
 .panel.sm{height:262px}
-.agrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:var(--gap);padding:var(--gap) var(--pad-x) 22px}
+/* 分析页 / 质量页的图表网格：6 列制（每个面板默认占 2 列 = 一行 3 个），
+   这样末行剩 1~2 个时可以用 grid-column 把它们撑满，不会再出现「3 + 1」右半边大片留白。
+   项数决定排法：3 项 → 3 列；4 项 → 2×2；5 项 → 3 + 2（末行两格各半宽）。
+   auto-fit 做不到这一点 —— 它只会老实换行，末行缺几格就空几格。 */
+.agrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--gap);padding:var(--gap) var(--pad-x) 22px}
+.agrid > *{grid-column:span 2;min-width:0}
+.agrid.ag-n4 > *{grid-column:span 3}
+.agrid.ag-n5 > :nth-child(n+4){grid-column:span 3}
 .apanel{background:var(--panel);border:1px solid var(--line);
-  border-radius:var(--r-l);padding:13px 15px;display:flex;flex-direction:column;height:314px;min-width:0;box-shadow:var(--sh-1)}
+  border-radius:var(--r-l);padding:13px 15px;display:flex;flex-direction:column;min-height:314px;min-width:0;box-shadow:var(--sh-1)}
 /* 暗色卡片轮廓增强：统一叠加顶部微高光（亮色主题该令牌为 no-op） */
 .card,.panel,.apanel{box-shadow:var(--sh-1),var(--lift)}
 /* 表格型面板（行数随数据变化，塞不进固定 314px）：
-   .apanel 定高是为了给 .achart 里的 ECharts 一个确定高度（canvas 拿不到高度就是 0 → 白板），
-   但纯表格/文本面板没有这个约束。定高会把末尾几行裁到面板外，直接叠到页脚上。
-   故给这类面板加 .grow：按内容撑开，min-height 保住与邻格的视觉齐平。 */
-.apanel.grow{height:auto;min-height:314px;align-self:start}
+   面板高度不再写死，改成 min-height + 由所在 grid 行高决定。
+   定高的本意是给 .achart 里的 ECharts 一个确定高度（canvas 拿不到高度就是 0 → 白板），
+   但保持 grid item 默认的 stretch 就够：行高由该行**最高**的那个面板决定，
+   图表面板被拉到行高后 .achart{flex:1} 照样拿得到确定高度。
+   好处是同一行的面板恒等高，表格再长也只会撑高整行，不会把末行漏到面板外。
+   .grow 保留给「内容随数据变化」的表格/文本面板，语义 = 按内容撑开、与邻格齐平。 */
+.apanel.grow{height:auto;align-self:stretch;min-height:314px}
 .apanel > h3{font-size:12.5px;display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;gap:10px}
 .apanel > h3 .tag{color:var(--ink-4);font-size:9.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
 .achart{flex:1;width:100%;min-height:0}
@@ -553,8 +581,15 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 .dwfoot b{color:var(--ink-strong);font-weight:650}
 .dwfoot .sub{display:block;margin-top:2px;color:var(--ink-4);font-size:10.6px;line-height:1.6}
 .dw-pane{display:none} .dw-pane.active{display:block;animation:vf .22s}
-.infogrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:9px}
-.ibox{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-m);padding:9px 12px;min-width:0}
+/* 信息块栅格：行高用 minmax(58px,1fr)，容器被拉高时各行等分、不被拉高时按内容。
+   否则面板一旦被 grid 拉高，信息块只在顶部堆一小坨、下面空一大块。 */
+.infogrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:9px;
+  grid-auto-rows:minmax(58px,1fr)}
+.ibox{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-m);padding:9px 12px;min-width:0;
+  display:flex;flex-direction:column;justify-content:center}
+/* 4 格固定 2×2：auto-fit 在 600 多像素宽下会排成「3 + 1」，右下缺一格最显乱 */
+#qual_dup_stats{flex:1;display:flex;flex-direction:column}
+#qual_dup_stats .infogrid{flex:1;grid-template-columns:repeat(2,minmax(0,1fr))}
 .ibox .k{color:var(--ink-4);font-size:9.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
 .ibox .v{color:var(--ink);font-size:13px;margin-top:3px;word-break:break-word}
 .blk{margin-top:18px}
@@ -955,10 +990,27 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 /* 智能筛选·排序单选组 */
 .sort-radios{display:flex;flex-wrap:wrap;gap:16px;margin-top:10px}
 
-/* 数据整合·三栏（数据源 / 处理流程 / 处理结果） */
-.integ-grid{display:grid;grid-template-columns:minmax(280px,.9fr) minmax(320px,1.1fr) minmax(330px,1.2fr);
-  gap:var(--gap);padding:var(--gap) var(--pad-x) 22px;align-items:start}
+/* 数据整合：数据源 / 处理流程 / 处理结果 三块的内容量差得很多（自然高 451 / 878 / 245px），
+   硬排成三列必然一栏拖到底、两栏早早结束，底部参差 400 多像素，怎么看都是没排整齐。
+   改法：处理流程独占右栏并跨两行，左栏上下叠「数据源 + 处理结果」，
+   左栏总高（451+245+间距≈712）与右栏（878）自然接近，剩下的差额由 grid 行高平摊 → 左右齐平。
+   另外原三列宽度是 .9fr / 1.1fr / 1.2fr，差 33% 属于「看着像没对齐」的最差区间，改等宽。
+   ETL 批次时效是 8 列表格，独占整行才不挤。 */
+.integ-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:var(--gap);padding:var(--gap) var(--pad-x) 22px;align-items:stretch}
 .integ-col{min-width:0}
+.integ-col.src{grid-column:1;grid-row:1}
+.integ-col.pipe{grid-column:2;grid-row:1 / span 2}
+.integ-col.res{grid-column:1;grid-row:2}
+.integ-full{grid-column:1 / -1}
+/* ETL 表 8 列且表头 nowrap，最小内容宽约 400px。它是跨两列的整行项，
+   宽度不够时会把所在 grid 的轨道顶开 —— 1080 宽实测把左栏挤到只剩 36px、内容全溢出。
+   给容器加横向滚动，让它「能缩」，最小内容宽归零，轨道就按等分算。 */
+.integ-full #integration_etl_tbl{min-width:0;overflow-x:auto}
+/* 源卡片与信息块在拉高后的栏里纵向撑满，避免内容全挤在顶部、底下留一大块空 */
+.integ-col.src .integ-list{flex:1}
+.integ-col.src .integ-item{flex:1;display:flex;flex-direction:column;justify-content:center}
+.integ-col.res .infogrid{flex:1}
 .integ-list{display:flex;flex-direction:column;gap:9px;margin-top:10px}
 .integ-item{border:1px solid var(--line);border-radius:var(--r-m);padding:11px 13px;background:var(--bg-soft)}
 .integ-item.total{border-color:rgba(var(--acc-rgb),.35);background:rgba(var(--acc-rgb),.06)}
@@ -968,6 +1020,43 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 .integ-item.total .ii-count{color:var(--teal)}
 .ii-count em{font-style:normal;font-size:10px;font-weight:500;color:var(--ink-4);margin-left:2px}
 .ii-desc{font-size:11px;color:var(--ink-3);line-height:1.65;margin-top:5px}
+
+/* ============================ 版面配平：响应式降级 ============================ */
+/* 分析网格：宽屏 3 个一行 → 中屏 2 个 → 窄屏 1 个。
+   每一档都必须把「末行单项撑满」的规则一并重置：
+   span 数一旦超过实际列数，浏览器会补出隐式列，整页被顶宽（横向滚动条就是这么来的）。 */
+@media (max-width:1360px){
+  /* 旧的 .kpis.k4 断点在 ≤1360 就降成 2 列，4 卡行会宽到失衡；保持 4 列到 900px 再降 */
+  .kpis.k4{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .agrid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .agrid > *,.agrid.ag-n4 > *,.agrid.ag-n5 > :nth-child(n+4){grid-column:span 2}
+  .agrid > :last-child:nth-child(odd){grid-column:span 4}
+}
+/* 整合页有个既有断点：≤1180px 塌成单列。此时必须把 src/pipe/res 的显式行列定位一并取消 ——
+   显式 grid-column:2 在只有 1 条显式轨道时会**创建隐式列**（宽度 auto），
+   实测 1080 宽下隐式列吃掉 936px、1fr 那一列被挤到 36px，左栏内容全部溢出面板。
+   凡是「显式网格定位 + 会塌成单列的断点」，塌陷处都要成对重置定位。 */
+@media (max-width:1180px){
+  .integ-col.src,.integ-col.pipe,.integ-col.res,.integ-full{grid-column:auto;grid-row:auto}
+  .integ-col.src .integ-item{flex:none;display:block}
+}
+/* ≤900 才把分析网格降到「一格一行」。1080 时内容区还有 988px，两格各 486px 放图表完全够，
+   过早降级只会把页面拉得又长又空（实测 1080 降级后质量页从 2 行变 4 行、页高多出 400px）。 */
+@media (max-width:900px){
+  .agrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .agrid > *,.agrid.ag-n4 > *,.agrid.ag-n5 > :nth-child(n+4),
+  .agrid > :last-child:nth-child(odd){grid-column:span 2}
+  /* 4 卡 KPI 行：降成 2×2，否则一直保持 4 列会把卡片压得比数字还窄 */
+  .kpis.k4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .grid2{grid-template-columns:minmax(0,1fr)}
+}
+/* ≤700 两栏塌成上下堆叠，此时才取消右栏的 sticky（与 .mapwrap 的既有断点一致）。
+   不要顺手给 #ch2/#ch3 另设固定高：面板自身有 min-height，图表的 flex:1 照样拿得到高度，
+   多设一层固定高反而会在面板被拉高时留出一条空带。 */
+@media (max-width:700px){
+  .panel-stack{position:static;height:auto;min-height:0}
+  .panel-stack > .panel{flex:1 1 auto;min-height:314px}
+}
 
 /* 数据质量·字段完整率表 / 类别构成表 */
 .qtable{width:100%;border-collapse:collapse;font-size:12px}
@@ -1026,7 +1115,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 
 <!-- ============================ 数据总览 ============================ -->
 <section id="view-overview" class="view active">
-  <div class="kpis" id="cards">
+  <div class="kpis k4" id="cards">
     <div class="card hero"><div class="l">医疗机构总数</div><div class="v" id="v_total">—</div><div class="s">整合后主表口径（ads_inst_search）</div></div>
     <div class="card k2"><div class="l">医院数量</div><div class="v" id="v_hospitals">—</div><div class="s">综合 / 专科 / 中医医院合计</div></div>
     <div class="card k3"><div class="l">社区机构</div><div class="v" id="v_community">—</div><div class="s">社区卫生服务中心 + 站</div></div>
@@ -1042,14 +1131,19 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
       </div>
       <div class="maplg"><span>机构少</span><i></i><span>机构多</span></div>
     </div>
-    <div class="panel">
-      <h3>医疗机构类型构成 <span class="tag">CATEGORIES</span></h3>
-      <div id="ch2" style="height:340px"></div>
+    <div class="panel-stack">
+      <div class="panel">
+        <h3>医疗机构类型构成 <span class="tag">CATEGORIES</span></h3>
+        <div id="ch2"></div>
+      </div>
+      <div class="panel">
+        <h3>各区机构数 TOP <span class="tag">DISTRICTS</span></h3>
+        <div id="ch3"></div>
+      </div>
     </div>
   </div>
 
-  <div class="grid3">
-    <div class="panel sm"><h3>各区机构数 TOP <span class="tag">DISTRICTS</span></h3><div id="ch3"></div></div>
+  <div class="grid2">
     <div class="panel sm"><h3>医院等级分布 <span class="tag">LEVELS</span></h3><div id="ch1"></div></div>
     <div class="panel sm"><h3>办别构成 <span class="tag">OWNERSHIP</span></h3><div id="ch_ov_own"></div></div>
   </div>
@@ -1090,15 +1184,15 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     <span class="anbar-tip">点击图表元素可回总览页按该维度筛选</span>
   </div>
 
-  <div class="sec-title"><span class="bar"></span>资源结构<span class="hint">谁在提供医疗服务 · 办别 / 等级 / 类型</span></div>
-  <div class="agrid">
+  <div class="sec-title"><span class="bar"></span><span class="n">01</span>资源结构<span class="hint">谁在提供医疗服务 · 办别 / 等级 / 类型</span></div>
+  <div class="agrid ag-n3">
     <div class="apanel"><h3>办别分布（公立 / 民营） <span class="tag">OWNERSHIP</span></h3><div class="achart" id="ch_own"></div></div>
     <div class="apanel"><h3>等级 × 办别 <span class="tag">LEVEL × OWNER</span></h3><div class="achart" id="ch_lvown"></div></div>
     <div class="apanel"><h3>机构类型 × 办别结构 <span class="tag">CATEGORY × OWNER</span></h3><div class="achart" id="ch_catown"></div></div>
   </div>
 
-  <div class="sec-title"><span class="bar"></span>专科能力<span class="hint">专科资源的厚度与集中在哪些机构</span></div>
-  <div class="agrid">
+  <div class="sec-title"><span class="bar"></span><span class="n">02</span>专科能力<span class="hint">专科资源的厚度与集中在哪些机构</span></div>
+  <div class="agrid ag-n5">
     <div class="apanel"><h3>重点专科分级 <span class="tag">FEATURE LEVEL</span></h3><div class="achart" id="ch_feat"></div></div>
     <div class="apanel"><h3>专科能力 TOP<span id="an_topn_lbl">10</span> <span class="tag">KEY SPECIALTY</span></h3><div class="achart" id="ch_topsp"></div></div>
     <div class="apanel"><h3>专科能力分档（仅挂牌重点专科的机构） <span class="tag">SPECIALTY DEPTH</span></h3><div class="achart" id="ch_spdist"></div></div>
@@ -1106,15 +1200,15 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     <div class="apanel"><h3>科室覆盖 TOP15 <span class="tag">DEPT COVERAGE</span></h3><div class="achart" id="ch_deptop"></div></div>
   </div>
 
-  <div class="sec-title"><span class="bar"></span>空间格局<span class="hint">16 区资源密度与专科实力横向对比</span></div>
-  <div class="agrid">
+  <div class="sec-title"><span class="bar"></span><span class="n">03</span>空间格局<span class="hint">16 区资源密度与专科实力横向对比</span></div>
+  <div class="agrid ag-n3">
     <div class="apanel"><h3>区域 × 等级 <span class="tag">DISTRICT × LEVEL</span></h3><div class="achart" id="ch_distlv"></div></div>
     <div class="apanel"><h3>区域专科实力 <span class="tag">DISTRICT SPECIALTY</span></h3><div class="achart" id="ch_distsp"></div></div>
     <div class="apanel"><h3>区域综合实力雷达 <span class="tag">RADAR · NORMALIZED</span></h3><div class="achart" id="ch_radar"></div></div>
   </div>
 
-  <div class="sec-title"><span class="bar"></span>协作与数据整合<span class="hint">跨机构协同网络 · 合并来源深度 · 数据质量</span></div>
-  <div class="agrid">
+  <div class="sec-title"><span class="bar"></span><span class="n">04</span>协作与数据整合<span class="hint">跨机构协同网络 · 合并来源深度 · 数据质量</span></div>
+  <div class="agrid ag-n4">
     <div class="apanel"><h3>协作网络覆盖（按网络席位） <span class="tag">NETWORKS</span></h3><div class="achart" id="ch_net"></div></div>
     <div class="apanel"><h3>协作网络 × 等级 <span class="tag">NETWORK × LEVEL</span></h3><div class="achart" id="ch_netlv"></div></div>
     <div class="apanel"><h3>数据整合深度 <span class="tag">SOURCE MERGE DEPTH</span></h3><div class="achart" id="ch_srcmap"></div></div>
@@ -1327,18 +1421,21 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   <div class="sec-title"><span class="bar"></span>多源数据整合中心
     <span class="hint">Spark 数仓分层 ODS → DWD → DWS → ADS · 处理结果全部来自真实 ETL</span></div>
   <div class="integ-grid">
-    <div class="panel integ-col">
+    <div class="panel integ-col src">
       <h3>数据源 <span class="tag">SOURCES</span></h3>
       <div id="integration_sources" class="integ-list"></div>
     </div>
-    <div class="panel integ-col">
+    <div class="panel integ-col pipe">
       <h3>数据处理流程 <span class="tag">PIPELINE</span></h3>
       <div id="integration_pipeline" class="timeline"></div>
     </div>
-    <div class="panel integ-col">
+    <div class="panel integ-col res">
       <h3>处理结果 <span class="tag">RESULTS</span></h3>
       <div id="integration_results" class="infogrid"></div>
-      <div class="blk" style="margin-top:14px"><h4><span class="bar"></span>ETL 批次时效</h4><div id="integration_etl_tbl"></div></div>
+    </div>
+    <div class="panel integ-full">
+      <h3>ETL 批次时效 <span class="tag">ETL SNAPSHOTS</span></h3>
+      <div id="integration_etl_tbl"></div>
     </div>
   </div>
 </section>
@@ -1347,13 +1444,13 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 <section id="view-quality" class="view">
   <div class="sec-title"><span class="bar"></span>数据质量治理
     <span class="hint">字段完整率 · 去重统计 · 来源分布 · 全部由治理脚本真实计算</span></div>
-  <div class="kpis">
+  <div class="kpis k4">
     <div class="card hero"><div class="l">源文件数</div><div class="v" id="q_sources">70</div><div class="s">去重后公开数据文件</div></div>
     <div class="card k2"><div class="l">原始记录</div><div class="v" id="q_raw">13,803</div><div class="s">合并前累计记录</div></div>
     <div class="card k3"><div class="l">最终机构</div><div class="v" id="q_final">9,791</div><div class="s">去重合并后主表</div></div>
     <div class="card k4"><div class="l">去重名</div><div class="v" id="q_dup">3,139</div><div class="s">多源重复机构名</div></div>
   </div>
-  <div class="agrid" style="padding:var(--gap) var(--pad-x) 0">
+  <div class="agrid ag-n4" style="padding:var(--gap) var(--pad-x) 22px">
     <div class="apanel grow"><h3>关键字段完整率 <span class="tag">FIELD COMPLETENESS</span></h3><div id="qual_field_table"></div></div>
     <div class="apanel"><h3>坐标精度分布 <span class="tag">COORD PRECISION</span></h3><div class="achart" id="ch_qcoord"></div></div>
     <div class="apanel grow"><h3>去重与多源验证 <span class="tag">DEDUPLICATION</span></h3><div id="qual_dup_stats"></div></div>
