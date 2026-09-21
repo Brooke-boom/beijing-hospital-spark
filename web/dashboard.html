@@ -509,7 +509,15 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 .apanel > h3{font-size:12.5px;display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;gap:10px}
 .apanel > h3 .tag{color:var(--ink-4);font-size:9.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
 .achart{flex:1;width:100%;min-height:0}
-#ch1,#ch2,#ch3,#ch_own,#ch_feat,#ch_net,#ch_lvown,#ch_topsp,#ch_deptop,#ch_distlv,#ch_coord,
+/* 图表容器高度三件套（**新增图表必须同时改这里**，漏了就是「面板在、图是白的」）：
+   ① 加进下面这份 id 清单（width/height:100%）
+   ② 加进 app.js 的 resizeAll() 数组
+   ③ 空态↔有数据之间必须 setOption(opt, true)
+   ⚠️ 漏了 ① 的症状是一条静默故障：容器 clientHeight=0，
+   ECharts 照样 init、照样 setOption、series 里数据齐全（探针能查到 3 个点），
+   但 canvas 高度 0 —— 页面上只看到标题和一块空白。
+   etl/verify_layout.py 里有静态断言（init 的 id 必须 ⊆ 本清单）+ 运行时断言（clientHeight>0）钉住。 */
+#ch1,#ch2,#ch3,#ch_ov_own,#ch_own,#ch_feat,#ch_net,#ch_lvown,#ch_topsp,#ch_deptop,#ch_distlv,#ch_coord,
 #ch_catown,#ch_spdist,#ch_splv,#ch_distsp,#ch_radar,#ch_netlv,#ch_srcmap,
 #a_kw,#a_dist,#a_triage,#a_daily,#a_density,#a_level,#a_spec,#a_net,#a_own{width:100%;height:100%}
 

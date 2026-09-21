@@ -14,7 +14,14 @@
   ③ 留白   —— 末行填充率 < 99%（3 + 1 那种缺半边的排法）
   ④ 齐平   —— 左右两栏/上下两块的边缘没对齐
 
+第五类判据（2026-09-21 补，教训来自「办别构成」面板空白）：
+  ⑤ 空板   —— 图表容器的 id 不在高度清单里 → clientHeight=0 →
+              ECharts 照样 init、照样 setOption、series 里数据齐全，
+              但页面上只有标题和一块空白。**这是最像"没数据"的故障，其实数据全在，
+              缺的是容器高度**。静态（id 是否登记）+ 运行时（clientHeight>0）双查。
+
 页面用 ECharts 空桩（结构真、图表假）：版面只由 CSS 决定，桩掉图表既快又不受动画干扰。
+「容器高度为 0」本身就是 CSS 决定的，所以空桩页照样能查出来。
 """
 import os
 import re
@@ -23,6 +30,7 @@ import argparse
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_SRC = os.path.join(BASE, 'web', 'dashboard_offline.html')
+DEFAULT_JS = os.path.join(BASE, 'web', 'app.js')
 
 STUB = (
     '<script>window.echarts={init:function(){return{setOption:function(){},resize:function(){},'
@@ -31,6 +39,83 @@ STUB = (
     'getZr:function(){return{on:function(){},off:function(){}};}};},getMap:function(){},'
     'registerMap:function(){},graphic:{LinearGradient:function(){return{};}}};</script>'
 )
+
+
+# ---------------------------------------------------------------------------
+#  ⑤ 图表容器体检：这是「面板在、图是白的」那一类静默故障的唯一抓手
+# ---------------------------------------------------------------------------
+def scan_chart_containers(js_text):
+    """从 app.js 里抽出所有交给 echarts.init 的容器 id。
+
+    三种写法都要认，漏认一种就等于留一个盲区：
+      a) mk('ch_own')                        —— 分析页批量初始化（16 张）
+      b) echarts.init($('ch1'))              —— 总览页手写初始化
+      c) const qc = $('ch_qcoord'); … echarts.init(qc)
+                                             —— 先取元素再 init（质量页），
+                                               最容易漏：id 只出现在 $() 里，
+                                               不看变量绑定就找不到
+    """
+    var2id = dict(re.findall(r"(?:const|let|var)\s+(\w+)\s*=\s*\$\('([^']+)'\)", js_text))
+    ids = set(re.findall(r"mk\(\s*'([^']+)'\s*\)", js_text))
+    ids |= set(re.findall(r"echarts\.init\(\s*\$\('([^']+)'\)", js_text))
+    for v in re.findall(r"echarts\.init\(\s*(\w+)\s*[,)]", js_text):
+        if v in var2id:
+            ids.add(var2id[v])
+    return ids
+
+
+def chart_container_static(product_src, js_path):
+    """静态查图表容器的两个方向。
+
+    合格的高度来源只有三种：在高度 id 清单里 / 带 .achart 类 / 是 #map。
+    当初「办别构成」空白，就是因为它三种都不是。
+
+    返回 dict：
+      ids        echarts.init 用到的全部 id
+      listed     高度清单里的 id
+      no_height  ★【HTML 里有元素，却没有高度来源】—— 就是白板故障，必须报红
+      no_init    ☆【HTML 里有 ch* 容器，但没有任何 JS 去 init 它】—— id 改了名字忘改 JS
+      dead       有 init、HTML 里却没有元素（运营后台等已下线模块的遗留，无害，只提示）
+    """
+    html = open(product_src, encoding='utf-8').read()
+    js = open(js_path, encoding='utf-8').read()
+    ids = scan_chart_containers(js)
+
+    m = re.search(r'((?:#[A-Za-z_][\w-]*\s*,?\s*)+)\{[^}]*width:100%;height:100%[^}]*\}', html)
+    listed = set(re.findall(r'#([A-Za-z_][\w-]*)', m.group(1))) if m else set()
+
+    # HTML 里所有像图表容器的元素：id 以 ch 开头（本项目 ch* 一律是 ECharts 容器）
+    dom_chart = set(re.findall(r'<[^>]*\bid="(ch[A-Za-z_0-9]*)"', html))
+
+    no_height, dead = [], []
+    for i in sorted(ids):
+        el = re.search(r'<[^>]*\bid="%s"[^>]*>' % re.escape(i), html)
+        if not el:
+            dead.append(i)
+            continue
+        if i in listed or i == 'map' or 'achart' in el.group(0):
+            continue
+        no_height.append(i)
+
+    no_init = sorted(dom_chart - ids)
+    return {'ids': ids, 'listed': listed, 'no_height': no_height,
+            'no_init': no_init, 'dead': dead}
+
+
+CONTS = r"""
+() => {
+  const sec = document.querySelector('section.view.active');
+  const out = [];
+  if (sec) {
+    sec.querySelectorAll('[id^="ch"],[id^="a_"]').forEach(el => {
+      out.push([el.id, el.clientWidth, el.clientHeight]);
+    });
+    const mp = sec.querySelector('#map');
+    if (mp) out.push(['map', mp.clientWidth, mp.clientHeight]);
+  }
+  return out;
+}
+"""
 
 # 每档宽度的视口。1180 是整合页「塌成单列」的既有断点，900 是分析网格降至单列的断点，
 # 两侧都要取到，否则断点附近的问题查不出来。
@@ -159,6 +244,7 @@ def build_page(src_path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--src', default=DEFAULT_SRC, help='待校验的单文件产物')
+    ap.add_argument('--js', default=DEFAULT_JS, help='图表初始化所在的 app.js（静态查容器 id 用）')
     args = ap.parse_args()
 
     try:
@@ -179,6 +265,16 @@ def main():
             pg.goto('file://' + page_path, wait_until='domcontentloaded')
             pg.wait_for_timeout(1600)
             r = pg.evaluate(PROBE)
+            v = r['v']
+
+            # ⑤ 空板：容器没有高度，图就是白的。逐个视图量（隐藏的视图量不准）
+            empty = []
+            for view_id in ['overview', 'analytics', 'integration', 'quality']:
+                pg.evaluate('(x) => switchView(x)', view_id)
+                pg.wait_for_timeout(90)
+                for cid, cw, ch2 in pg.evaluate(CONTS):
+                    if cw <= 0 or ch2 <= 0:
+                        empty.append('%s/%s=%dx%d' % (view_id, cid, cw, ch2))
             pg.close()
             v = r['v']
             two_col = w > 1180          # 两个「塌成单列」的断点：1180（整合）、900（分析网格）
@@ -189,6 +285,7 @@ def main():
             esc = [(k, m['escape']) for k, m in v.items() if m['escape']]
             checks.append(('%s 无横向溢出' % tag, ovf == 0, ovf))
             checks.append(('%s 无内容逃逸' % tag, not esc, esc if esc else 'clean'))
+            checks.append(('%s 图表容器均有尺寸' % tag, not empty, empty if empty else 'all > 0'))
 
             ov = v['overview']
             # ≤700 地图与右栏上下堆叠，不再要求等高
@@ -226,6 +323,16 @@ def main():
         checks.append(('分段标题字重 ≥700', st_fw >= 700, st_fw))
         checks.append(('分段标题有分隔线', st_bd not in ('0px', '0', ''), st_bd))
         br.close()
+
+    # ⑤ 静态部分：容器 id 是否登记了高度来源（不看渲染，读源码就能判）
+    st = chart_container_static(args.src, args.js)
+    checks.append(('图表容器 id 均已登记高度来源', not st['no_height'],
+                   st['no_height'] if st['no_height'] else '共 %d 个' % len(st['ids'])))
+    checks.append(('HTML 图表容器均有 JS 初始化', not st['no_init'],
+                   st['no_init'] if st['no_init'] else '%d 个全部命中' % len(st['ids'] - set(st['dead']))))
+    if st['dead']:
+        print('  ℹ  %d 个 init 目标在 HTML 里已无元素（下线模块遗留，mk() 已做空值保护）：%s'
+              % (len(st['dead']), ', '.join(st['dead'])))
 
     print('▶ 断言')
     bad = 0
