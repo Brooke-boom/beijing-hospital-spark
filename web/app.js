@@ -112,6 +112,9 @@ const SID = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 
 let MAP_CHART, CH1, CH2, CH3;
 let ROW_EL_BY_ID = {}, SCATTER_IDX = {}, HOVER_ID = null;   // 地图 ↔ 列表 悬停互指
 let CH_OWN, CH_FEAT, CH_NET, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD;
+// 分析页第二批维度（2026-09-21）：类型×办别 / 专科分档 / 国市级对比 / 区域专科 / 雷达 / 网络×等级 / 整合深度
+let CH_CATOWN, CH_SPDIST, CH_SPLV, CH_DISTSP, CH_RADAR, CH_NETLV, CH_SRCMAP;
+let AN_TOP_N = 10;      // 专科能力 TOP 档位（10 / 15 / 20，工具条可切）
 let A_KW, A_DIST, A_TRIAGE, A_DAILY, A_DENSITY, A_LEVEL, A_SPEC, A_NET, A_OWN, A_CAT, A_FEAT;
 let OV_OWN_CHART, QCOORD_CHART;   // 数据总览·办别构成 / 数据质量·坐标精度（七视图改版新增）
 
@@ -1346,6 +1349,7 @@ function initCharts() {
 
 function resizeAll() {
   [MAP_CHART, CH1, CH2, CH3, CH_OWN, CH_FEAT, CH_NET, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD,
+   CH_CATOWN, CH_SPDIST, CH_SPLV, CH_DISTSP, CH_RADAR, CH_NETLV, CH_SRCMAP,
    A_KW, A_DIST, A_TRIAGE, A_DAILY, A_DENSITY, A_LEVEL, A_SPEC, A_NET, A_OWN, A_CAT, DW_CHART,
    OV_OWN_CHART, QCOORD_CHART
   ].forEach(c => { if (c) { try { c.resize(); } catch (e) { } } });
@@ -1567,11 +1571,293 @@ function stackOpt(cats, series) {
   };
 }
 
+// ---------------------------------------------------------------------------
+//  9.1 分析页的公共聚合
+//       本页所有图表都从 FILTERED（当前筛选结果）现算，不读预聚合表——
+//       这样筛选一变图跟着变，且图上那根柱子的高度就是下钻后能查到的机构数。
+// ---------------------------------------------------------------------------
+const OWN_SERIES = [['公立', ACC2], ['民营', WARN], ['未标注', DIM]];
+const LV_ALL = ['三级', '二级', '一级', '未定级'];
+// 协作网络口径与筛选区的 f_net 完全一致（否则「图上有、筛选查不到」）
+const NET_GROUPS = [
+  ['儿科·核心', r => r.net_pediatric === '核心'],
+  ['儿科·成员', r => r.net_pediatric === '成员'],
+  ['卒中中心', r => r.net_stroke === '1'],
+  ['危重新生儿', r => r.net_neonatal === '市级'],
+  ['危重孕产妇', r => r.net_maternal === '市级'],
+];
+function ownOf(r) { return r.ownership === '公立' || r.ownership === '民营' ? r.ownership : '未标注'; }
+function isNetMember(r) {
+  return !!(r.net_pediatric || r.net_stroke === '1' || r.net_neonatal === '市级' || r.net_maternal === '市级');
+}
+// key_specialty_count 求和便捷写法
+function sumBy(arr, f) { return arr.reduce((s, r) => s + (Number(f(r)) || 0), 0); }
+
+// ---------- 机构类型 × 办别结构（横向百分百堆叠）----------
+// 一行一个机构类型，色块是办别构成，行尾标出该类型机构总数。
+// 读法：哪几行几乎整条暖色，就是民营扎堆的领域。
+function anCatOwnOpt(F) {
+  const m = {};
+  F.forEach(r => {
+    const c = r.category || '未分类';
+    const b = m[c] || (m[c] = { n: 0, 公立: 0, 民营: 0, 未标注: 0 });
+    b.n++; b[ownOf(r)]++;
+  });
+  const cats = Object.keys(m).sort((a, b) => m[b].n - m[a].n).slice(0, 10).reverse();
+  if (!cats.length) return null;
+  return {
+    tooltip: Object.assign({
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: ps => {
+        const c = cats[ps[0].dataIndex], b = m[c];
+        return '<b>' + esc(c) + '</b>　共 ' + b.n.toLocaleString() + ' 家' +
+          ps.map(p => '<br/>' + p.marker + p.seriesName + '：' + p.value + '%（' + b[p.seriesName].toLocaleString() + ' 家）').join('');
+      },
+    }, TIP),
+    // 图例放右上角：放底部会与 x 轴的 0~100% 刻度叠在一起（实测过）
+    legend: Object.assign({ top: 0, right: 0 }, LEGEND),
+    grid: { left: 92, right: 52, top: 26, bottom: 6 },
+    xAxis: Object.assign({ type: 'value', max: 100 }, {
+      axisLabel: { color: CHART_AXIS, fontSize: 10, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: CHART_SPLIT } }, axisLine: { show: false }, axisTick: { show: false },
+    }),
+    yAxis: Object.assign({ type: 'category', data: cats.map(c => trunc(c, 7)) }, AXIS,
+      { axisLabel: { color: CHART_AXIS, fontSize: 10.5 } }),
+    // 最后一段（未标注）顺带把「该类型机构总数」标在行尾
+    series: OWN_SERIES.map((o, i) => Object.assign({
+      name: o[0], type: 'bar', stack: 'c', barMaxWidth: 16,
+      itemStyle: { color: o[1] },
+      data: cats.map(c => +(m[c][o[0]] / m[c].n * 100).toFixed(1)),
+      label: { show: true, position: 'inside', color: '#fff', fontSize: 9,
+               formatter: p => (p.value >= 14 ? p.value + '%' : '') },
+    }, i === OWN_SERIES.length - 1 ? {
+      label: { show: true, position: 'right', color: SUB, fontSize: 10,
+               formatter: p => m[cats[p.dataIndex]].n.toLocaleString() },
+    } : {})),
+  };
+}
+
+// ---------- 专科能力分档（只统计有重点专科的机构）----------
+// 全量里 9,712 家是 0 项，混在一起会是一根压倒性的柱子什么也看不出，
+// 所以只看「有专科的机构」，回答的是「专科集中在头部还是分散」。
+function anSpDistOpt(F) {
+  const bins = [['1–4 项', 1, 4], ['5–9 项', 5, 9], ['10–19 项', 10, 19], ['20–29 项', 20, 29], ['30 项以上', 30, 1e9]];
+  const sp = F.filter(r => (r.key_specialty_count || 0) > 0);
+  if (!sp.length) return null;
+  const vals = bins.map(b => sp.filter(r => r.key_specialty_count >= b[1] && r.key_specialty_count <= b[2]).length);
+  const ramp = [ACC2, ACC, VIO, WARN, CRIT];
+  return {
+    tooltip: Object.assign({
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: ps => {
+        const i = ps[0].dataIndex;
+        return '<b>' + bins[i][0] + '</b><br/>' + ps[0].marker + '机构 <b>' + vals[i].toLocaleString() +
+          '</b> 家 · 占有专科机构 ' + (vals[i] / sp.length * 100).toFixed(1) + '%';
+      },
+    }, TIP),
+    grid: { left: 46, right: 18, top: 20, bottom: 22 },
+    xAxis: Object.assign({ type: 'category', data: bins.map(b => b[0]) }, AXIS,
+      { axisLabel: { color: CHART_AXIS, fontSize: 10 } }),
+    yAxis: Object.assign({ type: 'value' }, AXIS, { axisLabel: { color: CHART_AXIS, fontSize: 10 } }),
+    series: [{
+      type: 'bar', barMaxWidth: 34,
+      data: vals.map((v, i) => ({ value: v, itemStyle: { color: ramp[i], borderRadius: [4, 4, 0, 0] } })),
+      label: { show: true, position: 'top', color: INK, fontSize: 10.5 },
+    }],
+  };
+}
+
+// ---------- 国家级 / 市级重点专科（按机构等级）----------
+function anSpLvOpt(F) {
+  if (!F.length) return null;
+  const lvs = [['三级', r => r.level === '三级'], ['二级', r => r.level === '二级'],
+               ['一级', r => r.level === '一级'], ['未定级 / 不分级', r => r.level !== '三级' && r.level !== '二级' && r.level !== '一级']];
+  const nat = lvs.map(l => sumBy(F.filter(l[1]), r => r.national_specialty_count));
+  const mun = lvs.map(l => sumBy(F.filter(l[1]), r => r.municipal_specialty_count));
+  if (!nat.some(v => v > 0) && !mun.some(v => v > 0)) return null;
+  return {
+    tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, TIP),
+    legend: Object.assign({ bottom: 0 }, LEGEND),
+    grid: { left: 44, right: 16, top: 8, bottom: 40 },
+    xAxis: Object.assign({ type: 'category', data: lvs.map(l => l[0]) }, AXIS,
+      { axisLabel: { color: CHART_AXIS, fontSize: 10 } }),
+    yAxis: Object.assign({ type: 'value', name: '专科条目数', nameTextStyle: { color: FAINT, fontSize: 9.5 } }, AXIS,
+      { axisLabel: { color: CHART_AXIS, fontSize: 10 } }),
+    series: [
+      { name: '国家级重点专科', type: 'bar', barMaxWidth: 20, itemStyle: { color: CRIT, borderRadius: [4, 4, 0, 0] }, data: nat,
+        label: { show: true, position: 'top', color: INK, fontSize: 10 } },
+      { name: '市级重点专科', type: 'bar', barMaxWidth: 20, itemStyle: { color: ACC, borderRadius: [4, 4, 0, 0] }, data: mun,
+        label: { show: true, position: 'top', color: INK, fontSize: 10 } },
+    ],
+  };
+}
+
+// ---------- 区域专科实力（挂牌重点专科数）----------
+function anDistSpOpt(F) {
+  const m = {};
+  F.forEach(r => {
+    const d = r.district || '未知';
+    const b = m[d] || (m[d] = { sp: 0, n: 0, nat: 0, mun: 0 });
+    b.n++; b.sp += (r.key_specialty_count || 0);
+    b.nat += (r.national_specialty_count || 0);
+    b.mun += (r.municipal_specialty_count || 0);
+  });
+  const ds = Object.keys(m).filter(d => m[d].sp > 0).sort((a, b) => m[b].sp - m[a].sp).slice(0, 12);
+  if (!ds.length) return null;
+  const rows = ds.slice().reverse();
+  return {
+    tooltip: Object.assign({
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: ps => {
+        const d = rows[ps[0].dataIndex], b = m[d];
+        return '<b>' + esc(d) + '</b><br/>重点专科挂牌 <b>' + b.sp.toLocaleString() + '</b> 项<br/>' +
+          '国家级 ' + b.nat + ' · 市级 ' + b.mun + '<br/>机构 ' + b.n.toLocaleString() + ' 家<br/>' +
+          '<span style="color:' + FAINT + '">人均强度：每百家机构 ' + (b.sp / (b.n || 1) * 100).toFixed(1) + ' 项</span>';
+      },
+    }, TIP),
+    grid: { left: 62, right: 46, top: 8, bottom: 8 },
+    xAxis: Object.assign({ type: 'value' }, AXIS),
+    yAxis: Object.assign({ type: 'category', data: rows.map(d => trunc(d, 6)) }, AXIS,
+      { axisLabel: { color: CHART_AXIS, fontSize: 10.5 } }),
+    series: [{
+      type: 'bar', barMaxWidth: 15,
+      data: rows.map((d, i) => ({
+        value: m[d].sp,
+        itemStyle: {
+          borderRadius: [0, 4, 4, 0],
+          color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0,
+            colorStops: [{ offset: 0, color: VIO }, { offset: 1, color: ACC }] },
+        },
+      })),
+      label: { show: true, position: 'right', color: INK, fontSize: 10 },
+    }],
+  };
+}
+
+// ---------- 区域综合实力雷达（机构数 TOP6 区 × 5 个归一化指标）----------
+// 五个指标量纲不同，一律按「本图内最大值 = 100」归一，只做横向相对比较；
+// 坐标精度本身是百分比，不参与归一。
+function anRadarOpt(F) {
+  const m = {};
+  F.forEach(r => {
+    const d = r.district || '未知';
+    const b = m[d] || (m[d] = { n: 0, l3: 0, sp: 0, net: 0, hi: 0 });
+    b.n++;
+    if (r.level === '三级') b.l3++;
+    b.sp += (r.key_specialty_count || 0);
+    if (isNetMember(r)) b.net++;
+    if (r.coord_precision === 'high') b.hi++;
+  });
+  const ds = Object.keys(m).sort((a, b) => m[b].n - m[a].n).slice(0, 6);
+  if (ds.length < 3) return null;
+  const mx = k => Math.max.apply(null, ds.map(d => m[d][k]).concat([1]));
+  const N = mx('n'), L = mx('l3'), S = mx('sp'), T = mx('net');
+  const pal = [ACC, ACC2, WARN, VIO, CRIT, PINK];
+  return {
+    tooltip: Object.assign({
+      formatter: p => {
+        const d = p.name, b = m[d];
+        return '<b>' + esc(d) + '</b><br/>机构总数 ' + b.n.toLocaleString() + ' 家<br/>' +
+          '三级机构 ' + b.l3 + ' 家 · 网络成员 ' + b.net + ' 家<br/>' +
+          '重点专科 ' + b.sp + ' 项<br/>高精度坐标 ' + (b.hi / (b.n || 1) * 100).toFixed(1) + '%';
+      },
+    }, TIP),
+    legend: Object.assign({ bottom: 0 }, LEGEND, { data: ds }),
+    radar: {
+      center: ['50%', '45%'], radius: '58%',
+      indicator: [
+        { name: '机构总数', max: 100 }, { name: '三级机构', max: 100 },
+        { name: '重点专科', max: 100 }, { name: '网络成员', max: 100 },
+        { name: '坐标精度', max: 100 },
+      ],
+      axisName: { color: CHART_AXIS, fontSize: 10 },
+      splitLine: { lineStyle: { color: CHART_SPLIT } },
+      axisLine: { lineStyle: { color: CHART_SPLIT } },
+      splitArea: { show: false },
+    },
+    series: [{
+      type: 'radar', symbolSize: 4,
+      data: ds.map((d, i) => ({
+        name: d,
+        value: [
+          Math.round(m[d].n / N * 100), Math.round(m[d].l3 / L * 100),
+          Math.round(m[d].sp / S * 100), Math.round(m[d].net / T * 100),
+          Math.round(m[d].hi / (m[d].n || 1) * 100),
+        ],
+        itemStyle: { color: pal[i % pal.length] },
+        lineStyle: { width: 1.6 },
+        areaStyle: { opacity: .09 },
+      })),
+    }],
+  };
+}
+
+// ---------- 协作网络 × 等级（每个网络覆盖到的机构等级构成）----------
+// ⚠️ 四档必须覆盖全部记录：'未定级' 与 '不适用医院分级' 合并进末档。
+//    早期版本末档只写了 LV_ALL.indexOf(...) < 0，会把 2 家「未定级」机构漏掉，
+//    与左边「协作网络覆盖」图的总数（158）对不上——同一页两个数不一致最容易被追问。
+function anNetLvOpt(F) {
+  const groups = NET_GROUPS.map(g => [g[0], F.filter(g[1])]);
+  if (!groups.some(g => g[1].length)) return null;
+  const rows = [['三级', CRIT, r => r.level === '三级'], ['二级', WARN, r => r.level === '二级'],
+                ['一级', ACC, r => r.level === '一级'],
+                ['未定级 / 不分级', DIM, r => LV_ALL.indexOf(r.level) < 0 || r.level === '未定级']];
+  return {
+    tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, TIP),
+    legend: Object.assign({ bottom: 0 }, LEGEND),
+    grid: { left: 40, right: 16, top: 8, bottom: 48 },
+    xAxis: Object.assign({ type: 'category', data: groups.map(g => g[0]) }, AXIS,
+      { axisLabel: { color: CHART_AXIS, fontSize: 9.5, interval: 0, rotate: groups.length > 4 ? 16 : 0 } }),
+    yAxis: Object.assign({ type: 'value' }, AXIS, { axisLabel: { color: CHART_AXIS, fontSize: 10 } }),
+    series: rows.map(r => ({
+      name: r[0], type: 'bar', stack: 'n', barMaxWidth: 30, itemStyle: { color: r[1] },
+      emphasis: { focus: 'series' },
+      data: groups.map(g => g[1].filter(r[2]).length),
+    })),
+  };
+}
+
+// ---------- 数据整合深度（该机构由几个源文件合并而来）----------
+function anSrcMapOpt(F) {
+  const bins = [['1 个源文件', c => c <= 1], ['2 个', c => c === 2], ['3 个', c => c === 3], ['4 个及以上', c => c >= 4]];
+  const vals = bins.map(b => F.filter(r => b[1](Number(r.src_count_int) || 1)).length);
+  if (!F.length) return null;
+  const tot = F.length;
+  const ramp = [DIM, ACC, VIO, CRIT];
+  return {
+    tooltip: Object.assign({
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: ps => {
+        const i = ps[0].dataIndex;
+        return '<b>' + bins[i][0] + '</b><br/>' + ps[0].marker + '机构 <b>' + vals[i].toLocaleString() +
+          '</b> 家 · 占 ' + (vals[i] / tot * 100).toFixed(1) + '%<br/>' +
+          '<span style="color:' + FAINT + '">合并源文件越多，说明该机构信息在多个公开渠道互相印证</span>';
+      },
+    }, TIP),
+    grid: { left: 46, right: 18, top: 20, bottom: 22 },
+    xAxis: Object.assign({ type: 'category', data: bins.map(b => b[0]) }, AXIS,
+      { axisLabel: { color: CHART_AXIS, fontSize: 10 } }),
+    yAxis: Object.assign({ type: 'value' }, AXIS, { axisLabel: { color: CHART_AXIS, fontSize: 10 } }),
+    series: [{
+      type: 'bar', barMaxWidth: 34,
+      data: vals.map((v, i) => ({ value: v, itemStyle: { color: ramp[i], borderRadius: [4, 4, 0, 0] } })),
+      label: { show: true, position: 'top', color: INK, fontSize: 10.5 },
+    }],
+  };
+}
+
+// ---------------------------------------------------------------------------
+//  9.2 图表初始化
+// ---------------------------------------------------------------------------
 function initAnalyticsCharts() {
   const mk = id => { const el = $(id); return el ? echarts.init(el) : null; };
   CH_OWN = mk('ch_own'); CH_FEAT = mk('ch_feat'); CH_NET = mk('ch_net');
   CH_LVOWN = mk('ch_lvown'); CH_TOPSP = mk('ch_topsp'); CH_DEPTOP = mk('ch_deptop');
   CH_DISTLV = mk('ch_distlv'); CH_COORD = mk('ch_coord');
+  CH_CATOWN = mk('ch_catown'); CH_SPDIST = mk('ch_spdist'); CH_SPLV = mk('ch_splv');
+  CH_DISTSP = mk('ch_distsp'); CH_RADAR = mk('ch_radar'); CH_NETLV = mk('ch_netlv');
+  CH_SRCMAP = mk('ch_srcmap');
+  initAnalyticsInteractions();
 }
 
 function updateAnalyticsCharts() {
@@ -1580,7 +1866,17 @@ function updateAnalyticsCharts() {
   setText('ak_pub', pct(F.filter(r => r.ownership === '公立').length, tot));
   setText('ak_l3', pct(F.filter(r => r.level === '三级').length, tot));
   setText('ak_feat', F.filter(r => (r.key_specialty_count || 0) > 0).length.toLocaleString());
-  setText('ak_net', F.filter(r => r.net_pediatric || r.net_stroke === '1' || r.net_neonatal === '市级' || r.net_maternal === '市级').length.toLocaleString());
+  setText('ak_net', F.filter(isNetMember).length.toLocaleString());
+  // 2026-09-21 新增两卡：空间覆盖率 与 整合深度（后者直接呼应「资源整合」这条主线）
+  setText('ak_dist', new Set(F.map(r => r.district).filter(Boolean)).size.toLocaleString());
+  setText('ak_multi', F.filter(r => (Number(r.src_count_int) || 1) > 1).length.toLocaleString());
+
+  const sc = $('an_scope');
+  if (sc) {
+    const all = (DATA.institutions || []).length;
+    sc.textContent = '当前筛选结果 ' + tot.toLocaleString() + ' 家' +
+      (tot === all ? '（未设条件，等于全量）' : '，占全量 ' + (tot / (all || 1) * 100).toFixed(1) + '%');
+  }
 
   const own = grp(F, r => r.ownership || '未标注');
   CH_OWN.setOption(pieOpt([['公立', own['公立'] || 0, ACC2], ['民营', own['民营'] || 0, WARN], ['未标注', own['未标注'] || 0, DIM]]));
@@ -1589,24 +1885,25 @@ function updateAnalyticsCharts() {
   F.forEach(r => { const v = r.feature_level; if (v === '1') fl.L1++; else if (v === '2') fl.L2++; else if (v === '3') fl.L3++; else fl.none++; });
   CH_FEAT.setOption(barHOpt([['重点专科 L1', fl.L1], ['优势科室 L2', fl.L2], ['诊疗科室 L3', fl.L3], ['无分级', fl.none]], [CRIT, WARN, ACC, DIM]));
 
-  CH_NET.setOption(barHOpt([
-    ['儿科医联体·核心', F.filter(r => r.net_pediatric === '核心').length],
-    ['儿科医联体·成员', F.filter(r => r.net_pediatric === '成员').length],
-    ['卒中中心', F.filter(r => r.net_stroke === '1').length],
-    ['危重新生儿', F.filter(r => r.net_neonatal === '市级').length],
-    ['危重孕产妇', F.filter(r => r.net_maternal === '市级').length],
-  ], [VIO, VIO2, CRIT, ACC2, ACC]));
+  CH_NET.setOption(barHOpt(NET_GROUPS.map(g => [g[0], F.filter(g[1]).length]), [VIO, VIO2, CRIT, ACC2, ACC]));
 
-  const levels = ['三级', '二级', '一级', '未定级'], owns = ['公立', '民营', '未标注'];
+  const levels = LV_ALL.concat(['不适用']), owns = ['公立', '民营', '未标注'];
   CH_LVOWN.setOption(stackOpt(levels, owns.map(o => ({
     name: o, type: 'bar', stack: 't', emphasis: { focus: 'series' },
     itemStyle: { color: o === '公立' ? ACC2 : o === '民营' ? WARN : DIM },
-    data: levels.map(l => F.filter(r => r.level === l && (r.ownership || '未标注') === o).length),
+    data: levels.map(l => F.filter(r => (l === '不适用' ? LV_ALL.indexOf(r.level) < 0 : r.level === l) && ownOf(r) === o).length),
   }))));
 
+  // 专科能力 TOP：按「挂牌重点专科数」降序，档位由工具条切换（10 / 15 / 20）
+  // ⚠️ 这几张图会在「有数据 / 空态」之间来回切，必须用 notMerge 覆盖，
+  //    否则 merge 模式下 emptyOpt 写进去的 title 会赖在后续正常图上（ECharts 已知行为）。
   const top = F.filter(r => (r.key_specialty_count || 0) > 0)
-    .slice().sort((a, b) => b.key_specialty_count - a.key_specialty_count).slice(0, 10).reverse();
-  CH_TOPSP.setOption(barHOpt(top.map(r => [trunc(r.name, 11), r.key_specialty_count]), CRIT));
+    .slice().sort((a, b) => b.key_specialty_count - a.key_specialty_count).slice(0, AN_TOP_N).reverse();
+  if (top.length) {
+    CH_TOPSP.setOption(barHOpt(top.map(r => [trunc(r.name, 11), r.key_specialty_count]), CRIT), true);
+  } else {
+    CH_TOPSP.setOption(emptyOpt('当前筛选结果里没有挂牌重点专科的机构'), true);
+  }
 
   const dists = (DATA.meta.districts || []).map(d => d.district);
   const lvG = [['三级', CRIT], ['二级', WARN], ['一级', ACC], ['未定级', VIO], ['不适用', DIM]];
@@ -1623,7 +1920,223 @@ function updateAnalyticsCharts() {
     ((r.feature || '') + ';' + (r.key_depts || '')).split(';').forEach(x => { x = x.trim(); if (x) dc[x] = (dc[x] || 0) + 1; });
   });
   const td = Object.entries(dc).sort((a, b) => b[1] - a[1]).slice(0, 15).reverse();
-  CH_DEPTOP.setOption(barHOpt(td.map(p => [trunc(p[0], 11), p[1]]), ACC));
+  CH_DEPTOP.setOption(td.length
+    ? barHOpt(td.map(p => [trunc(p[0], 11), p[1]]), ACC)
+    : emptyOpt('当前筛选结果里没有挂牌专科记录'), true);
+
+  // ---- 第二批维度（2026-09-21）----
+  CH_CATOWN.setOption(anCatOwnOpt(F) || emptyOpt('暂无可归类机构'), true);
+  CH_SPDIST.setOption(anSpDistOpt(F) || emptyOpt('当前筛选结果里没有挂牌重点专科的机构'), true);
+  CH_SPLV.setOption(anSpLvOpt(F) || emptyOpt('当前筛选结果里没有重点专科记录'), true);
+  CH_DISTSP.setOption(anDistSpOpt(F) || emptyOpt('当前筛选结果里没有挂牌重点专科的机构'), true);
+  CH_RADAR.setOption(anRadarOpt(F) || emptyOpt('筛选结果覆盖的区不足 3 个，无法横向对比'), true);
+  CH_NETLV.setOption(anNetLvOpt(F) || emptyOpt('当前筛选结果不属于任何市级协作网络'), true);
+  CH_SRCMAP.setOption(anSrcMapOpt(F) || emptyOpt('暂无数据'), true);
+}
+
+// ---------------------------------------------------------------------------
+//  9.3 交互：点图下钻 / 专科 TOP 档位 / 导出数据 / 复制摘要
+// ---------------------------------------------------------------------------
+// 只在选项存在时才赋值，避免把 select 设成不存在的值后静默变空
+function anSetSel(id, v) {
+  const el = $(id); if (!el) return false;
+  const hit = Array.prototype.some.call(el.options, o => o.value === v);
+  if (!hit) return false;
+  el.value = v;
+  return true;
+}
+// 把一次点击翻译成筛选条件并跳到总览页（与地图点击区县的交互保持一致）
+function anDrill(q, label, opts) {
+  if (!q) return;
+  const map = {
+    district: 'f_district', level: 'f_level', cat: 'f_cat', net: 'f_net', dept: 'f_dept',
+  };
+  const ok = [];
+  Object.keys(q).forEach(k => { if (q[k] != null && map[k] && anSetSel(map[k], q[k])) ok.push(map[k]); });
+  if (!ok.length) {
+    toast(svgIcon('warn') + ' 「' + esc(label || '所选维度') + '」不在筛选区可选项内，可到「智能筛选」用一句话检索', 4600);
+    return;
+  }
+  PAGE = 1;
+  switchView('overview');
+  applyFilter();
+  const n = FILTERED.length;
+  toast(svgIcon(n ? 'ok' : 'warn') + ' 已按「' + esc(label || '所选维度') + '」筛选：命中 <b>' + n.toLocaleString() + '</b> 家' +
+    (n ? '，可在总览页继续叠加条件' : '；与已有条件叠加后为空，可用筛选区的「清除条件」重来'), n ? 2600 : 5600);
+  track('analytics_drill', String(label || ''), (opts && opts.src) || '');
+}
+// 专科类图走 f_dept（口径为 meta.depts 的 29 个科室），命中不了就如实说明
+function anDrillDept(name) {
+  if (anSetSel('f_dept', name)) {
+    PAGE = 1; switchView('overview'); applyFilter();
+    toast(svgIcon('ok') + ' 已按科室「' + esc(name) + '」筛选：命中 <b>' + FILTERED.length.toLocaleString() + '</b> 家');
+    track('analytics_drill', name, 'dept');
+  } else {
+    toast(svgIcon('warn') + ' 「' + esc(name) + '」不在科室筛选口径内（该口径为 29 个通用科室），可在「智能筛选」用一句话检索这类机构', 5200);
+  }
+}
+function initAnalyticsInteractions() {
+  const bind = (chart, fn) => { if (chart) chart.on('click', fn); };
+
+  // 办别 / 专科分级不是筛选区的可选维度，点它们如实说明，不给假跳转
+  bind(CH_OWN, p => toast(svgIcon('warn') + ' 办别暂未作为筛选维度开放；「' + esc(p.name) + '」共 ' +
+    (Number(p.value) || 0).toLocaleString() + ' 家，可到「机构查询」按名称或关键词检索', 4600));
+  bind(CH_FEAT, p => toast(svgIcon('warn') + ' 专科分级（L1/L2/L3）不是筛选维度；想在结果里看某一类专科，' +
+    '用下方「专科能力 TOP」或「科室覆盖 TOP15」点具体专科下钻', 4600));
+  bind(CH_LVOWN, p => anDrill({ level: p.name }, p.name + ' · ' + (p.seriesName || ''), { src: 'lvown' }));
+  bind(CH_CATOWN, p => anDrill({ cat: p.name }, (p.name || '') + ' · ' + (p.seriesName || ''), { src: 'catown' }));
+  bind(CH_TOPSP, p => anDrillDept(p.name));
+  bind(CH_DISTLV, p => anDrill({ district: p.name }, p.name + ' · ' + p.seriesName, { src: 'distlv' }));
+  bind(CH_DISTSP, p => anDrill({ district: p.name }, p.name, { src: 'distsp' }));
+  bind(CH_NET, p => {
+    const key = { '儿科医联体·核心': 'ped_core', '儿科医联体·成员': 'ped_member', '卒中中心': 'stroke', '危重新生儿': 'neonatal', '危重孕产妇': 'maternal' }[p.name];
+    if (key) anDrill({ net: key }, p.name, { src: 'net' });
+  });
+  bind(CH_NETLV, p => {
+    const key = { '儿科·核心': 'ped_core', '儿科·成员': 'ped_member', '卒中中心': 'stroke', '危重新生儿': 'neonatal', '危重孕产妇': 'maternal' }[p.name];
+    if (key) anDrill({ net: key }, p.name, { src: 'netlv' });
+  });
+  bind(CH_RADAR, p => anDrill({ district: p.name }, p.name, { src: 'radar' }));
+  // 科室覆盖 TOP15：科室名对齐「科室筛选口径」时才跳转，否则如实说明
+  bind(CH_DEPTOP, p => anDrillDept(p.name));
+  bind(CH_SPDIST, p => toast('该图回答的是「专科集中在头部还是分散」；想看某个具体专科，' +
+    '请点上方「专科能力 TOP」或下方「科室覆盖 TOP15」的条目', 5000));
+  bind(CH_SPLV, p => {
+    if (['三级', '二级', '一级'].indexOf(p.name) >= 0) anDrill({ level: p.name }, p.name, { src: 'splv' });
+    else toast(svgIcon('warn') + ' 该类目含「未定级 / 不分级」，不是单一可选等级；' +
+      '共 ' + (Number(p.value) || 0) + ' 条' + esc(p.seriesName || '') + '记录', 4200);
+  });
+
+  const btnTopn = $('an_topn');
+  if (btnTopn) btnTopn.addEventListener('click', () => {
+    const seq = [10, 15, 20];
+    AN_TOP_N = seq[(seq.indexOf(AN_TOP_N) + 1) % seq.length];
+    const lbl = $('an_topn_lbl'); if (lbl) lbl.textContent = String(AN_TOP_N);
+    updateAnalyticsCharts();
+    toast('专科能力 TOP 已切换为前 ' + AN_TOP_N + ' 家');
+  });
+  const btnCsv = $('an_csv');
+  if (btnCsv) btnCsv.addEventListener('click', anExportCSV);
+  const btnCopy = $('an_copy');
+  if (btnCopy) btnCopy.addEventListener('click', anCopySummary);
+}
+
+// 把当前分析页用到的聚合结果导成 CSV（带 BOM，Excel 直接打开不乱码）
+function anExportCSV() {
+  const F = FILTERED;
+  if (!F.length) { toast(svgIcon('warn') + ' 当前筛选结果为空，没有可导出的数据'); return; }
+  const rows = [];
+  const push = (a) => rows.push(a.map(x => {
+    const s = String(x == null ? '' : x);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(','));
+  const tot = F.length;
+  push(['医疗资源多维分析导出', '生成时间 ' + new Date().toLocaleString('zh-CN')]);
+  push(['当前筛选结果机构数', tot, '占全量', ((tot / ((DATA.institutions || []).length || 1) * 100).toFixed(1) + '%')]);
+  push([]);
+  push(['【一、办别 × 等级】', '机构数']);
+  push(['等级', '公立', '民营', '未标注', '合计']);
+  LV_ALL.concat(['不适用']).forEach(l => {
+    const sub = F.filter(r => (l === '不适用' ? LV_ALL.indexOf(r.level) < 0 : r.level === l));
+    const g = grp(sub, ownOf);
+    push([l, g['公立'] || 0, g['民营'] || 0, g['未标注'] || 0, sub.length]);
+  });
+  push([]);
+  push(['【二、机构类型 × 办别】', '机构数', '公立', '民营', '未标注', '公立占比']);
+  const cm = {};
+  F.forEach(r => { const c = r.category || '未分类'; const b = cm[c] || (cm[c] = { n: 0, 公立: 0, 民营: 0, 未标注: 0 }); b.n++; b[ownOf(r)]++; });
+  Object.keys(cm).sort((a, b) => cm[b].n - cm[a].n).forEach(c =>
+    push([c, cm[c].n, cm[c]['公立'], cm[c]['民营'], cm[c]['未标注'], (cm[c]['公立'] / cm[c].n * 100).toFixed(1) + '%']));
+  push([]);
+  push(['【三、专科能力分档】', '（仅挂牌重点专科的机构）']);
+  push(['档位', '机构数', '占比']);
+  const sp = F.filter(r => (r.key_specialty_count || 0) > 0);
+  [['1–4 项', 1, 4], ['5–9 项', 5, 9], ['10–19 项', 10, 19], ['20–29 项', 20, 29], ['30 项以上', 30, 1e9]]
+    .forEach(b => {
+      const n = sp.filter(r => r.key_specialty_count >= b[1] && r.key_specialty_count <= b[2]).length;
+      push([b[0], n, sp.length ? (n / sp.length * 100).toFixed(1) + '%' : '0%']);
+    });
+  push([]);
+  push(['【四、区域专科实力】', '重点专科挂牌数', '国家级', '市级', '机构数', '每百家机构专科数']);
+  const dm = {};
+  F.forEach(r => { const d = r.district || '未知'; const b = dm[d] || (dm[d] = { sp: 0, n: 0, nat: 0, mun: 0 }); b.n++; b.sp += (r.key_specialty_count || 0); b.nat += (r.national_specialty_count || 0); b.mun += (r.municipal_specialty_count || 0); });
+  Object.keys(dm).sort((a, b) => dm[b].sp - dm[a].sp).forEach(d =>
+    push([d, dm[d].sp, dm[d].nat, dm[d].mun, dm[d].n, (dm[d].sp / (dm[d].n || 1) * 100).toFixed(1)]));
+  push([]);
+  push(['【五、协作网络 × 等级】', '机构数']);
+  push(['协作网络', '合计', '三级', '二级', '一级', '其他/不分级']);
+  NET_GROUPS.forEach(g => {
+    const sub = F.filter(g[1]);
+    push([g[0], sub.length,
+      sub.filter(r => r.level === '三级').length, sub.filter(r => r.level === '二级').length,
+      sub.filter(r => r.level === '一级').length, sub.filter(r => LV_ALL.indexOf(r.level) < 0).length]);
+  });
+  push([]);
+  push(['【六、数据整合深度】', '按该机构合并的源文件数']);
+  push(['源文件数', '机构数', '占比']);
+  [['1 个', c => c <= 1], ['2 个', c => c === 2], ['3 个', c => c === 3], ['4 个及以上', c => c >= 4]].forEach(b => {
+    const n = F.filter(r => b[1](Number(r.src_count_int) || 1)).length;
+    push([b[0], n, (n / tot * 100).toFixed(1) + '%']);
+  });
+  push([]);
+  push(['【七、科室覆盖 TOP15】', '开展机构数']);
+  push(['科室名称', '开展机构数']);
+  const dc = {};
+  F.forEach(r => { ((r.feature || '') + ';' + (r.key_depts || '')).split(';').forEach(x => { x = x.trim(); if (x) dc[x] = (dc[x] || 0) + 1; }); });
+  Object.entries(dc).sort((a, b) => b[1] - a[1]).slice(0, 15).forEach(p => push([p[0], p[1]]));
+
+  const csv = '\ufeff' + rows.join('\r\n');
+  try {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '医疗资源分析_' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800);
+    toast(svgIcon('ok') + ' 已导出当前分析页数据（7 张表）');
+    track('analytics_csv', String(tot));
+  } catch (e) {
+    toast(svgIcon('err') + ' 导出失败：' + esc(e.message || e));
+  }
+}
+
+// 复制一段能直接贴进答辩稿/周报的摘要文字
+function anCopySummary() {
+  const F = FILTERED, tot = F.length;
+  if (!tot) { toast(svgIcon('warn') + ' 当前筛选结果为空'); return; }
+  const l3 = F.filter(r => r.level === '三级').length;
+  const pub = F.filter(r => r.ownership === '公立').length;
+  const feat = F.filter(r => (r.key_specialty_count || 0) > 0).length;
+  const net = F.filter(isNetMember).length;
+  const multi = F.filter(r => (Number(r.src_count_int) || 1) > 1).length;
+  const topD = (() => {
+    const m = {}; F.forEach(r => { const d = r.district || '未知'; m[d] = (m[d] || 0) + 1; });
+    return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  })();
+  const topSp = F.filter(r => (r.key_specialty_count || 0) > 0)
+    .slice().sort((a, b) => b.key_specialty_count - a.key_specialty_count).slice(0, 3);
+  const txt =
+    '【北京市医疗机构资源分析摘要】\n' +
+    '范围：' + tot.toLocaleString() + ' 家机构' +
+    (tot === (DATA.institutions || []).length ? '（全量）' : '（当前筛选结果）') + '\n' +
+    '· 办别：公立 ' + pub.toLocaleString() + ' 家（' + (pub / tot * 100).toFixed(1) + '%）\n' +
+    '· 等级：三级 ' + l3.toLocaleString() + ' 家（' + (l3 / tot * 100).toFixed(1) + '%）\n' +
+    '· 覆盖区县：' + new Set(F.map(r => r.district).filter(Boolean)).size + ' / 16\n' +
+    '· 前三大区：' + topD.map(d => d[0] + ' ' + d[1].toLocaleString() + ' 家').join('、') + '\n' +
+    '· 重点专科机构：' + feat.toLocaleString() + ' 家' +
+    (topSp.length ? '；专科能力前三：' + topSp.map(r => r.name + '（' + r.key_specialty_count + ' 项）').join('、') : '') + '\n' +
+    '· 协作网络成员：' + net.toLocaleString() + ' 家\n' +
+    '· 多源交叉印证：' + multi.toLocaleString() + ' 家来自 2 个及以上源文件\n' +
+    '数据来源：北京市公开医疗机构名录（70 个源文件去重合并），本页图表均由当前筛选结果实时聚合。';
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(txt).then(
+      () => toast(svgIcon('ok') + ' 分析摘要已复制到剪贴板（' + tot.toLocaleString() + ' 家机构）'),
+      () => { try { console.log(txt); } catch (e) { } toast(svgIcon('warn') + ' 剪贴板不可用，摘要已打印到浏览器控制台', 5200); });
+  } else {
+    try { console.log(txt); } catch (e) { }
+    toast(svgIcon('warn') + ' 剪贴板不可用，摘要已打印到浏览器控制台', 5200);
+  }
+  track('analytics_copy', String(tot));
 }
 
 // ============================================================================

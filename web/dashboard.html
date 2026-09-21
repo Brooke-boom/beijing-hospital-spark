@@ -468,7 +468,27 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 .apanel > h3 .tag{color:var(--ink-4);font-size:9.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
 .achart{flex:1;width:100%;min-height:0}
 #ch1,#ch2,#ch3,#ch_own,#ch_feat,#ch_net,#ch_lvown,#ch_topsp,#ch_deptop,#ch_distlv,#ch_coord,
+#ch_catown,#ch_spdist,#ch_splv,#ch_distsp,#ch_radar,#ch_netlv,#ch_srcmap,
 #a_kw,#a_dist,#a_triage,#a_daily,#a_density,#a_level,#a_spec,#a_net,#a_own{width:100%;height:100%}
+
+/* ============== 多维分析页：分析工具条 ============== */
+/* 口径声明 + 三个动作（专科 TOP 档位 / 导出 CSV / 复制摘要）+ 下钻提示。
+   放在 KPI 与第一段图表之间，让「这些图算的是哪一批数据」一直可见。 */
+.anbar{
+  display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  margin:var(--gap) var(--pad-x) 0;padding:9px 14px;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r-m);
+  font-size:11.5px;color:var(--ink-3)
+}
+.anbar .anbar-t{
+  font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-4);
+  padding:2px 7px;border:1px solid var(--line-2);border-radius:6px
+}
+.anbar #an_scope{color:var(--ink-2);font-variant-numeric:tabular-nums}
+.anbar .anbar-sp{flex:1;min-width:8px}
+.anbar .anbar-tip{color:var(--ink-4);font-size:11px}
+.anbar .btn{height:28px;padding:0 11px!important;font-size:11.5px}
+@media (max-width:700px){ .anbar .anbar-tip{display:none} }
 
 /* ============== 智能筛选页共用基础样式（条件卡 / 标签 / 处理中指示） ============== */
 /* 说明：这些是与「自然语言智能筛选」页共享的原子样式；
@@ -1041,17 +1061,50 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     <div class="card"><div class="l">公立机构占比</div><div class="v" id="ak_pub">0</div><div class="s">占当前筛选结果比例</div></div>
     <div class="card k2"><div class="l">三级医院占比</div><div class="v" id="ak_l3">0</div><div class="s">占当前筛选结果比例</div></div>
     <div class="card k3"><div class="l">重点专科机构</div><div class="v" id="ak_feat">0</div><div class="s">含国家 / 市级重点专科</div></div>
-    <div class="card k4"><div class="l">协作网络机构</div><div class="v" id="ak_net">0</div><div class="s">纳入任一市级协作网络</div></div>
+    <div class="card k4"><div class="l">协作网络机构</div><div class="v" id="ak_net">0</div><div class="s">去重计数，可同属多个网络</div></div>
+    <div class="card k5"><div class="l">覆盖区县</div><div class="v" id="ak_dist">0</div><div class="s">全市共 16 个区</div></div>
+    <div class="card k6"><div class="l">多源整合机构</div><div class="v" id="ak_multi">0</div><div class="s">由 2 个及以上源文件合并</div></div>
   </div>
+
+  <div class="anbar">
+    <span class="anbar-t">分析口径</span>
+    <span class="muted" id="an_scope">—</span>
+    <span class="anbar-sp"></span>
+    <button class="btn ghost sm" type="button" id="an_topn">专科 TOP 切换</button>
+    <button class="btn ghost sm" type="button" id="an_csv">导出分析数据</button>
+    <button class="btn ghost sm" type="button" id="an_copy">复制分析摘要</button>
+    <span class="anbar-tip">点击图表元素可回总览页按该维度筛选</span>
+  </div>
+
+  <div class="sec-title"><span class="bar"></span>资源结构<span class="hint">谁在提供医疗服务 · 办别 / 等级 / 类型</span></div>
   <div class="agrid">
     <div class="apanel"><h3>办别分布（公立 / 民营） <span class="tag">OWNERSHIP</span></h3><div class="achart" id="ch_own"></div></div>
-    <div class="apanel"><h3>重点专科分级 <span class="tag">FEATURE LEVEL</span></h3><div class="achart" id="ch_feat"></div></div>
-    <div class="apanel"><h3>协作网络覆盖 <span class="tag">NETWORKS</span></h3><div class="achart" id="ch_net"></div></div>
     <div class="apanel"><h3>等级 × 办别 <span class="tag">LEVEL × OWNER</span></h3><div class="achart" id="ch_lvown"></div></div>
-    <div class="apanel"><h3>专科能力 TOP10 <span class="tag">KEY SPECIALTY</span></h3><div class="achart" id="ch_topsp"></div></div>
-    <div class="apanel"><h3>区域 × 等级 <span class="tag">DISTRICT × LEVEL</span></h3><div class="achart" id="ch_distlv"></div></div>
-    <div class="apanel"><h3>坐标精度（数据质量） <span class="tag">COORD PRECISION</span></h3><div class="achart" id="ch_coord"></div></div>
+    <div class="apanel"><h3>机构类型 × 办别结构 <span class="tag">CATEGORY × OWNER</span></h3><div class="achart" id="ch_catown"></div></div>
+  </div>
+
+  <div class="sec-title"><span class="bar"></span>专科能力<span class="hint">专科资源的厚度与集中在哪些机构</span></div>
+  <div class="agrid">
+    <div class="apanel"><h3>重点专科分级 <span class="tag">FEATURE LEVEL</span></h3><div class="achart" id="ch_feat"></div></div>
+    <div class="apanel"><h3>专科能力 TOP<span id="an_topn_lbl">10</span> <span class="tag">KEY SPECIALTY</span></h3><div class="achart" id="ch_topsp"></div></div>
+    <div class="apanel"><h3>专科能力分档（仅挂牌重点专科的机构） <span class="tag">SPECIALTY DEPTH</span></h3><div class="achart" id="ch_spdist"></div></div>
+    <div class="apanel"><h3>国家级 / 市级重点专科对比 <span class="tag">NATIONAL VS MUNICIPAL</span></h3><div class="achart" id="ch_splv"></div></div>
     <div class="apanel"><h3>科室覆盖 TOP15 <span class="tag">DEPT COVERAGE</span></h3><div class="achart" id="ch_deptop"></div></div>
+  </div>
+
+  <div class="sec-title"><span class="bar"></span>空间格局<span class="hint">16 区资源密度与专科实力横向对比</span></div>
+  <div class="agrid">
+    <div class="apanel"><h3>区域 × 等级 <span class="tag">DISTRICT × LEVEL</span></h3><div class="achart" id="ch_distlv"></div></div>
+    <div class="apanel"><h3>区域专科实力 <span class="tag">DISTRICT SPECIALTY</span></h3><div class="achart" id="ch_distsp"></div></div>
+    <div class="apanel"><h3>区域综合实力雷达 <span class="tag">RADAR · NORMALIZED</span></h3><div class="achart" id="ch_radar"></div></div>
+  </div>
+
+  <div class="sec-title"><span class="bar"></span>协作与数据整合<span class="hint">跨机构协同网络 · 合并来源深度 · 数据质量</span></div>
+  <div class="agrid">
+    <div class="apanel"><h3>协作网络覆盖（按网络席位） <span class="tag">NETWORKS</span></h3><div class="achart" id="ch_net"></div></div>
+    <div class="apanel"><h3>协作网络 × 等级 <span class="tag">NETWORK × LEVEL</span></h3><div class="achart" id="ch_netlv"></div></div>
+    <div class="apanel"><h3>数据整合深度 <span class="tag">SOURCE MERGE DEPTH</span></h3><div class="achart" id="ch_srcmap"></div></div>
+    <div class="apanel"><h3>坐标精度（数据质量） <span class="tag">COORD PRECISION</span></h3><div class="achart" id="ch_coord"></div></div>
   </div>
 </section>
 

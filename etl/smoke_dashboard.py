@@ -75,6 +75,24 @@ setTimeout(function(){
     r.push('switch='+okv.join(','));
     r.push('rows_total='+rowsByView['overview']);
     r.push('rows_inst='+rowsByView['institutions']);
+    // ── 分析页结构（2026-09-21 扩充：4 KPI → 6 KPI，8 图 → 15 图 / 4 个区段）──────
+    //    图表的**内容**由 /tmp 的真浏览器探针（真 ECharts）负责，
+    //    这里只钉住"结构没被改回去 + 渲染函数确实跑过"，打桩环境下做不到更多。
+    //    之所以必须钉：新增面板全靠 app.js 的 initAnalyticsCharts 按 id 取容器，
+    //    id 写错时页面不报错、只是那块永远空白——正是本脚本存在的理由。
+    try{
+      if(typeof switchView==='function') switchView('analytics');
+      r.push('an_panels='+cnt('#view-analytics .apanel'));
+      r.push('an_secs='+cnt('#view-analytics .sec-title'));
+      r.push('an_kpis='+cnt('#view-analytics .kpis .card'));
+      var anIds=['ch_catown','ch_spdist','ch_splv','ch_distsp','ch_radar','ch_netlv','ch_srcmap'];
+      var anMiss=[];
+      anIds.forEach(function(id){ if(!vis(id)) anMiss.push(id); });
+      r.push('an_newcharts='+(anIds.length-anMiss.length)+'/'+anIds.length+(anMiss.length?(' miss:'+anMiss.join(',')):''));
+      r.push('an_scope='+((tx('an_scope')!=='MISSING'&&tx('an_scope')!=='')?'true':'false'));
+      r.push('an_tools='+[vis('an_topn'),vis('an_csv'),vis('an_copy')].filter(Boolean).length);
+      r.push('an_drill='+((typeof anDrill==='function'&&typeof anDrillDept==='function'&&typeof anExportCSV==='function')?'true':'false'));
+    }catch(e){ r.push('an_fail='+e.message); }
     // 筛选联动：列表分页（PAGE_SIZE=20），行数恒等于页容量，不能用行数判断；
     // 要看筛选命中总数 FILTERED.length 是否真的收缩。
     try{
@@ -192,6 +210,15 @@ def main():
     checks.append(("七视图均可显示", sw.count("+") == 7, sw))
     rows = int(kv.get("rows_inst", "0") or 0)
     checks.append(("机构列表有行", rows > 0, "rows_inst=%d" % rows))
+    # ── 分析页（多维分析）结构与渲染 ──
+    checks.append(("分析页面板 15 个", kv.get("an_panels") == "15", kv.get("an_panels", "?")))
+    checks.append(("分析页四区段", kv.get("an_secs") == "4", kv.get("an_secs", "?")))
+    checks.append(("分析页 KPI 六卡", kv.get("an_kpis") == "6", kv.get("an_kpis", "?")))
+    checks.append(("新增 7 图容器可见", str(kv.get("an_newcharts", "")).startswith("7/7"),
+                   kv.get("an_newcharts", "?")))
+    checks.append(("分析页口径条非空", kv.get("an_scope") == "true", kv.get("an_scope", "?")))
+    checks.append(("分析页工具条三键", kv.get("an_tools") == "3", kv.get("an_tools", "?")))
+    checks.append(("分析页下钻函数就绪", kv.get("an_drill") == "true", kv.get("an_drill", "?")))
     errs = kv.get("ERR", "?")
     checks.append(("无运行时错误", errs == "none", errs))
 
