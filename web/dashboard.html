@@ -1195,22 +1195,22 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   <div class="sec-title"><span class="bar"></span><span class="n">01</span>资源结构<span class="hint">谁在提供医疗服务 · 办别 / 等级 / 类型</span></div>
   <div class="agrid ag-n3">
     <div class="apanel"><h3>办别分布（公立 / 民营） <span class="tag">OWNERSHIP</span></h3><div class="achart" id="ch_own"></div></div>
-    <div class="apanel"><h3>等级 × 办别 <span class="tag">LEVEL × OWNER</span></h3><div class="achart" id="ch_lvown"></div></div>
-    <div class="apanel"><h3>机构类型 × 办别结构 <span class="tag">CATEGORY × OWNER</span></h3><div class="achart" id="ch_catown"></div></div>
+    <div class="apanel"><h3>等级 × 办别（仅参评机构） <span class="tag">SUNBURST · LEVEL × OWNER</span></h3><div class="achart" id="ch_lvown"></div></div>
+    <div class="apanel"><h3>机构类型 × 办别版图 <span class="tag">TREEMAP · 面积 = 机构数</span></h3><div class="achart" id="ch_catown"></div></div>
   </div>
 
   <div class="sec-title"><span class="bar"></span><span class="n">02</span>专科能力<span class="hint">专科资源的厚度与集中在哪些机构</span></div>
   <div class="agrid ag-n5">
-    <div class="apanel"><h3>重点专科分级 <span class="tag">FEATURE LEVEL</span></h3><div class="achart" id="ch_feat"></div></div>
+    <div class="apanel"><h3>重点专科分级 <span class="tag">LOLLIPOP · FEATURE LEVEL</span></h3><div class="achart" id="ch_feat"></div></div>
     <div class="apanel"><h3>专科能力 TOP<span id="an_topn_lbl">10</span> <span class="tag">KEY SPECIALTY</span></h3><div class="achart" id="ch_topsp"></div></div>
-    <div class="apanel"><h3>专科能力分档（仅挂牌重点专科的机构） <span class="tag">SPECIALTY DEPTH</span></h3><div class="achart" id="ch_spdist"></div></div>
-    <div class="apanel"><h3>国家级 / 市级重点专科对比 <span class="tag">NATIONAL VS MUNICIPAL</span></h3><div class="achart" id="ch_splv"></div></div>
+    <div class="apanel"><h3>专科能力分档（仅挂牌重点专科） <span class="tag">PARETO · 累计占比</span></h3><div class="achart" id="ch_spdist"></div></div>
+    <div class="apanel"><h3>重点专科级别流向 <span class="tag">SANKEY · 机构等级 → 国家级 / 市级</span></h3><div class="achart" id="ch_splv"></div></div>
     <div class="apanel"><h3>科室覆盖 TOP15 <span class="tag">DEPT COVERAGE</span></h3><div class="achart" id="ch_deptop"></div></div>
   </div>
 
   <div class="sec-title"><span class="bar"></span><span class="n">03</span>空间格局<span class="hint">16 区资源密度与专科实力横向对比</span></div>
   <div class="agrid ag-n3">
-    <div class="apanel"><h3>区域 × 等级 <span class="tag">DISTRICT × LEVEL</span></h3><div class="achart" id="ch_distlv"></div></div>
+    <div class="apanel"><h3>区域 × 等级 密集度矩阵 <span class="tag">HEATMAP · 色深 = 机构数</span></h3><div class="achart" id="ch_distlv"></div></div>
     <div class="apanel"><h3>区域专科实力 <span class="tag">DISTRICT SPECIALTY</span></h3><div class="achart" id="ch_distsp"></div></div>
     <div class="apanel"><h3>区域综合实力雷达 <span class="tag">RADAR · NORMALIZED</span></h3><div class="achart" id="ch_radar"></div></div>
   </div>
@@ -1219,8 +1219,8 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   <div class="agrid ag-n4">
     <div class="apanel"><h3>协作网络覆盖（按网络席位） <span class="tag">NETWORKS</span></h3><div class="achart" id="ch_net"></div></div>
     <div class="apanel"><h3>协作网络 × 等级 <span class="tag">NETWORK × LEVEL</span></h3><div class="achart" id="ch_netlv"></div></div>
-    <div class="apanel"><h3>数据整合深度 <span class="tag">SOURCE MERGE DEPTH</span></h3><div class="achart" id="ch_srcmap"></div></div>
-    <div class="apanel"><h3>坐标精度（数据质量） <span class="tag">COORD PRECISION</span></h3><div class="achart" id="ch_coord"></div></div>
+    <div class="apanel"><h3>数据整合深度构成 <span class="tag">FUNNEL · 来源越多机构越少</span></h3><div class="achart" id="ch_srcmap"></div></div>
+    <div class="apanel"><h3>坐标精度覆盖率 <span class="tag">GAUGE · HIGH PRECISION</span></h3><div class="achart" id="ch_coord"></div></div>
   </div>
 </section>
 

@@ -102,6 +102,120 @@ def chart_container_static(product_src, js_path):
             'no_init': no_init, 'dead': dead}
 
 
+# ---------------------------------------------------------------------------
+#  ⑥ 可视化形态体检（2026-09-21 新增）
+#     起因：用户反馈「医疗资源整合部分都是条形图」。15 张图里 12 张是条形系，
+#     确实单调。但"改完别再退回全是条形"这种事没法靠人盯，所以固化成两条断言：
+#       静态 a) 分析页用到的图形类型数量与必备集合（读源码即可判）
+#       静态 b) 模块级常量没有捕获主题令牌（配色被默认调色板接管的根因）
+#     另加运行时一段：真 ECharts 页上确认 15 张图活着、类型符合预期、办别三色一致。
+# ---------------------------------------------------------------------------
+CHART_TYPES = {
+    'bar', 'line', 'pie', 'radar', 'sunburst', 'treemap', 'funnel', 'sankey',
+    'heatmap', 'gauge', 'scatter', 'graph', 'effectScatter', 'pictorialBar',
+    'boxplot', 'map', 'themeRiver',
+}
+# 分析页必备的图形形态：占比 / 层级 / 递减 / 流向 / 矩阵 / 单一比率 / 榜单 / 多指标
+VIZ_REQUIRED = {'bar', 'line', 'pie', 'radar', 'sunburst', 'treemap',
+                'funnel', 'sankey', 'heatmap', 'gauge', 'scatter'}
+
+# 主题令牌：全部在 loadTokens() 里赋值（随主题重建）
+TOKENS = set((
+    'BG PANEL PANEL2 EDGE EDGE2 INK INK_STRONG SUB DIM FAINT ACC ACC_RGB ACC2 WARN CRIT '
+    'VIO VIO2 PINK CHART_AXIS CHART_SPLIT TIP_BG TIP_BD TIP_SH BODY2 '
+    'MAP_LBL MAP_AREA MAP_HI MAP_BD MAP_RAMP LV_COLOR AXIS TIP LEGEND'
+).split())
+
+
+def viz_diversity_static(js_path):
+    """静态查「分析页用了几种图形」。只看分析页那段代码，避免被别的页面的图形充数。
+
+    起点要放在 pieOpt：分析页的饼图是调 pieOpt() 生成的，type:'pie' 只出现在那里，
+    从 anCatOwnOpt 起扫会漏掉它（第一次跑就是这么漏的）。
+    """
+    js = open(js_path, encoding='utf-8').read()
+    b = js.find('function pieOpt')
+    e = js.find('function initAnalyticsInteractions')
+    if b < 0 or e < b:
+        return set()
+    seg = js[b:e]
+    return set(t for t in re.findall(r"type:\s*'([A-Za-z]+)'", seg) if t in CHART_TYPES)
+
+
+def token_capture_static(js_path):
+    """静态查「模块级常量是否捕获了主题令牌」。
+
+    令牌在 loadTokens() 里才赋值，而这些常量在脚本解析期就求值 ——
+    拿到的是 undefined，ECharts 收到 null 颜色会**静默回落到默认调色板**。
+    2026-09-21 的 OWN_SERIES 正是这个坑（三个颜色全是 null，画出来是七彩）。
+    函数不算：函数体在调用时才求值，那时令牌已经就绪。
+    """
+    lines = open(js_path, encoding='utf-8').read().split('\n')
+    bad = []
+    for i, line in enumerate(lines):
+        m = re.match(r'^(?:const|let|var)\s+(\w+)\s*=\s*(.*)$', line)
+        if not m:
+            continue
+        buf, depth, j = [], 0, i
+        while j < len(lines):
+            buf.append(lines[j])
+            depth += lines[j].count('[') + lines[j].count('{') - lines[j].count(']') - lines[j].count('}')
+            if depth <= 0 and lines[j].rstrip().endswith(';'):
+                break
+            j += 1
+        hit = sorted(set(re.findall(r'\b([A-Z][A-Z0-9_]{1,})\b', '\n'.join(buf))) & TOKENS)
+        if hit:
+            bad.append('%s(行%d)→%s' % (m.group(1), i + 1, ','.join(hit)))
+    return bad
+
+
+# 运行时探针：在**真 ECharts 页**（不是空桩）上量这 15 张图
+RUNTIME = r"""
+() => {
+  const chartById = {
+    ch_own: CH_OWN, ch_lvown: CH_LVOWN, ch_catown: CH_CATOWN, ch_feat: CH_FEAT,
+    ch_topsp: CH_TOPSP, ch_spdist: CH_SPDIST, ch_splv: CH_SPLV, ch_deptop: CH_DEPTOP,
+    ch_distlv: CH_DISTLV, ch_distsp: CH_DISTSP, ch_radar: CH_RADAR, ch_net: CH_NET,
+    ch_netlv: CH_NETLV, ch_srcmap: CH_SRCMAP, ch_coord: CH_COORD,
+  };
+  const expect = {
+    ch_own: ['pie'], ch_lvown: ['sunburst'], ch_catown: ['treemap'],
+    ch_feat: ['bar', 'scatter'], ch_topsp: ['bar'], ch_spdist: ['bar', 'line'],
+    ch_splv: ['sankey'], ch_deptop: ['bar'], ch_distlv: ['heatmap'],
+    ch_distsp: ['bar'], ch_radar: ['radar'], ch_net: ['bar'],
+    ch_netlv: ['bar'], ch_srcmap: ['funnel'], ch_coord: ['gauge'],
+  };
+  const colors = ch => {
+    const o = ch.getOption() || {};
+    const s = (o.series || [])[0] || {};
+    const out = {};
+    const walk = arr => (arr || []).forEach(n => {
+      if (n && n.name && n.itemStyle && n.itemStyle.color) out[n.name] = String(n.itemStyle.color).toLowerCase();
+      if (n && n.children) walk(n.children);
+    });
+    walk(s.data);
+    return out;
+  };
+  const cs = getComputedStyle(document.documentElement);
+  const tok = k => String(cs.getPropertyValue(k) || '').trim().toLowerCase();
+  const res = {charts: {}, types: {}, sizes: {}, tokens: {公立: tok('--teal'), 民营: tok('--warn'), 未标注: tok('--ink-3')}, colors: {}};
+  Object.keys(chartById).forEach(id => {
+    const ch = chartById[id];
+    const el = document.getElementById(id);
+    if (!ch || !el) { res.sizes[id] = 'missing'; return; }
+    const o = ch.getOption() || {};
+    const ts = (o.series || []).map(s => s.type);
+    res.types[id] = ts;
+    res.charts[id] = ts.filter(t => expect[id].indexOf(t) >= 0).length > 0;
+    const cv = el.querySelector('canvas');
+    res.sizes[id] = cv ? (cv.width > 10 && cv.height > 10 ? 'ok' : 'blank') : 'nocanvas';
+  });
+  ['ch_own', 'ch_lvown', 'ch_catown'].forEach(id => { res.colors[id] = colors(chartById[id]); });
+  return res;
+}
+"""
+
+
 CONTS = r"""
 () => {
   const sec = document.querySelector('section.view.active');
@@ -322,7 +436,43 @@ def main():
         checks.append(('分段标题字号 ≥15px', st_fs >= 15, st_fs))
         checks.append(('分段标题字重 ≥700', st_fw >= 700, st_fw))
         checks.append(('分段标题有分隔线', st_bd not in ('0px', '0', ''), st_bd))
+
+        # ⑥ 真 ECharts 页（不是空桩）：图是不是真的画出来了、类型对不对、配色是否来自主题令牌
+        #    "面板在、图是白的" 与 "配色被默认调色板接管" 这两类故障都只在真库页上现形。
+        real = None
+        try:
+            pg = br.new_page(viewport={'width': 1440, 'height': 960})
+            pg.goto('file://' + os.path.abspath(args.src), wait_until='domcontentloaded')
+            pg.wait_for_timeout(3800)
+            pg.evaluate('(x) => switchView(x)', 'analytics')
+            pg.wait_for_timeout(1600)
+            real = pg.evaluate(RUNTIME)
+            pg.close()
+        except Exception as ex:                                   # noqa: BLE001
+            real = {'err': str(ex)[:140]}
         br.close()
+
+    if real and 'err' not in real:
+        bad_size = ['%s:%s' % (k, v) for k, v in real['sizes'].items() if v != 'ok']
+        checks.append(('真库页 15 张图均已绘制', not bad_size,
+                       bad_size if bad_size else '15/15 canvas > 0'))
+        bad_type = ['%s:%s' % (k, ','.join(real['types'].get(k, [])))
+                    for k, ok in real['charts'].items() if not ok]
+        checks.append(('真库页 图形类型符合预期', not bad_type, bad_type if bad_type else '15/15'))
+        got_types = set()
+        for ts in real['types'].values():
+            got_types |= set(ts)
+        checks.append(('真库页图形形态 ≥10 种', len(got_types) >= 10,
+                       '%d 种：%s' % (len(got_types), ','.join(sorted(got_types)))))
+        tok, mism = real['tokens'], []
+        for cid, got in real['colors'].items():
+            for name, want in tok.items():
+                if got.get(name) is not None and got[name] != want:
+                    mism.append('%s/%s=%s≠%s' % (cid, name, got[name], want))
+        checks.append(('办别三色与主题令牌一致', not mism,
+                       mism if mism else '饼图 / 旭日 / 树图 三处一致'))
+    else:
+        checks.append(('真库页 15 张图均已绘制', False, (real or {}).get('err', '未取到')))
 
     # ⑤ 静态部分：容器 id 是否登记了高度来源（不看渲染，读源码就能判）
     st = chart_container_static(args.src, args.js)
@@ -333,6 +483,14 @@ def main():
     if st['dead']:
         print('  ℹ  %d 个 init 目标在 HTML 里已无元素（下线模块遗留，mk() 已做空值保护）：%s'
               % (len(st['dead']), ', '.join(st['dead'])))
+
+    # ⑥ 静态部分：分析页的图形形态是否够多元、主题令牌有没有被模块级常量提前捕获
+    types = viz_diversity_static(args.js)
+    missing = sorted(VIZ_REQUIRED - types)
+    checks.append(('分析页图形形态覆盖必备集合', len(types) >= 11 and not missing,
+                   ('缺 %s' % ','.join(missing)) if missing else '%d 种' % len(types)))
+    cap = token_capture_static(args.js)
+    checks.append(('无模块级常量捕获主题令牌', not cap, cap if cap else 'ok'))
 
     print('▶ 断言')
     bad = 0
