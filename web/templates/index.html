@@ -73,6 +73,9 @@
   --map-r1:#171922; --map-r2:#3a4150; --map-r3:#4f639f; --map-r4:#5d74bb; --map-r5:#6f64b8;
   --r-s:6px; --r-m:8px; --r-l:10px; --r-xl:14px;
   --gap:16px; --pad-x:28px;
+  /* 侧栏宽度：唯一真源。侧栏是 fixed 定位（脱离文档流），主列靠 margin-left 让位，
+     所以窄屏换宽度必须改这里，不能只改 .sidebar 的 width，否则主列会被侧栏压住。 */
+  --sb-w:188px;
   --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
 }
 /* ============================================================================
@@ -169,8 +172,12 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 /* ============================ 视图 ============================ */
 /* —— 左侧导航布局（2026-09-14） —— */
 .layout{display:flex;align-items:stretch;min-height:100vh}
-.sidebar{position:sticky;top:0;align-self:flex-start;height:100vh;overflow:auto;
-  display:flex;flex-direction:column;gap:0;width:188px;flex:0 0 188px;
+/* 侧栏固定（2026-09-21 修）：原先是 position:sticky + align-self:flex-start，
+   但 sticky 的可停留范围 = 包含块高度 − 元素高度；数据质量页这类**内容比一屏高不了多少**
+   的页面里 .layout 只比侧栏高约 90px，滚过这段侧栏就跟着页面往上跑（顶部「智能筛选」入口被推出视口）。
+   改成 fixed 后脱离文档流，无论页面多高侧栏都不动；主列用 margin-left 让出 --sb-w。 */
+.sidebar{position:fixed;top:0;left:0;bottom:0;width:var(--sb-w);height:100vh;overflow:auto;
+  display:flex;flex-direction:column;gap:0;
   padding:12px 12px 12px;background:var(--bg-soft);border-right:1px solid var(--line);z-index:57}
 .sidebar .navbar{position:static;display:flex;flex-direction:column;gap:6px;padding:0;
   background:transparent;border:0;overflow:visible;align-items:stretch}
@@ -276,10 +283,12 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 }
 .sidefoot{margin-top:10px;padding:0 6px}
 .sidebar .navnote{white-space:normal;line-height:1.75;padding:0;text-align:left;font-size:10.5px}
-.maincol{flex:1 1 auto;min-width:0}
+.maincol{flex:1 1 auto;min-width:0;margin-left:var(--sb-w)}
 .maincol .topbar{gap:14px;padding:10px var(--pad-x)}
 @media (max-width:1080px){
-  .sidebar{width:60px;flex-basis:60px;padding:14px 8px;gap:12px}
+  /* 窄屏侧栏收成图标条：改 --sb-w 让 .sidebar 宽度与 .maincol 的 margin-left 同步收窄 */
+  :root{--sb-w:60px}
+  .sidebar{width:var(--sb-w);padding:14px 8px;gap:12px}
   .sidefoot{display:none}
   .sidebar .navtab{justify-content:center;padding:10px 0}
   .sidebar .navtab .lbl{display:none}
@@ -464,6 +473,11 @@ select{cursor:pointer;appearance:none;padding-right:28px;
   border-radius:var(--r-l);padding:13px 15px;display:flex;flex-direction:column;height:314px;min-width:0;box-shadow:var(--sh-1)}
 /* 暗色卡片轮廓增强：统一叠加顶部微高光（亮色主题该令牌为 no-op） */
 .card,.panel,.apanel{box-shadow:var(--sh-1),var(--lift)}
+/* 表格型面板（行数随数据变化，塞不进固定 314px）：
+   .apanel 定高是为了给 .achart 里的 ECharts 一个确定高度（canvas 拿不到高度就是 0 → 白板），
+   但纯表格/文本面板没有这个约束。定高会把末尾几行裁到面板外，直接叠到页脚上。
+   故给这类面板加 .grow：按内容撑开，min-height 保住与邻格的视觉齐平。 */
+.apanel.grow{height:auto;min-height:314px;align-self:start}
 .apanel > h3{font-size:12.5px;display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;gap:10px}
 .apanel > h3 .tag{color:var(--ink-4);font-size:9.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
 .achart{flex:1;width:100%;min-height:0}
@@ -1340,10 +1354,10 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     <div class="card k4"><div class="l">去重名</div><div class="v" id="q_dup">3,139</div><div class="s">多源重复机构名</div></div>
   </div>
   <div class="agrid" style="padding:var(--gap) var(--pad-x) 0">
-    <div class="apanel"><h3>关键字段完整率 <span class="tag">FIELD COMPLETENESS</span></h3><div id="qual_field_table"></div></div>
+    <div class="apanel grow"><h3>关键字段完整率 <span class="tag">FIELD COMPLETENESS</span></h3><div id="qual_field_table"></div></div>
     <div class="apanel"><h3>坐标精度分布 <span class="tag">COORD PRECISION</span></h3><div class="achart" id="ch_qcoord"></div></div>
-    <div class="apanel"><h3>去重与多源验证 <span class="tag">DEDUPLICATION</span></h3><div id="qual_dup_stats"></div></div>
-    <div class="apanel"><h3>机构类别构成（清洗后） <span class="tag">CATEGORY MIX</span></h3><div id="qual_cat_table"></div></div>
+    <div class="apanel grow"><h3>去重与多源验证 <span class="tag">DEDUPLICATION</span></h3><div id="qual_dup_stats"></div></div>
+    <div class="apanel grow"><h3>机构类别构成（清洗后） <span class="tag">CATEGORY MIX</span></h3><div id="qual_cat_table"></div></div>
   </div>
 </section>
 
@@ -2885,6 +2899,11 @@ function applyTheme(name) {
   try { drawMap(); } catch (e) { console.error('[applyTheme] 地图', e); }
   try { updateCharts(); } catch (e) { console.error('[applyTheme] 总览图表', e); }
   try { updateAnalyticsCharts(); } catch (e) { console.error('[applyTheme] 分析图表', e); }
+  // 数据质量页（2026-09-21 补）：这个视图不是由 updateCharts/updateAnalyticsCharts 画的，
+  // 漏掉它 → 切主题后那张坐标精度饼图会留在旧主题的配色上。
+  // 只在图已存在时重绘：QCOORD_CHART 为空说明质量页还没在可见状态下渲染过，
+  // 此刻强制渲染会对 display:none 的容器 init，拿到 0 尺寸画布，反而把图弄坏。
+  try { if (QCOORD_CHART) renderQuality(true); } catch (e) { console.error('[applyTheme] 数据质量', e); }
   try { renderKPI(); } catch (e) { }
   try { renderList(); } catch (e) { }
   try { renderFilterChips(); } catch (e) { }

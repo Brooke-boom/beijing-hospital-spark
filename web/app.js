@@ -1373,6 +1373,11 @@ function applyTheme(name) {
   try { drawMap(); } catch (e) { console.error('[applyTheme] 地图', e); }
   try { updateCharts(); } catch (e) { console.error('[applyTheme] 总览图表', e); }
   try { updateAnalyticsCharts(); } catch (e) { console.error('[applyTheme] 分析图表', e); }
+  // 数据质量页（2026-09-21 补）：这个视图不是由 updateCharts/updateAnalyticsCharts 画的，
+  // 漏掉它 → 切主题后那张坐标精度饼图会留在旧主题的配色上。
+  // 只在图已存在时重绘：QCOORD_CHART 为空说明质量页还没在可见状态下渲染过，
+  // 此刻强制渲染会对 display:none 的容器 init，拿到 0 尺寸画布，反而把图弄坏。
+  try { if (QCOORD_CHART) renderQuality(true); } catch (e) { console.error('[applyTheme] 数据质量', e); }
   try { renderKPI(); } catch (e) { }
   try { renderList(); } catch (e) { }
   try { renderFilterChips(); } catch (e) { }

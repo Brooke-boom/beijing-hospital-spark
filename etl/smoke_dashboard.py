@@ -93,6 +93,29 @@ setTimeout(function(){
       r.push('an_tools='+[vis('an_topn'),vis('an_csv'),vis('an_copy')].filter(Boolean).length);
       r.push('an_drill='+((typeof anDrill==='function'&&typeof anDrillDept==='function'&&typeof anExportCSV==='function')?'true':'false'));
     }catch(e){ r.push('an_fail='+e.message); }
+    // ── 布局（2026-09-21 修）：① 侧栏必须 fixed 且滚到底仍贴视口顶 ② 表格型面板内容不得逃出面板 ──
+    //    之所以必须钉：这两类都是"看着像好了、其实没有"的缺陷——
+    //    侧栏用 sticky 时短页面上可停留范围只有几十像素，滚一点就跟着页面跑；
+    //    面板定高 314px 而表格行数随数据变多时，末尾几行会画到面板外、叠在页脚上。
+    //    二者都不报错、不留日志，只有量矩形才能发现。
+    try{
+      if(typeof switchView==='function') switchView('quality');
+      var sb=document.querySelector('.sidebar'), mc=document.querySelector('.maincol');
+      r.push('sb_pos='+getComputedStyle(sb).position);
+      r.push('mc_left='+Math.round(mc.getBoundingClientRect().left));   // 主列必须让开侧栏宽度
+      window.scrollTo(0, document.documentElement.scrollHeight);
+      r.push('sb_top_bottom='+Math.round(sb.getBoundingClientRect().top));  // 滚到底仍应为 0
+      window.scrollTo(0,0);
+      var esc=0, ps=document.querySelectorAll('#view-quality .apanel');
+      for(var qi=0;qi<ps.length;qi++){
+        var qb=ps[qi].children[1]; if(!qb) continue;
+        var inner=ps[qi].getBoundingClientRect().bottom-parseFloat(getComputedStyle(ps[qi]).paddingBottom||0);
+        if(qb.getBoundingClientRect().bottom-inner>2) esc++;
+      }
+      r.push('qpanel_escape='+esc);
+      r.push('qpanel_grow='+document.querySelectorAll('#view-quality .apanel.grow').length);
+      if(typeof switchView==='function') switchView('overview');
+    }catch(e){ r.push('layout_fail='+e.message); }
     // 筛选联动：列表分页（PAGE_SIZE=20），行数恒等于页容量，不能用行数判断；
     // 要看筛选命中总数 FILTERED.length 是否真的收缩。
     try{
@@ -219,6 +242,18 @@ def main():
     checks.append(("分析页口径条非空", kv.get("an_scope") == "true", kv.get("an_scope", "?")))
     checks.append(("分析页工具条三键", kv.get("an_tools") == "3", kv.get("an_tools", "?")))
     checks.append(("分析页下钻函数就绪", kv.get("an_drill") == "true", kv.get("an_drill", "?")))
+    # ── 布局（2026-09-21）：侧栏固定 + 表格型面板不溢出 ──
+    # 无头 Chrome 默认窗口 800x600，落在 ≤1080 断点内，侧栏是 60px 图标条；
+    # 断言两种宽度都接受，真正的判据是"主列左边界 == 侧栏宽度"。
+    checks.append(("侧栏 fixed 定位", kv.get("sb_pos") == "fixed", kv.get("sb_pos", "?")))
+    checks.append(("主列让开侧栏", kv.get("mc_left") in ("188", "60"),
+                   "maincol.left=%s" % kv.get("mc_left", "?")))
+    checks.append(("滚到底侧栏仍贴顶", kv.get("sb_top_bottom") == "0",
+                   "top=%s" % kv.get("sb_top_bottom", "?")))
+    checks.append(("质量页表格面板不溢出", kv.get("qpanel_escape") == "0",
+                   "escape=%s" % kv.get("qpanel_escape", "?")))
+    checks.append(("质量页表格面板 grow", kv.get("qpanel_grow") == "3",
+                   kv.get("qpanel_grow", "?")))
     errs = kv.get("ERR", "?")
     checks.append(("无运行时错误", errs == "none", errs))
 
