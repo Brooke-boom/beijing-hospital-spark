@@ -1228,7 +1228,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
       <span class="src-chip">区级卫健委及专题公开数据 <b>6,955</b></span>
       <span class="src-chip">共 <b>70</b> 个源文件</span>
       <span class="src-chip">原始记录 <b>13,803</b></span>
-      <span class="src-chip">去重合并后 <b>9,791</b> → 最终 <b>9,684</b></span>
+      <span class="src-chip">去重合并后 <b>9,791</b> → 最终 <b>9,678</b></span>
       <span class="src-chip">坐标补全率 <b>99.98%</b></span>
     </div>
     <div class="notice" style="margin-top:11px">数据来源覆盖医保局定点机构、社区卫生服务机构、各区卫健委公开名录与重点专科公示名单；详细字段完整率、去重统计与清洗流程见 <button class="btn ghost sm" type="button" onclick="switchView('integration')">数据整合</button> 与 <button class="btn ghost sm" type="button" onclick="switchView('quality')">数据质量</button> 页。</div>
@@ -1519,7 +1519,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   <div class="kpis k4">
     <div class="card hero"><div class="l">源文件数</div><div class="v" id="q_sources">70</div><div class="s">去重后公开数据文件</div></div>
     <div class="card k2"><div class="l">原始记录</div><div class="v" id="q_raw">13,803</div><div class="s">合并前累计记录</div></div>
-    <div class="card k3"><div class="l">最终机构</div><div class="v" id="q_final">9,684</div><div class="s">治理后入 ADS 服务表</div></div>
+    <div class="card k3"><div class="l">最终机构</div><div class="v" id="q_final">9,678</div><div class="s">治理后入 ADS 服务表</div></div>
     <div class="card k4"><div class="l">去重名</div><div class="v" id="q_dup">3,139</div><div class="s">多源重复机构名</div></div>
   </div>
   <div class="agrid ag-n4" style="padding:var(--gap) var(--pad-x) 22px">
@@ -1599,7 +1599,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 <div class="footer">
   <div><b>技术栈：</b>Spark 3.5.3 (ARM64) · MySQL 8 · Flask · ECharts · Docker Compose &nbsp;|&nbsp;
     <b>数仓分层：</b>ODS → DWD → DWS → ADS &nbsp;|&nbsp;
-    <b>筛选主表：</b><code>ads_inst_search</code> 9,684 行 &nbsp;|&nbsp;
+    <b>筛选主表：</b><code>ads_inst_search</code> 9,678 行 &nbsp;|&nbsp;
     <b>治理列：</b>办别归属 · 类别细分 · 擅长科室三级分级</div>
   <div style="margin-top:6px">数据来源：北京市卫生健康委员会等公开渠道 · 本系统仅用于学术研究与毕业设计演示，不构成就医建议</div>
 </div>
@@ -2144,7 +2144,7 @@ function refreshBaseSummary() {
 }
 
 // ============================================================================
-//  0.65 关键词输入联想（离线索引 9,684 家机构名 / 地址，零网络请求）
+//  0.65 关键词输入联想（离线索引 9,678 家机构名 / 地址，零网络请求）
 // ============================================================================
 let AC_IDX = null, AC_ITEMS = [], AC_ACT = -1;
 function buildAcIndex() {
@@ -3840,7 +3840,7 @@ function anSrcMapOpt(F) {
 }
 
 // ---------- 等级 × 办别（堆叠条形，仅参评机构）----------
-// ⚠️ 口径说明（图上、提示里都写了，答辩会被问）：全量 9,684 家里 8,804 家是
+// ⚠️ 口径说明（图上、提示里都写了，答辩会被问）：全量 9,678 家里 8,804 家是
 //    「不适用医院分级」（诊所 / 村卫生室这类本来就不参评的机构）。如果把不适用也画进来，
 //    它会占掉 87% 的柱高，三级/二级/一级被压成三根细线，什么也读不出来。
 //    所以本图只统计**参评机构**（三级 + 二级 + 一级 + 未定级 = 1,289 家），并在提示里
@@ -3947,7 +3947,7 @@ function anFeatOpt(F) {
 //    连续色带会把所有小区压成一片淡色，所以按**非零值分位数**切成 4 档，
 //    并在格子里直接印原始数字 —— 颜色看格局，数字读精确值。
 // ⚠️ 口径边界（2026-09-22 补）：本矩阵只统计**已判定等级**的机构（三级/二级/一级/未定级），
-//    全量 9,684 家里 8,804 家是「不适用医院分级」（诊所 / 村卫生室 / 医务室等基层机构），
+//    全量 9,678 家里 8,804 家是「不适用医院分级」（诊所 / 村卫生室 / 医务室等基层机构），
 //    不在这张图里。各区覆盖率差异很大（房山 3.8% ～ 大兴 44.4%），
 //    所以行合计**不等于**该区机构总数 —— 标题与 tooltip 都必须写清，否则读者会
 //    把「大兴有色深格」误读成「大兴医疗资源最密集」（大兴实际 879 家，低于昌平 1,315 家）。
@@ -4635,7 +4635,7 @@ function paintDrawerLocal(r) {
 //   本轮改抓好大夫在线北京医院目录（435 家）→ 严格匹配 293 家 → 267 家新增核实值。
 //
 // 修订二（2026-09-22）：**「科室资料待补全」这句话本身用错了一大片**。
-//   9,684 家里有 8,279 家（85.5%）是诊所 / 村卫生室 / 门诊部 / 社区卫生服务站 /
+//   9,678 家里有 8,279 家（85.5%）是诊所 / 村卫生室 / 门诊部 / 社区卫生服务站 /
 //   医务室 / 护理站 —— 这些类型的机构按各自的《基本标准》**以「诊疗科目」核准执业，
 //   不做科室建制**：一家口腔诊所只有一个「口腔科」科目，本来就谈不上"科室设置"。
 //   对它们显示"资料待补全"，等于把"不适用"说成"我们没查到"，是口径错误，
@@ -5567,7 +5567,7 @@ function renderQuality(force) {
   //    （level 1,172 / beds 35 / traffic 17 / 主表 9,791），数据治理过后它不会跟着变，
   //    于是页面显示「等级 12.0%」而主表里其实已经有 1,257 家 —— 用户既看不出数字是旧的，
   //    也查不到那一千多家是谁。现在改为主表实时计算（见 build_spa.sh 的 _dq）。
-  //    另一处口径错误：**等级不能拿全表当分母**。9,684 家里有 8,804 家是诊所/村卫生室/
+  //    另一处口径错误：**等级不能拿全表当分母**。9,678 家里有 8,804 家是诊所/村卫生室/
   //    门诊部等按诊疗科目执业、本就不设医院等级建制的机构，用全表当分母会把 96.5% 的
   //    覆盖率显示成 9.4%。所以表格并列两个口径：「占主表」横向可比，「适用口径」才说明补全程度。
   const ft = $('qual_field_table');
@@ -5750,10 +5750,11 @@ const SOURCES = [
   { icon: svgIcon('map'), name: '高德开放平台', url: 'https://lbs.amap.com/', desc: '地理编码补全与周边配套（地铁站 / 停车场 / 公交站）POI 查询' },
 ];
 const UPDATES = [
+  { date: '2026-09-22', desc: '主表同名合并治理：同一执业地点的多块挂牌名合并、不同执业地点的院区保留，机构数 9,789 → 9,678（合并 112 条 / 拆分 1 条）；等级适用范围按「不设等级建制的六类机构」重算，应参评 874 家。' },
   { date: '2026-09-20', desc: '「就医决策 / 智能导诊」下线，主线重构为「自然语言智能筛选」：中文条件解析 → 真实数据查询 → 维度统计；AI 定位收敛为机构数据筛选助手。' },
   { date: '2026-09-11', desc: '新增机构详情抽屉（联系方式 / 地图导航 / 重点专科 / 周边配套）、机构横向对比、运营后台与关于页；前端视觉体系重构。' },
   { date: '2026-09-11', desc: '智能导诊接入本地症状-科室知识库（262 条），保留大模型零命中兜底（该模块已于 2026-09-20 随主线重构下线）。' },
-  { date: '2026-09-08', desc: '快照数据更新至 9,684 家机构；修正机构更名（空军特色医学中心、北京通用航天医院）与别名映射。' },
+  { date: '2026-09-08', desc: '快照数据更新至 9,789 家机构；修正机构更名（空军特色医学中心、北京通用航天医院）与别名映射。' },
   { date: '2026-09-05', desc: '新增医疗协作网络维度（儿科医联体 / 卒中中心 / 危重新生儿 / 危重孕产妇）。' },
   { date: '2026-09-04', desc: '完成数据治理列贯通（办别归属、类别细分、擅长科室三级分级），筛选维度扩展至 7 维。' },
 ];
@@ -5784,7 +5785,7 @@ loadData();
 //  为什么需要这个文件：
 //    单文件形态（dashboard_offline.html）要能"打开即用、发链接即用"，不能依赖
 //    服务器。所以把后端的自然语言解析 + 条件筛选 + 维度统计完整地在前端实现一份，
-//    数据来自内嵌快照（9,684 家机构，字段与 MySQL ads_inst_search 同源）。
+//    数据来自内嵌快照（9,678 家机构，字段与 MySQL ads_inst_search 同源）。
 //
 //  一致性纪律（改动前必读）：
 //    本文件是 web/nlq.py 的等价 JavaScript 实现，逐条对应：
