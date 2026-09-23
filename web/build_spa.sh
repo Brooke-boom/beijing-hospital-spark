@@ -42,6 +42,12 @@ def q(sql):
     with conn.cursor() as cur:
         cur.execute(sql); return cur.fetchall()
 rows = q("""SELECT a.id, a.name, a.district, a.level_norm AS level, a.category_norm AS category,
+    -- category_fine：主表的**细粒度**机构类型（医务室 / 护理站 / 中医医院 …）。
+    -- 展示层按 10 类粗口径（category_norm）会把这些并进"其他机构 / 医院"，
+    -- 而「科室数」这一项的展示口径需要区分 医务室 / 护理站（它们按诊疗科目执业、
+    -- 不设科室建制，写"科室资料待补全"属于口径错误）。只加一个展示字段，
+    -- 不动 category_norm —— 那套 10 类是 nlq.CATEGORIES 声明的筛选口径。
+    a.category AS category_fine,
     a.category_sub, a.ownership, a.feature, a.feature_level,
     a.addr, a.phone,
     a.dept_count, a.key_specialty_count, a.lng, a.lat, a.coord_precision, a.key_depts, a.grade_scope,
@@ -57,7 +63,7 @@ rows = q("""SELECT a.id, a.name, a.district, a.level_norm AS level, a.category_n
                WHERE source = 'rule' GROUP BY hospital_id) rc ON rc.hospital_id = a.id""")
 for r in rows:
     r['id'] = str(r['id']).strip()
-    for k in ('name','district','level','category','category_sub','ownership',
+    for k in ('name','district','level','category','category_fine','category_sub','ownership',
               'feature','feature_level','coord_precision','key_depts','grade_scope',
               'addr','phone',
               'national_specialty','municipal_specialty',
@@ -86,6 +92,115 @@ for r in rows:
         _n_dept += 1
 print('  OK 科室隶属(dwd_dept_relation_clean): %d 条 / %d 家有明细 / 快照已带 depts 字段'
       % (len(_dept_rows), _n_dept))
+
+# ---------------------------------------------------------------------------
+# 数据质量指标：从主表现算（不再手写字面量）
+#
+# 分母分两种口径，前端表格会并列展示：
+#   · 全量口径   —— 主表 9,684 家；适用于 行政区 / 地址 / 办别 / 电话 / 床位 / 交通 / 官网
+#   · 适用口径   —— 字段本身有适用范围的，用"该字段谈得上的机构数"当分母：
+#        level       应参评 880 家（其余 8,804 家为诊所/村卫生室/门诊部/社区卫生服务站/
+#                    医务室/护理站/社区卫生服务中心/急救/疾控/体检等——按各自《基本标准》
+#                    以诊疗科目执业，不设医院等级建制）
+#        key_depts   设诊疗科目的机构（该字段真源是《医疗机构（基本信息）》的诊疗科目列）
+#   pct 一律是**全量口径**的百分比（便于横向比较"这一列到底有多稀"），
+#   bpct 是适用口径的百分比（回答"在谈得上的机构里补全到什么程度"）。
+# ---------------------------------------------------------------------------
+import csv as _csv
+_master = list(_csv.DictReader(open('data/processed/master_institutions.csv', encoding='utf-8-sig')))
+_n = len(_master)
+
+
+def _nn(col):
+    return sum(1 for r in _master if (r.get(col) or '').strip())
+
+
+# ⚠️ 应参评集合以**主表 grade_scope 列**为唯一真源（由 etl/build_grade_scope.py 派生，
+#    判据函数与 clean_merge.py / DWD level_norm 同源）。这里曾用一份更窄的本地表复算，
+#    漏掉「社区卫生服务中心 / 急救机构 / 公共卫生机构 / 体检机构 / 其他医疗机构」
+#    五类同样不设等级建制的机构，分母因此从 880 虚增到 1,405 ——
+#    等级覆盖率被显示成 62.4%，而真实值是 97.2%（855/880）。
+#    口径漂移一次就会在页面上放大成 30 个百分点的假象，故直接读列、不再本地复算。
+_applic = [r for r in _master if (r.get('grade_scope') or '') == 'applicable']
+_applic_n = len(_applic)
+# 应参评里"等级非空"的家数（口径与 ads_level_overview 的 level_norm 一致：不适用不入表）
+_level_ok = sum(1 for r in _applic if (r.get('level') or '').strip())
+# 重点专科（国家 / 市级挂牌）—— 与 key_depts（诊疗科目）区分开
+_spec_ok = sum(1 for r in _master
+               if (r.get('national_specialty') or '').strip() or (r.get('municipal_specialty') or '').strip())
+_kd_ok = _nn('key_depts')
+
+
+def _f(col, label, basis=None, basis_label='主表全量', note=''):
+    k = _nn(col)
+    b = _n if basis is None else basis
+    return {'field': col, 'label': label, 'nonnull': k,
+            'pct': round(k / _n * 100, 1) if _n else 0.0,
+            'basis': b, 'basis_label': basis_label,
+            'bpct': round(k / b * 100, 1) if b else 0.0, 'note': note}
+
+
+_dq = {
+    'source_files': 70, 'raw_records': 13803, 'final_inst': _n,
+    # merged_inst 是 clean_merge.py 的 groupby 输出行数（**治理前**）。它不随主表
+    # 变化 —— 它是"合并前"的基线，页面用「9,791 → 9,678」表达治理环节又收拢了
+    # 113 条同名/多牌子记录（其中 2026-09-22 同名合并治理贡献 111 条）。重跑
+    # clean_merge.py 后此值需同步。
+    'merged_inst': 9791,
+    # 多来源机构数 / 最大来源数 / 多源交叉验证数一律现算：
+    # 它们随主表行数走，写死会在每次治理后变成"说不清来历的旧数"
+    # （cross_verified 曾写死 657，治理后真实值 677 却没人发现）。
+    'dup_names': sum(1 for r in _master if int(r.get('src_count') or 0) > 1),
+    'dup_max_sources': max([int(r.get('src_count') or 0) for r in _master] or [0]),
+    'cross_verified': sum(1 for r in _master if int(r.get('src_count') or 0) >= 3),
+    'key_dept_inst': _spec_ok,
+    'sources': [
+        {'name': '市 / 区医保局定点医疗机构名单', 'count': 4876,
+         'desc': '市医保局及东城、平谷、延庆、顺义等区定点医药机构文件'},
+        {'name': '社区卫生服务机构名录', 'count': 1972,
+         'desc': '社区卫生服务中心与社区卫生服务站名单'},
+        {'name': '区级卫健委及专题公开数据', 'count': 6955,
+         'desc': '密云 / 通州 / 房山 / 朝阳 / 怀柔等区医疗机构名录、重点专科与协作网络公示、业务统计表'},
+    ],
+    'fields': [
+        _f('district', '行政区'),
+        _f('addr', '地址'),
+        _f('profit', '经济类型（办别）'),
+        _f('level', '医院等级', _applic_n, '应参评机构',
+           '住院医院类参加等级评审；诊所/村卫生室等按「不适用分级」展示'),
+        _f('phone', '联系电话'),
+        _f('key_depts', '诊疗科目（执业登记）'),
+        _f('beds', '床位数'),
+        _f('traffic', '交通导引'),
+        _f('website', '机构官网'),
+    ],
+    'specialty': {'label': '重点专科挂牌（国家 / 市级）', 'nonnull': _spec_ok,
+                  'pct': round(_spec_ok / _n * 100, 1) if _n else 0.0,
+                  'basis': _applic_n, 'basis_label': '应参评机构',
+                  'bpct': round(_spec_ok / _applic_n * 100, 1) if _applic_n else 0.0},
+    'level_applic': _applic_n, 'level_ok': _level_ok,
+    'dept_nonnull': _kd_ok,
+}
+print('  OK 数据质量指标现算：主表 %d 家 | 应参评 %d 家 | 等级非空 %d | 电话 %d | 交通 %d'
+      % (_n, _applic_n, _level_ok, _nn('phone'), _nn('traffic')))
+
+# 机构行补三个展示字段：beds / traffic / website。
+# ⚠️ 这三列在 MySQL 的 ads_inst_search 里**没有**（建表时就没选），但它们主表里是有的。
+#    直接从主表按 id 回填到快照行上，省掉一次 schema 变更 + 全链路重跑；
+#    机构详情页因此可以展示「交通导引 / 机构官网」，完整率也不再是无人认领的数字。
+_by_id = {r['id']: r for r in _master}
+_n_fill = 0
+for _r in rows:
+    _m = _by_id.get(_r['id'])
+    if _m:
+        _r['beds'] = (_m.get('beds') or '').strip()
+        _r['traffic'] = (_m.get('traffic') or '').strip()
+        _r['website'] = (_m.get('website') or '').strip()
+        _r['profit'] = (_m.get('profit') or '').strip()
+        if _r['traffic'] or _r['website']:
+            _n_fill += 1
+print('  OK 快照行补展示字段 beds/traffic/website：%d 家带交通导引或官网' % _n_fill)
+
 overviews = {
     'districts':  q("SELECT district, inst_count, coord_high_count FROM ads_district_overview ORDER BY inst_count DESC"),
     # 等级分布仅统计"应参评医院等级评审"的机构；
@@ -105,31 +220,15 @@ overviews = {
     'etl_snapshots': q("SELECT CAST(batch_date AS CHAR) AS batch_date, batch_ts, inst_count, level_3, level_2, level_1,"
                        " level_none, district_count, coord_ok FROM ads_etl_snapshot"
                        " ORDER BY batch_ts DESC LIMIT 6"),
-    # 数据整合 / 数据质量页口径：来自 etl 治理脚本真实输出
-    # （data/processed/data_quality_report.md，70 个源文件 → 13,803 条 → 去重 9,791 家），
-    # 不依赖额外 ETL 表，随快照分发；前端 dqv() 优先读此对象。
-    'data_quality': {
-        'source_files': 70, 'raw_records': 13803, 'final_inst': 9791,
-        'dup_names': 3139, 'dup_max_sources': 9, 'cross_verified': 657, 'key_dept_inst': 20,
-        'sources': [
-            {'name': '市 / 区医保局定点医疗机构名单', 'count': 4876,
-             'desc': '市医保局及东城、平谷、延庆、顺义等区定点医药机构文件'},
-            {'name': '社区卫生服务机构名录', 'count': 1972,
-             'desc': '社区卫生服务中心与社区卫生服务站名单'},
-            {'name': '区级卫健委及专题公开数据', 'count': 6955,
-             'desc': '密云 / 通州 / 房山 / 朝阳 / 怀柔等区医疗机构名录、重点专科与协作网络公示、业务统计表'},
-        ],
-        'fields': [
-            {'field': 'district', 'label': '行政区', 'nonnull': 9749, 'pct': 99.6},
-            {'field': 'addr', 'label': '地址', 'nonnull': 8762, 'pct': 89.5},
-            {'field': 'profit', 'label': '经济类型（办别）', 'nonnull': 8328, 'pct': 85.1},
-            {'field': 'key_depts', 'label': '重点专科 / 擅长科室', 'nonnull': 831, 'pct': 8.5},
-            {'field': 'level', 'label': '医院等级', 'nonnull': 1172, 'pct': 12.0},
-            {'field': 'phone', 'label': '联系电话', 'nonnull': 570, 'pct': 5.8},
-            {'field': 'beds', 'label': '床位数', 'nonnull': 35, 'pct': 0.4},
-            {'field': 'traffic', 'label': '交通导引', 'nonnull': 17, 'pct': 0.2},
-        ],
-    },
+    # 数据整合 / 数据质量页口径：**全部由主表实时计算**。
+    # ⚠️ 这里原本是一串手写字面量（level 1,172 / beds 35 / traffic 17 / final_inst 9,791），
+    #    数据治理过后它们不会跟着变 —— 结果就是页面上的完整率与真实主表对不上，
+    #    而且没有任何迹象表明它是旧的（用户看到「等级 12.0%」却查不到这一千多家是谁）。
+    #    改成从 data/processed/master_institutions.csv 现算：单一真源，改数据即改口径。
+    #    同时补上 basis（适用分母）—— 等级的合理分母是"应参评机构"（967 家），
+    #    而不是全部 9,684 家：另外 8,804 家是诊所/村卫生室等不设医院等级建制的类别，
+    #    用全量当分母会把 97.2% 的覆盖率显示成 9.6%，属于口径错误。
+    'data_quality': _dq,
     # 注：ads_time_trend 目前仅 5 行测试数据，待行为日志积累后接入「行为日趋势」
 }
 meta = {

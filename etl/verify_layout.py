@@ -85,6 +85,10 @@ def chart_container_static(product_src, js_path):
     listed = set(re.findall(r'#([A-Za-z_][\w-]*)', m.group(1))) if m else set()
 
     # HTML 里所有像图表容器的元素：id 以 ch 开头（本项目 ch* 一律是 ECharts 容器）
+    # ⚠️ 这是一条**命名约定**，不是启发式猜测：`ch*` 前缀在本项目里被保留给 ECharts 容器，
+    #    因此任何非图表的辅助元素都不能用这个前缀 —— 口径条最初叫 `ch1_scope`，
+    #    就被这条反向断言正确地拦了下来（它确实是"HTML 里有、JS 里没人 init"）。
+    #    改名 `scope_ch1` 后通过；下面 ⑤ 的正向断言仍覆盖它是否拿到了高度。
     dom_chart = set(re.findall(r'<[^>]*\bid="(ch[A-Za-z_0-9]*)"', html))
 
     no_height, dead = [], []
@@ -103,10 +107,15 @@ def chart_container_static(product_src, js_path):
 
 
 # ---------------------------------------------------------------------------
-#  ⑥ 可视化形态体检（2026-09-21 新增）
-#     起因：用户反馈「医疗资源整合部分都是条形图」。15 张图里 12 张是条形系，
-#     确实单调。但"改完别再退回全是条形"这种事没法靠人盯，所以固化成两条断言：
-#       静态 a) 分析页用到的图形类型数量与必备集合（读源码即可判）
+#  ⑥ 可视化形态体检（2026-09-21 新增，2026-09-22 改判据）
+#     起因一（2026-09-21）：用户反馈「医疗资源整合部分都是条形图」。15 张图里 12 张是
+#     条形系，确实单调。当时的解法是把 12 张改形、并把「形态 ≥11 种」写进闸门。
+#     起因二（2026-09-22）：用户反馈「像为了多样化而多样化，可用性更重要」。复盘后发现
+#     为凑形态换的那 5 张恰恰是最难读的：旭日图 12 个扇区摊到 8px 宽、树图小类型无法
+#     辨认、桑基 4→2 大片空白、漏斗 minSize 把 0.7% 画成 22% 宽（视觉失真）、棒棒糖
+#     两个圆点重叠。已全部改回条形系，闸门判据随之从「比谁形态多」改为「不许退化」：
+#       静态 a) 分析页用到的图形类型（读源码即可判）——
+#               不再数形态个数冲指标，改为要求 bar 之外仍有 5 类不同编码方式
 #       静态 b) 模块级常量没有捕获主题令牌（配色被默认调色板接管的根因）
 #     另加运行时一段：真 ECharts 页上确认 15 张图活着、类型符合预期、办别三色一致。
 # ---------------------------------------------------------------------------
@@ -115,9 +124,19 @@ CHART_TYPES = {
     'heatmap', 'gauge', 'scatter', 'graph', 'effectScatter', 'pictorialBar',
     'boxplot', 'map', 'themeRiver',
 }
-# 分析页必备的图形形态：占比 / 层级 / 递减 / 流向 / 矩阵 / 单一比率 / 榜单 / 多指标
-VIZ_REQUIRED = {'bar', 'line', 'pie', 'radar', 'sunburst', 'treemap',
-                'funnel', 'sankey', 'heatmap', 'gauge', 'scatter'}
+# 分析页「bar 之外」必备的编码方式（每一种都对应一类必须回答的问题）：
+#   pie     → 占比构成         line → 累计趋势（帕累托）
+#             heatmap → 二维矩阵（等级构成矩阵 / 区域禀赋矩阵，两张）
+#             gauge   → 单一比率达成度
+# 条形系（bar / stack）承担榜单、排序、构成对比 —— 它是主力形态，不算「多样性」，
+# 所以不列进必备集合，但要求除它之外这几类必须各有一张。
+# ⚠️ 2026-09-22：radar 从必备集合里**移除**。它不是被砍掉多样性，而是被判为表达失当：
+#    原「区域综合实力雷达」按机构总数取 TOP6，把三级机构最多的海淀、重点专科最多的
+#    西城排除在图外；六条线在五根轴上交叉，肉眼无法比较。改成「区域资源禀赋矩阵」
+#    （heatmap，列内归一 + 格内印原值）后，多指标轮廓这个问题由 heatmap 回答，
+#    而且回答得更准。因此必备集合计数下限同步由 6 降到 5。
+VIZ_REQUIRED = {'pie', 'line', 'heatmap', 'gauge'}
+VIZ_MIN_TYPES = 5
 
 # 主题令牌：全部在 loadTokens() 里赋值（随主题重建）
 TOKENS = set((
@@ -175,25 +194,34 @@ RUNTIME = r"""
   const chartById = {
     ch_own: CH_OWN, ch_lvown: CH_LVOWN, ch_catown: CH_CATOWN, ch_feat: CH_FEAT,
     ch_topsp: CH_TOPSP, ch_spdist: CH_SPDIST, ch_splv: CH_SPLV, ch_deptop: CH_DEPTOP,
-    ch_distlv: CH_DISTLV, ch_distsp: CH_DISTSP, ch_radar: CH_RADAR, ch_net: CH_NET,
+    ch_distlv: CH_DISTLV, ch_distsp: CH_DISTSP, ch_distmx: CH_DISTMX, ch_net: CH_NET,
     ch_netlv: CH_NETLV, ch_srcmap: CH_SRCMAP, ch_coord: CH_COORD,
   };
+  // 逐图钉死形态（这张表是硬约束：谁被换成了不合适的图形，这里就红）
+  // 2026-09-22：ch_lvown 旭日→堆叠条形、ch_catown 树图→堆叠条形、ch_feat 棒棒糖→条形、
+  //             ch_splv 桑基→堆叠条形、ch_srcmap 漏斗→条形
   const expect = {
-    ch_own: ['pie'], ch_lvown: ['sunburst'], ch_catown: ['treemap'],
-    ch_feat: ['bar', 'scatter'], ch_topsp: ['bar'], ch_spdist: ['bar', 'line'],
-    ch_splv: ['sankey'], ch_deptop: ['bar'], ch_distlv: ['heatmap'],
-    ch_distsp: ['bar'], ch_radar: ['radar'], ch_net: ['bar'],
-    ch_netlv: ['bar'], ch_srcmap: ['funnel'], ch_coord: ['gauge'],
+    ch_own: ['pie'], ch_lvown: ['bar'], ch_catown: ['bar'],
+    ch_feat: ['bar'], ch_topsp: ['bar'], ch_spdist: ['bar', 'line'],
+    ch_splv: ['bar'], ch_deptop: ['bar'], ch_distlv: ['heatmap'],
+    ch_distsp: ['bar'], ch_distmx: ['heatmap'], ch_net: ['bar'],
+    ch_netlv: ['bar'], ch_srcmap: ['bar'], ch_coord: ['gauge'],
   };
   const colors = ch => {
     const o = ch.getOption() || {};
-    const s = (o.series || [])[0] || {};
     const out = {};
-    const walk = arr => (arr || []).forEach(n => {
-      if (n && n.name && n.itemStyle && n.itemStyle.color) out[n.name] = String(n.itemStyle.color).toLowerCase();
-      if (n && n.children) walk(n.children);
+    const put = (name, c) => { if (name && typeof c === 'string') out[name] = c.toLowerCase(); };
+    (o.series || []).forEach(s => {
+      // ⚠️ series 级配色：堆叠条形把「一个办别 = 一条 series」，颜色写在 series.itemStyle 上。
+      //    只读 data[].itemStyle 的旧实现遇到堆叠条形会返回空对象 —— 而这条断言是
+      //    「got.get(name) is not None 才比」，空对象不会报错、静默变成空转（2026-09-22 踩到）。
+      put(s.name, s.itemStyle && s.itemStyle.color);
+      // data 项级配色：饼图这类一个数据点一个颜色
+      const walk = arr => (arr || []).forEach(n => {
+        if (n) { put(n.name, n.itemStyle && n.itemStyle.color); if (n.children) walk(n.children); }
+      });
+      walk(s.data);
     });
-    walk(s.data);
     return out;
   };
   const cs = getComputedStyle(document.documentElement);
@@ -462,7 +490,7 @@ def main():
         got_types = set()
         for ts in real['types'].values():
             got_types |= set(ts)
-        checks.append(('真库页图形形态 ≥10 种', len(got_types) >= 10,
+        checks.append(('真库页图形形态 ≥%d 种' % VIZ_MIN_TYPES, len(got_types) >= VIZ_MIN_TYPES,
                        '%d 种：%s' % (len(got_types), ','.join(sorted(got_types)))))
         tok, mism = real['tokens'], []
         for cid, got in real['colors'].items():
@@ -470,7 +498,7 @@ def main():
                 if got.get(name) is not None and got[name] != want:
                     mism.append('%s/%s=%s≠%s' % (cid, name, got[name], want))
         checks.append(('办别三色与主题令牌一致', not mism,
-                       mism if mism else '饼图 / 旭日 / 树图 三处一致'))
+                       mism if mism else '饼图 / 等级×办别 / 类型×办别 三处一致'))
     else:
         checks.append(('真库页 15 张图均已绘制', False, (real or {}).get('err', '未取到')))
 
@@ -484,11 +512,12 @@ def main():
         print('  ℹ  %d 个 init 目标在 HTML 里已无元素（下线模块遗留，mk() 已做空值保护）：%s'
               % (len(st['dead']), ', '.join(st['dead'])))
 
-    # ⑥ 静态部分：分析页的图形形态是否够多元、主题令牌有没有被模块级常量提前捕获
+    # ⑥ 静态部分：分析页形态有没有退化成纯条形、主题令牌有没有被模块级常量提前捕获
     types = viz_diversity_static(args.js)
     missing = sorted(VIZ_REQUIRED - types)
-    checks.append(('分析页图形形态覆盖必备集合', len(types) >= 11 and not missing,
-                   ('缺 %s' % ','.join(missing)) if missing else '%d 种' % len(types)))
+    checks.append(('分析页非条形形态覆盖必备集合', len(types) >= VIZ_MIN_TYPES and not missing,
+                   ('缺 %s' % ','.join(missing)) if missing else
+                   '%d 种（非条形 %d）' % (len(types), len(types & VIZ_REQUIRED))))
     cap = token_capture_static(args.js)
     checks.append(('无模块级常量捕获主题令牌', not cap, cap if cap else 'ok'))
 

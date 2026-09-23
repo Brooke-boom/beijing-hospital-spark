@@ -4,7 +4,7 @@
 =========================================================
 数据源：MySQL hospital 库 ADS 服务层（由 spark/jobs/ 数仓作业产出，
         ODS/DWD/DWS 三层 Parquet 落在 HDFS /hospital）
-  - ads_inst_search        筛选排序主表（9,789 家机构）
+  - ads_inst_search        筛选排序主表（9,678 家机构）
   - ads_district_overview  区域概览
   - ads_level_overview     等级概览
   - ads_specialty_hospital 重点专科医院
@@ -224,7 +224,8 @@ def api_institutions():
 
     offset = (page - 1) * page_size
     items = query(
-        "SELECT t.id, t.name, t.district, t.category_norm AS category, t.level_norm AS level,"
+        "SELECT t.id, t.name, t.district, t.category_norm AS category, t.category AS category_fine,"
+        " t.level_norm AS level,"
         " t.level_sub, t.addr, t.phone, t.key_depts,"
         " t.category_sub, t.ownership, t.feature, t.feature_level,"
         " t.net_pediatric, t.net_stroke, t.net_neonatal, t.net_maternal,"
@@ -246,7 +247,8 @@ def api_institutions():
 @app.route("/api/institutions/<inst_id>")
 def api_detail(inst_id):
     inst = query(
-        "SELECT id, name, district, category, category_norm, category_sub, level, level_sub, level_norm,"
+        "SELECT id, name, district, category, category AS category_fine, category_norm, category_sub,"
+        " level, level_sub, level_norm,"
         " grade_scope, ownership, ownership_basis, feature, feature_level,"
         " addr, phone, postal, key_depts,"
         " net_pediatric, net_stroke, net_neonatal, net_maternal,"
@@ -281,8 +283,8 @@ def api_overview_districts():
 def api_overview_levels():
     """等级分布概览。
 
-    统计口径（数据治理要点）：全表 9789 家机构中仅约 1287 家属"参加医院等级评审"
-    的医疗机构，其余 8500+ 家（诊所/村卫生室/门诊部/社区卫生服务站/医务室/急救/疾控
+    统计口径（数据治理要点）：全表 9678 家机构中仅约 874 家属"参加医院等级评审"
+    的医疗机构，其余 8800+ 家（诊所/村卫生室/门诊部/社区卫生服务站/医务室/急救/疾控
     /体检中心等）在制度上就没有一/二/三级等级，被归入 level_norm='不适用医院分级'。
     若把它们计入"未定级"，会形成 87% 的假性未定级，掩盖真实分布。
     因此默认 scope=graded（仅应参评机构）；scope=all 可看全量口径（含"不适用"桶）。
@@ -933,6 +935,7 @@ def api_inst_detail(inst_id):
             "id": r["id"], "name": r["name"], "district": r["district"],
             "level": r["level_norm"], "level_sub": r["level_sub"],
             "category": r["category_norm"],
+            "category_fine": r.get("category") or r["category_norm"],
             "category_sub": r.get("category_sub") or "",
             "ownership": r.get("ownership") or "", "ownership_basis": r.get("ownership_basis") or "",
             "grade_scope": r.get("grade_scope") or "",
@@ -1062,7 +1065,7 @@ def api_track():
 
 @app.route("/api/admin/stats")
 def api_admin_stats():
-    """运营后台：① 真实行为统计（埋点累积） ② 资源热度（源自 9,789 家真实数据）。
+    """运营后台：① 真实行为统计（埋点累积） ② 资源热度（源自 9,678 家真实数据）。
 
     冷启动时行为统计为空，前端会明确提示「尚无行为数据」——不编造演示数据。
     """

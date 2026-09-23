@@ -46,8 +46,10 @@ ok()   { printf '  ✓ %s\n' "$1"; }
 step "0/6 启动容器（HDFS / Spark / MySQL）"
 "$DOCKER" compose up -d >/dev/null
 for i in $(seq 1 60); do
+  # 注意：BSD grep（macOS 自带）不支持 \b 词边界，写成 \b 会匹配失败 → 恒 0/3。
+  # 用 [[:space:]] 显式吃掉容器名后的制表符，GNU / BSD 两种 grep 行为一致。
   ready=$("$DOCKER" ps --format '{{.Names}}\t{{.Status}}' \
-          | grep -E '^(hdfs-namenode|spark-master|hospital-mysql)\b' \
+          | grep -E '^(hdfs-namenode|spark-master|hospital-mysql)[[:space:]]' \
           | grep -c 'Up' || true)
   [[ "$ready" == "3" ]] && break
   sleep 2
@@ -62,6 +64,18 @@ done
 "$DOCKER" exec hdfs-namenode hdfs dfs -ls / >/dev/null 2>&1 \
   || { echo "❌ HDFS 未就绪" >&2; exit 1; }
 ok "HDFS 可访问（NameNode: http://localhost:9870）"
+
+# ---------------------------------------------------------------------------
+# 主表治理。放在入湖之前 —— upload_to_hdfs.py 上传的就是这份主表，
+# 治理若在上传之后跑，数仓与前端拿到的就是未治理的旧版。
+#
+# 两个脚本都做了幂等：已治理过则零改动、不备份、不写盘，安全重复执行。
+# 从原始数据重建（clean_merge.py 重跑）后，这一步会自动把同名/多牌子记录收拢。
+step "0.5/6 主表治理：等级适用范围 + 同名合并"
+"$PY" etl/build_grade_scope.py --apply >/dev/null
+ok "grade_scope 已按「不设等级建制的六类机构」重算"
+"$PY" etl/merge_dup_institutions.py --apply | tail -4
+ok "同名合并（挂牌名合并 / 院区保留）已对齐"
 
 # ---------------------------------------------------------------------------
 if [[ "$SKIP_INGEST" == "1" ]]; then

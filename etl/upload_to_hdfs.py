@@ -6,7 +6,7 @@
 本源文件负责把"所有分析输入"统一灌入 HDFS，后续 Spark 作业一律从 HDFS 读取。
 
 入湖清单：
-  1. data/processed/master_institutions.csv   机构主表（9,789 家）
+  1. data/processed/master_institutions.csv   机构主表（9,678 家）
   2. data/processed/hospital_depts.csv        机构-科室关系
   3. data/processed/dept_dict.csv             标准科室字典
   4. data/processed/specialty_departments.csv 重点专科名单

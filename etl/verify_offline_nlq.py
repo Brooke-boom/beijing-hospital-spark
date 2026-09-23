@@ -475,10 +475,19 @@ def main():
             check("db_total[%s]" % c["name"], n_db == n_local,
                   "库=%d 离线=%d" % (n_db, n_local))
         # 决定性的一例：这次用户报的"海淀区骨科匹配不到"
+        # 期望家数的演变（每次都是数据治理的正常结果，不是回归）：
+        #   40 → 36（2026-09-22 科室明细新增好大夫在线逐家核实的真实科室，source='online'
+        #            在来源优先级里压过 key_depts/name/rule；按「医院→通用科室清单」推导出的
+        #            骨科被真实科室表覆盖而正确消失，如北大六院、皮肤病医院、妇儿医院本就没有骨科）
+        #   36 → 31（2026-09-22 主表同名合并治理：海淀区内「一行登记多块牌子」的重复记录被合并，
+        #            如北医三院带「北京大学第三临床医学院」括注的重复行）
+        # ⚠️ 教训：此处**不再写死家数**。写死的期望值会在每一次数据治理后变成假报警
+        #    （同 verify_artifacts 曾写死 9789）。只断言两件真有回归价值的事：
+        #    ① 库里 SQL 与离线引擎两端一致；② 结果非空（防「句子读得懂、结果 0 条」退化）。
         n_db = db_count({"district": ["海淀区"], "dept": "骨科"})
         n_local = py_filter(insts, {"district": ["海淀区"], "dept": "骨科"})["total"]
-        check("db_total[海淀区骨科]", n_db == n_local == 40,
-              "库=%d 离线=%d（预期 40）" % (n_db, n_local))
+        check("db_total[海淀区骨科]", n_db == n_local and n_local > 0,
+              "库=%d 离线=%d（两端须一致且非空）" % (n_db, n_local))
         print("  真库核对：海淀区+骨科 = %d 家（库里查同一条件也是 %d 家）" % (n_local, n_db))
         # 口语化问句：解析出来的条件拿去查库，必须是**非空**的。
         # 这正是用户会踩的坑——句子读得懂，结果 0 条，且不报任何错。
@@ -495,6 +504,33 @@ def main():
                   "解析为 %s → 库里 0 条，说明条件被误收紧了" % json.dumps(cond, ensure_ascii=False))
             print("  · %-12s → %s → 库里 %d 家" % (
                 q, json.dumps(cond, ensure_ascii=False), n_q))
+
+        # ---- 等级适用范围守门（2026-09-22）----
+        # 六类基层机构（诊所/村卫生室/门诊部/社区卫生服务站/医务室/护理站）按各自
+        # 《基本标准》以「诊疗科目」执业，不参与医院等级评审，库里**不得**出现它们的
+        # 一/二/三级。这不是洁癖：源文件《大兴区一级以下医院名单…》的名字里那个"一级"
+        # 曾被当成等级，把 313 家诊所/医务室变成「一级」，大兴区因此在 03 段矩阵里
+        # 出现 369 家的热格、被排到最顶行。修完必须锁死，否则下次重跑清洗又会滑回去。
+        NOT_RATED = ("诊所", "村卫生室", "门诊部", "社区卫生服务站", "医务室", "护理站")
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(*) FROM dwd_institution_clean "
+                    "WHERE category IN (%s) AND level_norm IN ('三级','二级','一级')"
+                    % ",".join(["%s"] * len(NOT_RATED)), NOT_RATED)
+                n_bad = cur.fetchone()[0]
+                cur.execute(
+                    "SELECT COUNT(*) FROM dwd_institution_clean "
+                    "WHERE category IN (%s) AND grade_scope <> 'not_applicable'"
+                    % ",".join(["%s"] * len(NOT_RATED)), NOT_RATED)
+                n_scope = cur.fetchone()[0]
+        except Exception as e:  # noqa: BLE001
+            check("level_scope[基层六类]", False, "SQL 失败：%s" % str(e)[:120])
+        else:
+            check("level_scope[基层六类不设医院等级]", n_bad == 0,
+                  "库里仍有 %d 家基层机构挂着一/二/三级" % n_bad)
+            check("level_scope[基层六类不参加等级评审]", n_scope == 0,
+                  "库里仍有 %d 家基层机构的 grade_scope 不是 not_applicable" % n_scope)
         conn.close()
 
     print("\n" + "=" * 68)

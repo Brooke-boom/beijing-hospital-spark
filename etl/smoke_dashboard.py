@@ -85,7 +85,7 @@ setTimeout(function(){
       r.push('an_panels='+cnt('#view-analytics .apanel'));
       r.push('an_secs='+cnt('#view-analytics .sec-title'));
       r.push('an_kpis='+cnt('#view-analytics .kpis .card'));
-      var anIds=['ch_catown','ch_spdist','ch_splv','ch_distsp','ch_radar','ch_netlv','ch_srcmap'];
+      var anIds=['ch_catown','ch_spdist','ch_splv','ch_distsp','ch_distmx','ch_netlv','ch_srcmap'];
       var anMiss=[];
       anIds.forEach(function(id){ if(!vis(id)) anMiss.push(id); });
       r.push('an_newcharts='+(anIds.length-anMiss.length)+'/'+anIds.length+(anMiss.length?(' miss:'+anMiss.join(',')):''));
@@ -243,7 +243,13 @@ def main():
     ok = True
     checks = []
     n_snap = int(kv.get("snap", "0") or 0)
-    checks.append(("快照机构数 = 9789", n_snap == 9789, str(n_snap)))
+    # 期望条数从主表现算，避免数据治理后变成假报警。
+    # ⚠️ 必须用 csv.reader 计数：主表里有字段含换行（引号包裹的多行值），
+    #    按物理行数统计会多加 20 条（实测 9698 ≠ 9678），又变成一次假报警。
+    import csv as _csv
+    with open("data/processed/master_institutions.csv", encoding="utf-8-sig", newline="") as _mf:
+        _n_master = sum(1 for _ in _csv.reader(_mf)) - 1
+    checks.append((f"快照机构数 = 主表 {_n_master}", n_snap == _n_master, str(n_snap)))
     checks.append(("七个视图齐备", kv.get("views") == "7", kv.get("views", "?")))
     checks.append(("导航项 7 个", kv.get("nav") == "7", kv.get("nav", "?")))
     sw = kv.get("switch", "")

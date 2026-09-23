@@ -10,17 +10,18 @@
 校验项：
   1. 三份产物都存在，且体积在合理区间（防止被截断或误替换）
   2. window.__SNAPSHOT__ 恰好出现 1 次（重复注入 = 锚点命中了旧块）
-  3. 内联快照 JSON 可解析，institutions 条数 == 期望值（默认 9789）
+  3. 内联快照 JSON 可解析，institutions 条数 == 期望值（默认从主表现算）
   4. 内联的是本次构建的快照（前后两份产物快照内容一致）
   5. 离线版含内联 ECharts（零依赖），在线版走 CDN
   6. 产物中不得残留 data-page-node-id（IDE 预览注入的脏标记，不应入库）
 
 用法：
   python3 etl/verify_artifacts.py
-  python3 etl/verify_artifacts.py --expect 9789
+  python3 etl/verify_artifacts.py --expect 9678   # 显式指定时覆盖主表现算值
 """
 
 import argparse
+import csv
 import hashlib
 import json
 import os
@@ -74,9 +75,20 @@ def extract_snapshot(html):
     return None
 
 
+def _master_row_count():
+    """主表真实行数 —— 作为机构条数的期望值，避免写死数字在每次治理后变成假报警。"""
+    path = os.path.join(BASE, "data", "processed", "master_institutions.csv")
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8-sig") as f:
+        return sum(1 for _ in csv.DictReader(f))
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--expect", type=int, default=9789, help="期望机构条数")
+    # 期望条数默认从主表现算 —— 写死会在每次数据治理后变成假报警
+    ap.add_argument("--expect", type=int, default=None,
+                    help="期望机构条数（默认读 data/processed/master_institutions.csv）")
     args = ap.parse_args()
 
     ok = True
@@ -118,6 +130,8 @@ def main():
             print("  ✗ 内联快照 JSON 解析失败: %s" % str(e)[:100]); ok = False; continue
 
         n_inst = len(snap.get("institutions") or [])
+        if args.expect is None:
+            args.expect = _master_row_count() or n_inst
         flag = "✓" if n_inst == args.expect else "✗"
         print("  %s 机构条数 %d（期望 %d）" % (flag, n_inst, args.expect))
         if n_inst != args.expect:

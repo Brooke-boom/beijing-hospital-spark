@@ -210,6 +210,25 @@ def norm_name(s):
         s = s[3:]
     return s
 
+# ---------- 等级适用范围：非医院类机构不参与医院等级评审 ----------
+# 《医疗机构管理条例》下的三级/二级/一级是**医院**评审结论。以下六类按各自
+# 《基本标准》以「诊疗科目」核准执业，本就没有等级建制。判据与前端
+# deptLabel.js 的 NO_DEPT_CAT、build_grade_scope.py 的 NON_GRADED_CAT 同源，
+# 全项目只认一套口径（2026-09-22 立）。
+NOT_RATED_CATS = frozenset({"诊所", "村卫生室", "门诊部",
+                            "社区卫生服务站", "医务室", "护理站"})
+HOSPITAL_LEVELS = ("三级", "二级", "一级")
+
+
+def level_not_applicable(category, level):
+    """该机构是否"被盖了不该有的医院等级"。
+
+    True 表示 category 属非参评类别、而 level 却取了医院等级 —— 这个等级
+    只可能来自脏单元格或文件名误解析，不是评审结论，应当清除。
+    """
+    return str(category or "") in NOT_RATED_CATS and str(level or "") in HOSPITAL_LEVELS
+
+
 def std_level(raw, fname):
     s = re.sub(r"\s+", "", str(raw))
     if s in ("", "nan", "None", "未评", "未评级", "未定级", "无", "—", "-", "/"):
@@ -227,12 +246,24 @@ def std_level(raw, fname):
         sub = "乙等"
     elif "合格" in s:
         sub = "合格"
-    if not base and fname:                     # 文件名兜底：如"通州区一级医院名单"
-        m = re.search(r"(三级甲等|三级乙等|二级甲等|二级乙等|一级|二级|三级)", fname)
-        if m:
+    # 文件名兜底：如"通州区一级医院名单"。
+    # ⚠️ 2026-09-22 实测到两处误解析，都是"等级词出现在文件名里、但并不表示该名单的等级"：
+    #   ①《大兴区一级以下医院名单门诊部名单、诊所名单、医务室名单》
+    #      —— "一级"被"以下"修饰，这份名单实际**跨等级**（一级＋未定级），
+    #         旧写法让整份名单 318 行无条件盖上「一级」，其中 313 家是诊所/医务室/门诊部；
+    #   ②《丰台区村一级卫生室》—— 是"村级卫生室"，"一级"前一个字是"村"，
+    #         旧写法让 16 家村卫生室变成「一级」。
+    # 两者合起来把大兴区「一级」从真实的 30 余家抬到 369 家，成了矩阵里最大的假热格。
+    if not base and fname:
+        for m in re.finditer(r"(三级甲等|三级乙等|二级甲等|二级乙等|一级|二级|三级)", fname):
+            if fname[max(0, m.start() - 1):m.start()] == "村":
+                continue                        # 「村一级卫生室」＝村级卫生室，非等级
+            if re.match(r"^(以下|以上|以内|及以上|及以下)", fname[m.end():]):
+                continue                        # 「一级以下…」＝跨等级名单，不做等级兜底
             t = m.group(1)
             base = t[:2]
             sub = t[2:] if len(t) > 2 else ""
+            break
     if not base:
         return ("未定级", sub) if sub else ("", "")
     return base, sub
@@ -374,6 +405,22 @@ def main():
     merged["category"] = merged.apply(
         lambda r: std_category(r["name"], r["category_raw"]), axis=1)
 
+    # ---- 等级适用范围守卫（2026-09-22）----
+    # 三级/二级/一级是《医疗机构管理条例》下对**医院**的评审结论。诊所、村卫生室、
+    # 门诊部、社区卫生服务站、医务室、护理站按各自《基本标准》以「诊疗科目」核准执业，
+    # 本就没有等级建制。此前这些机构的等级只会来自两个地方——脏单元格，或
+    # std_level 的文件名兜底——都不是真实的评审结果。
+    # 实测 330 家被这样盖上「一级」（大兴区 313 / 丰台区 17），
+    # 直接后果是 03 段「区域×等级矩阵」里大兴区一格 369 家，把全区真实格局压平。
+    # 这里按机构类别统一清除，判据与前端「不设科室分科」的 NO_DEPT_CAT 完全一致，
+    # 全项目只认一套口径。
+    _lv_guard = merged.apply(
+        lambda r: level_not_applicable(r["category"], r["level"]), axis=1)
+    stats["level_guard"] = Counter(
+        zip(merged.loc[_lv_guard, "district"], merged.loc[_lv_guard, "level"]))
+    stats["level_guard_n"] = int(_lv_guard.sum())
+    merged.loc[_lv_guard, ["level", "level_sub"]] = ["", ""]
+
     # ---- 专科表挂接：能对上主表的机构，把专科并入 key_depts ----
     spec_df = pd.DataFrame([{"name_key": k, "specialties": "、".join(sorted(v))}
                             for k, v in specialty.items()])
@@ -436,6 +483,19 @@ def write_report(master, raw_df, stats, n_spec):
     A("|---|---:|")
     for k, v in master["level"].replace("", "（未定级/缺失）").value_counts().items():
         A(f"| {k} | {v} |")
+
+    # 等级适用范围守卫的执行记录：被清掉多少、集中在哪些区，
+    # 让"为什么大兴区一级机构数变了"这件事在报告里可追溯。
+    _g = stats.get("level_guard") or Counter()
+    if stats.get("level_guard_n"):
+        A("\n## 等级适用范围守卫（清除非医院类机构的医院等级）\n")
+        A(f"共清除 **{stats['level_guard_n']}** 家机构的等级字段。依据：诊所、村卫生室、"
+          "门诊部、社区卫生服务站、医务室、护理站按各自《基本标准》以「诊疗科目」核准执业，"
+          "不参与医院等级评审；其等级值只可能来自脏单元格或源文件名误解析，非评审结论。\n")
+        A("| 区 | 等级 | 清除数 |")
+        A("|---|---|---:|")
+        for (d, lv), c in _g.most_common():
+            A(f"| {d or '（未知）'} | {lv} | {c} |")
 
     A("\n## 关键字段完整度\n")
     A("| 字段 | 非空 | 完整率 |")

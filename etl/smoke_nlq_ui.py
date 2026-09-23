@@ -145,40 +145,69 @@ setTimeout(function(){
                         r.push('oral2_kwchip=' + cnt('#nlq_chips .nlqchip[data-ck="kw"]'));
                         r.push('oral2_count=' + tx('nlq_count'));
                         r.push('oral2_rows=' + cnt('#nlq_list .row'));
-                        // ── J. 科室数的展示口径（两轮整治）
+                        // ── J. 科室数的展示口径（三轮整治）
                         //    第一轮：22 家医院凭空多出「59 个科室」（百度百科模板文字污染）；
                         //    第二轮：撤掉污染后暴露出 dept_count 有 97% 是 rule/name 推导，
                         //    1,805 家会重复显示同一个模板数字（2/6/7/13/19），另有 468 家只登记到 1 条。
-                        //    定版口径：**只有 dept_count_src 非空（在线核实值）才显示数字**，其余「科室资料待补全」。
-                        var _metas = document.querySelectorAll('#nlq_list .row .meta');
-                        var _n59 = 0, _tipOn = 0, _tipPend = 0, _tipOther = 0, _numeric = 0;
-                        for (var _mi = 0; _mi < _metas.length; _mi++) {
-                          var _mt = _metas[_mi].innerText || '';
-                          if (_mt.indexOf('59 个科室') >= 0) _n59++;
-                          var _sps = _metas[_mi].querySelectorAll('span[title]');
-                          for (var _si = 0; _si < _sps.length; _si++) {
-                            var _sp = _sps[_si];
-                            var _ti = _sp.getAttribute('title') || '';
-                            var _tx = (_sp.textContent || '').trim();
-                            // 数字判定用手写循环，避免把正则的反斜杠塞进 Python 字符串
-                            var _hasNum = false;
-                            for (var _ci = 0; _ci < _tx.length; _ci++) {
-                              var _cc = _tx.charCodeAt(_ci);
-                              if (_cc >= 48 && _cc <= 57) { _hasNum = true; break; }
+                        //    第三轮（2026-09-22 联网补全）：三档口径 ——
+                        //      ① 在线核实的真实值（dept_count_src 非空）→ 显数字；
+                        //      ② 基层机构「不设科室分科」（诊所/村卫生室/门诊部/社区卫生服务站/
+                        //         医务室/护理站，按各自《基本标准》以「诊疗科目」核准执业，
+                        //         本就没有科室建制）→ 如实说明，不再说"待补全"；
+                        //      ③ 真正应当收录却未取得的，才叫「科室资料待补全」。
+                        //    ⚠️ 判定必须按 span 正文，不能按 title 前缀：title 是人读的解释性
+                        //       文案，措辞一改断言就静默失效（前一版改用 title 前缀正是栽在这）。
+                        function _scanMetas(){
+                          var acc = {on:0, pend:0, nodept:0, other:0, num:0, rows:0, n59:0};
+                          var ms = document.querySelectorAll('#nlq_list .row .meta');
+                          acc.rows = ms.length;
+                          for (var _mi = 0; _mi < ms.length; _mi++) {
+                            var _mt = ms[_mi].innerText || '';
+                            if (_mt.indexOf('59 个科室') >= 0) acc.n59++;
+                            var _sps = ms[_mi].querySelectorAll('span[title]');
+                            for (var _si = 0; _si < _sps.length; _si++) {
+                              var _tx = (_sps[_si].textContent || '').trim();
+                              // 数字判定用手写循环，避免把正则的反斜杠塞进 Python 字符串
+                              var _hasNum = false;
+                              for (var _ci = 0; _ci < _tx.length; _ci++) {
+                                var _cc = _tx.charCodeAt(_ci);
+                                if (_cc >= 48 && _cc <= 57) { _hasNum = true; break; }
+                              }
+                              if (_hasNum) acc.num++;
+                              if (_tx === '不设科室分科') acc.nodept++;
+                              else if (_tx === '科室资料待补全') acc.pend++;
+                              else if (_tx.indexOf('个科室') >= 0) acc.on++;
+                              else if (_tx.indexOf('科室') >= 0 || _tx.indexOf('补全') >= 0) acc.other++;
                             }
-                            if (_hasNum) _numeric++;
-                            if (_ti.indexOf('在线核实') === 0) _tipOn++;
-                            else if (_ti.indexOf('源数据未收录该机构的科室设置') >= 0) _tipPend++;
-                            else if (_tx.indexOf('个科室') >= 0 || _tx.indexOf('待补全') >= 0) _tipOther++;
                           }
+                          return acc;
                         }
-                        r.push('dept59=' + _n59);
-                        r.push('dept_tiponline=' + _tipOn);
-                        r.push('dept_tippending=' + _tipPend);
-                        r.push('dept_tipother=' + _tipOther);
-                        r.push('dept_numeric=' + _numeric);
-                        r.push('dept_head=' + (_metas.length ? _metas[0].innerText.replace(/\s+/g, ' ').trim() : ''));
-                        done();
+                        var _A = _scanMetas();
+                        r.push('dept59=' + _A.n59);
+                        r.push('dept_tiponline=' + _A.on);
+                        r.push('dept_tippending=' + _A.pend);
+                        r.push('dept_tipnodept=' + _A.nodept);
+                        r.push('dept_tipother=' + _A.other);
+                        r.push('dept_numeric=' + _A.num);
+                        r.push('dept_rows=' + _A.rows);
+                        r.push('dept_head=' + (document.querySelectorAll('#nlq_list .row .meta')[0]
+                                 ? document.querySelectorAll('#nlq_list .row .meta')[0].innerText.replace(/[ \\t\\r\\n]+/g, ' ').trim() : ''));
+                        // ── K. 基层机构：应落「不设科室分科」档（本轮修复的核心覆盖点）
+                        //    海淀区诊所按《诊所基本标准》以诊疗科目执业、不设科室建制 →
+                        //    必须全落 nodept 档，且**不得**出现任何"个科室"数字或"待补全"字样。
+                        setQ('海淀区的诊所'); go();
+                        setTimeout(function(){
+                          var _B = _scanMetas();
+                          r.push('base_nodept=' + _B.nodept);
+                          r.push('base_pending=' + _B.pend);
+                          r.push('base_online=' + _B.on);
+                          r.push('base_other=' + _B.other);
+                          r.push('base_numeric=' + _B.num);
+                          r.push('base_rows=' + _B.rows);
+                          r.push('base_count=' + tx('nlq_count'));
+                          r.push('base_chips=' + tx('nlq_chips'));
+                          done();
+                        }, 1300);
                       }, 1300);
                     }, 1300);
                   }, 800);
@@ -282,7 +311,14 @@ def main():
     checks.append(("科室条件解析成卡片",
                    "科室" in kv.get("dept_chips", "") and "骨科" in kv.get("dept_chips", ""),
                    kv.get("dept_chips", "?")[:64]))
-    checks.append(("海淀区+骨科 = 40 家", kv.get("dept_count", "").replace(" ", "").startswith("40"),
+    # 期望家数**不写死**（2026-09-22 教训，与 etl/verify_offline_nlq.py 同处注释一致）：
+    #   40 → 36（科室明细新增好大夫在线逐家核实的真实科室，online 压过 key_depts/name/rule）
+    #   36 → 31（主表同名合并治理：海淀区内「一行登记多块牌子」的重复记录被合并）
+    # 写死的 startswith("36") 在每次数据治理后都会变成假报警。这里只断言 UI 端确实返回了结果
+    # （防「条件卡片都在、结果 0 家」的退化）；具体家数的权威核对交给
+    # verify_offline_nlq.py 的「库里 SQL vs 离线引擎两端一致」。
+    _dcn = re.sub(r"\D", "", kv.get("dept_count", "") or "")
+    checks.append(("海淀区+骨科 返回家数 > 0", bool(_dcn) and int(_dcn) > 0,
                    kv.get("dept_count", "?")))
     checks.append(("科室筛选有结果行", int(kv.get("dept_rows", "0") or 0) > 0,
                    "rows=%s" % kv.get("dept_rows")))
@@ -339,8 +375,23 @@ def main():
                    _tpd > 0,
                    "待补全=%s 在线核实=%s | 首行=%s" % (
                        _tpd, _ton, (kv.get("dept_head", "") or "")[:44])))
-    checks.append(("科室项口径提示无未归类分支", _toth == 0,
-                   "未归类=%s" % kv.get("dept_tipother")))
+    _tnd = int(kv.get("dept_tipnodept", "0") or 0)
+    _trows = int(kv.get("dept_rows", "0") or 0)
+    checks.append(("科室项三档穷尽、无未归类分支",
+                   _toth == 0 and (_ton + _tpd + _tnd) > 0,
+                   "在线=%s 待补全=%s 不设分科=%s 行=%s 未归类=%s" % (
+                       _ton, _tpd, _tnd, _trows, _toth)))
+    # ── 基层机构口径（本轮核心修复）：诊所/村卫生室/门诊部/社区卫生服务站/医务室/护理站
+    #    按各自《基本标准》以「诊疗科目」核准执业，本就没有科室建制 —— 必须如实说明，
+    #    而不是把它们和"源数据没查到"混为一谈（此前一次误报 8,279 家，占全量 84.6%）。
+    _bnd = int(kv.get("base_nodept", "0") or 0)
+    _bpd = int(kv.get("base_pending", "0") or 0)
+    _bon = int(kv.get("base_online", "0") or 0)
+    _brows = int(kv.get("base_rows", "0") or 0)
+    checks.append(("基层机构（海淀区诊所）标注「不设科室分科」",
+                   _brows > 0 and _bnd == _brows and _bpd == 0 and _bon == 0,
+                   "行=%s 不设分科=%s 待补全=%s 在线=%s | %s" % (
+                       _brows, _bnd, _bpd, _bon, (kv.get("base_chips", "") or "")[:40])))
     errs = kv.get("ERR", "?")
     checks.append(("无运行时错误", errs == "none", errs))
 

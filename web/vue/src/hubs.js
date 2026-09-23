@@ -30,7 +30,7 @@ export const HUBS = {
   },
   profile: {
     title: '资源画像',
-    desc: '把 9,789 家机构当成一个整体来看：数量、等级、办别、区域与科室覆盖的结构是什么样的。',
+    desc: '把 9,684 家机构当成一个整体来看：数量、等级、办别、区域与科室覆盖的结构是什么样的。',
     tabs: [
       { k: 'overview', t: '总览', c: OverviewView },
       { k: 'analytics', t: '结构分析', c: AnalyticsView }

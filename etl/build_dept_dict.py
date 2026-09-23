@@ -10,20 +10,30 @@
   毕设/data/processed/hospital_depts.csv  医院-科室映射表（含来源与重点专科标记）
 
 科室来源优先级（source 字段）：
-  specialty > key_depts > name > rule
+  specialty > online > key_depts > name > rule
   specialty  : 国家级重点专科名单（is_key_specialty=1）
+  online     : 好大夫在线抓取的真实科室列表（haodf_depts.jsonl + haodf_match.csv，
+               2026-09-22 新增；全表唯一「逐家核实过科室构成」的来源）
   key_depts  : 主表登记的真实诊疗科目
   name       : 机构名称关键词推断（如"XX口腔诊所"→口腔科）
   rule       : 按 机构类型 × 等级 的规则推导（模拟数据，供筛选演示）
+
+⚠️ online 刻意排在 specialty **之后**：specialty 行带 is_key_specialty=1（国家级重点专科
+   标记），若让 online 压过它就会把重点专科标记抹掉。但 online 必须压过 key_depts/name/rule
+   —— 那三者要么只有一级科目、要么是推导值，都不如在线核实的完整科室列表。
 """
 
 import csv
+import json
 import os
 import re
 
 BASE = os.path.expanduser("~/Desktop/毕设")
 MASTER = os.path.join(BASE, "data/processed/master_institutions.csv")
 SPECIALTY = os.path.join(BASE, "data/processed/specialty_departments.csv")
+# 好大夫在线抓取产物（scrape_haodf_depts.py 抓、enrich_depts_haodf.py 匹配）
+HAODF_JSONL = os.path.join(BASE, "data/processed/haodf_depts.jsonl")
+HAODF_MATCH = os.path.join(BASE, "data/processed/haodf_match.csv")
 OUT_DICT = os.path.join(BASE, "data/processed/dept_dict.csv")
 OUT_MAP = os.path.join(BASE, "data/processed/hospital_depts.csv")
 
@@ -202,6 +212,33 @@ def rule_depts(cat, level, name):
     return ["普内科"], "rule"   # 门诊部/诊所等无等级的兜底
 
 
+def load_online_depts():
+    """读好大夫在线抓取结果 → {inst_id: [原始科室名, ...]}
+
+    依赖 haodf_match.csv（etl/enrich_depts_haodf.py 产出）：那张表已经把
+    「好大夫医院」与「主表机构」做过严格匹配，这里直接用 inst_id 取值，
+    绝不在本脚本里再做一次名称匹配 —— 名称匹配最容易出错的环节只保留一处。
+    """
+    if not (os.path.exists(HAODF_JSONL) and os.path.exists(HAODF_MATCH)):
+        return {}
+    depts = {}
+    for line in open(HAODF_JSONL, encoding="utf-8"):
+        line = line.strip()
+        if not line:
+            continue
+        o = json.loads(line)
+        names = [d.get("name") for d in (o.get("depts") or []) if d.get("name")]
+        if names:
+            depts[str(o.get("hid"))] = names
+    out = {}
+    with open(HAODF_MATCH, newline="", encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            ds = depts.get(str(row.get("hid")))
+            if ds:
+                out[row["inst_id"]] = ds
+    return out
+
+
 def main():
     # 读取主表
     with open(MASTER, newline="", encoding="utf-8-sig") as f:
@@ -218,8 +255,10 @@ def main():
                     spec[h] = [x.strip() for x in re.split(r"[、，,]", s) if x.strip()]
 
     # 医院-科室映射
+    online = load_online_depts()
+    print("  好大夫在线科室明细：%d 家机构可用" % len(online))
     mapping = {}   # (hid, dept) -> record
-    stat = {"specialty": 0, "key_depts": 0, "name": 0, "rule": 0}
+    stat = {"specialty": 0, "online": 0, "key_depts": 0, "name": 0, "rule": 0}
     for rec in insts:
         hid = rec["id"]
         hname = norm(rec["name"])
@@ -231,8 +270,8 @@ def main():
             if dept not in DEPT_DICT:
                 return
             key = (hid, dept)
-            # specialty > key_depts > name > rule
-            rank = {"specialty": 0, "key_depts": 1, "name": 2, "rule": 3}
+            # specialty > online > key_depts > name > rule
+            rank = {"specialty": 0, "online": 1, "key_depts": 2, "name": 3, "rule": 4}
             if key not in mapping or rank[source] < rank[mapping[key]["source"]]:
                 mapping[key] = {
                     "hospital_id": hid, "hospital_name": hname,
@@ -247,13 +286,19 @@ def main():
             if std:
                 add(std, "specialty", is_key=1, raw=sp)
 
-        # 2) 登记诊疗科目
+        # 2) 好大夫在线核实的科室列表（完整科室构成，压过下面三项推导/单级科目）
+        for raw in online.get(hid, []):
+            std = map_dept(raw)
+            if std:
+                add(std, "online", raw=raw)
+
+        # 3) 登记诊疗科目
         for raw in kds:
             std = map_dept(raw)
             if std:
                 add(std, "key_depts", raw=raw)
 
-        # 3) 名称/规则推导（仅当无任何真实科室数据时）
+        # 4) 名称/规则推导（仅当无任何真实科室数据时）
         if not any(k[0] == hid for k in mapping) and hname not in spec:
             depts, source = rule_depts(cat, level, hname)
             for d in depts:

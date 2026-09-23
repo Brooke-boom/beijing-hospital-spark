@@ -20,9 +20,9 @@
   4. ADS：服务应用的宽表与统计（写 MySQL，Flask 直接查）
 
 输入：
-  - /opt/workspace/data/processed/master_institutions.csv  (9,789 家机构，govern_master.py 治理后含
+  - /opt/workspace/data/processed/master_institutions.csv  (9,678 家机构，govern_master.py 治理后含
     ownership/ownership_basis/category_sub/feature/feature_level 5 个治理列)
-  - /opt/workspace/data/processed/hospital_depts.csv       (16,310 条科室映射)
+  - /opt/workspace/data/processed/hospital_depts.csv       (16,438 条科室映射)
   - /opt/workspace/data/processed/dept_dict.csv            (32 个标准科室)
   - /opt/workspace/data/processed/specialty_departments.csv (20 家重点专科)
   - /opt/workspace/data/processed/geocode_cache.csv        (地理编码缓存)

@@ -4,7 +4,7 @@
 依赖：Flask 已在 127.0.0.1:5001 运行（web/app.py），Vue 已构建到 web/vue/dist。
 
 覆盖：
-  1. 首屏是任务主线「智能筛选」，能拿到真实数据（机构总数 9,789）
+  1. 首屏是任务主线「智能筛选」，能拿到真实数据（机构总数由主表现算）
   2. 6 个路由逐个可达且渲染出内容
   3. 主线能力：一句话 → 条件卡 → KPI/列表/来源说明；条件通道可用；维度统计出图；
      病征类输入被拒答且 0 结果
@@ -205,9 +205,13 @@ def main():
         inst = pg.evaluate("() => document.querySelectorAll('.tbl tbody tr').length")
         checks.append(("找机构页有列表行", inst > 0, "rows=%d" % inst))
 
-        # 科室数口径（定版）：dept_count 97% 由 rule/name 推导——1,805 家会重复显示同一个
-        # 模板数字（2/6/7/13/19），另有 468 家只登记到 1 条。因此**只有 dept_count_src 非空
-        # （在线核实值，实测 34 家）才显示数字**，其余一律「科室资料待补全」。
+        # 科室数口径（定版，2026-09-22 三档）：dept_count 97% 由 rule/name 推导——1,805 家会重复
+        # 显示同一个模板数字（2/6/7/13/19），另有 468 家只登记到 1 条。因此**只有 dept_count_src
+        # 非空（在线核实值，实测 301 家）才显示数字**。余下两档：
+        #   · 基层六类（诊所/村卫生室/门诊部/社区卫生服务站/医务室/护理站，共 8,279 家 / 84.6%）
+        #     按各自《基本标准》以「诊疗科目」核准执业、不设科室建制 → 「不设科室分科」
+        #   · 真正应当收录却未取得的 → 「科室资料待补全」
+        # 旧版把后两者并成一档，一次误报 8,279 家。
         dc = pg.evaluate("""() => {
           const tds = [...document.querySelectorAll('.tbl tbody tr')]
             .map(tr => tr.children[5]).filter(Boolean);
@@ -217,15 +221,20 @@ def main():
             tips: tds.filter(td => td.getAttribute('title')).length,
             num: tds.filter(td => /[0-9]/.test(td.innerText)).length,
             pending: tds.filter(td => td.innerText.indexOf('科室资料待补全') >= 0).length,
+            nodept: tds.filter(td => td.innerText.indexOf('不设科室分科') >= 0).length,
           };
         }""")
         checks.append(("科室数列不再出现「59」", '59' not in dc["texts"],
                        "取值=%s" % dc["texts"][:8]))
         checks.append(("科室数列逐格带口径提示", dc["n"] > 0 and dc["tips"] == dc["n"],
                        "带提示 %d/%d 行" % (dc["tips"], dc["n"])))
-        checks.append(("科室数只对在线核实值显数字",
-                       dc["n"] > 0 and dc["num"] + dc["pending"] == dc["n"],
-                       "显数字=%d 待补全=%d / 共 %d 行" % (dc["num"], dc["pending"], dc["n"])))
+        checks.append(("科室数三档穷尽（在线值 / 待补全 / 不设分科）",
+                       dc["n"] > 0 and dc["num"] + dc["pending"] + dc["nodept"] == dc["n"],
+                       "显数字=%d 待补全=%d 不设分科=%d / 共 %d 行" % (
+                           dc["num"], dc["pending"], dc["nodept"], dc["n"])))
+        checks.append(("数字只出现在「不设分科」档之外",
+                       dc["num"] + dc["nodept"] <= dc["n"],
+                       "显数字=%d 不设分科=%d 共=%d" % (dc["num"], dc["nodept"], dc["n"])))
 
         pg.goto("%s#/find?t=institutions" % BASE, wait_until="networkidle", timeout=45000)
         time.sleep(2.2)

@@ -60,10 +60,15 @@
         <h3 style="font-size:13px;margin:16px 0 8px">
           科室清单（最多 60 条）
           <span v-if="deptListKind(inst) === 'derived'" class="tag">推导清单</span>
+          <span v-else-if="deptListKind(inst) === 'nodept'" class="tag">诊疗科目</span>
         </h3>
         <div v-if="deptListKind(inst) === 'derived'" class="notice" style="margin-bottom:8px">
-          该机构源数据未收录科室设置，以下名录系按「机构等级 × 类型」或机构名称推导，
-          仅用于科室维度检索，<b>不代表该院真实科室构成</b>。
+          该机构应当收录科室设置，但源数据与在线核实均未取得，以下名录系按「机构等级 × 类型」
+          或机构名称推导，仅用于科室维度检索，<b>不代表该院真实科室构成</b>。
+        </div>
+        <div v-else-if="deptListKind(inst) === 'nodept'" class="notice" style="margin-bottom:8px">
+          该类机构（{{ inst.category_fine || inst.category }}）{{ deptExplain(inst) }}
+          以下为按机构类型归入的<b>诊疗科目</b>，仅用于科室维度检索。
         </div>
         <div class="chips">
           <span v-for="x in (d.depts || [])" :key="x.dept_name" class="chip"

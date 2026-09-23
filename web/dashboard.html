@@ -474,6 +474,18 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 .panel-stack > .panel{flex:1 1 0;min-height:0}
 /* 面板内的图表容器（#ch2 / #ch3）：ID 选择器的 height:100% 会压过类选择器，用 ID+类 提权 */
 .panel-stack > .panel > #ch2,.panel-stack > .panel > #ch3{flex:1 1 0;min-height:0;height:auto}
+/* ============== 图表口径条 ==============
+   「这几张图算的是哪一批数据」必须常驻可见。
+   起因：点过「医院等级分布」的三级扇区之后，右栏「医疗机构类型构成」变成
+   医院 196 家，而同屏 KPI 写着「医院数量 732」——看起来像数据缺了一大块，
+   其实只是当前口径 = 三级机构 212 家。筛选态和全量态长得一模一样，是设计缺陷。 */
+.scope{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  font-size:11px;color:var(--ink-3);margin:-3px 0 7px;min-height:16px;line-height:1.35}
+.scope.on{color:var(--warn)}
+.scope b{font-weight:650;color:inherit;font-variant-numeric:tabular-nums}
+.scope .rst{font:inherit;font-size:10.5px;border:1px solid var(--line-2);background:transparent;
+  color:inherit;border-radius:5px;padding:0 6px;line-height:16px;cursor:pointer}
+.scope .rst:hover{border-color:currentColor}
 .mapstage{position:relative;flex:1;min-height:480px;display:flex}
 #map{flex:1;border-radius:var(--r-m);overflow:hidden;background:var(--bg-soft);border:1px solid var(--line);position:relative}
 .maplg{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:10px;font-size:10px;color:var(--ink-3)}
@@ -518,7 +530,7 @@ select{cursor:pointer;appearance:none;padding-right:28px;
    但 canvas 高度 0 —— 页面上只看到标题和一块空白。
    etl/verify_layout.py 里有静态断言（init 的 id 必须 ⊆ 本清单）+ 运行时断言（clientHeight>0）钉住。 */
 #ch1,#ch2,#ch3,#ch_ov_own,#ch_own,#ch_feat,#ch_net,#ch_lvown,#ch_topsp,#ch_deptop,#ch_distlv,#ch_coord,
-#ch_catown,#ch_spdist,#ch_splv,#ch_distsp,#ch_radar,#ch_netlv,#ch_srcmap,
+#ch_catown,#ch_spdist,#ch_splv,#ch_distsp,#ch_distmx,#ch_netlv,#ch_srcmap,
 #a_kw,#a_dist,#a_triage,#a_daily,#a_density,#a_level,#a_spec,#a_net,#a_own{width:100%;height:100%}
 
 /* ============== 多维分析页：分析工具条 ============== */
@@ -1133,6 +1145,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   <div class="split">
     <div class="panel mapwrap">
       <h3>北京市医疗机构区域分布 <span class="tag">MAP · 16 区 · 点击联动筛选</span></h3>
+      <div class="scope" id="map_scope"></div>
       <div class="mapstage">
         <div id="map"></div>
         <div id="map_diag">⏳ 等待地图初始化…</div>
@@ -1142,17 +1155,20 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     <div class="panel-stack">
       <div class="panel">
         <h3>医疗机构类型构成 <span class="tag">CATEGORIES</span></h3>
+        <div class="scope" id="scope_ch2"></div>
         <div id="ch2"></div>
       </div>
       <div class="panel">
         <h3>各区机构数 TOP <span class="tag">DISTRICTS</span></h3>
+        <div class="scope" id="scope_ch3"></div>
         <div id="ch3"></div>
       </div>
     </div>
   </div>
 
   <div class="grid2">
-    <div class="panel sm"><h3>医院等级分布 <span class="tag">LEVELS</span></h3><div id="ch1"></div></div>
+    <div class="panel sm"><h3>医院等级分布 <span class="tag">LEVELS</span></h3>
+      <div class="scope" id="scope_ch1"></div><div id="ch1"></div></div>
     <div class="panel sm"><h3>办别构成 <span class="tag">OWNERSHIP</span></h3><div id="ch_ov_own"></div></div>
   </div>
 
@@ -1164,7 +1180,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
       <span class="src-chip">区级卫健委及专题公开数据 <b>6,955</b></span>
       <span class="src-chip">共 <b>70</b> 个源文件</span>
       <span class="src-chip">原始记录 <b>13,803</b></span>
-      <span class="src-chip">去重合并后 <b>9,791</b></span>
+      <span class="src-chip">去重合并后 <b>9,791</b> → 最终 <b>9,684</b></span>
       <span class="src-chip">坐标补全率 <b>99.98%</b></span>
     </div>
     <div class="notice" style="margin-top:11px">数据来源覆盖医保局定点机构、社区卫生服务机构、各区卫健委公开名录与重点专科公示名单；详细字段完整率、去重统计与清洗流程见 <button class="btn ghost sm" type="button" onclick="switchView('integration')">数据整合</button> 与 <button class="btn ghost sm" type="button" onclick="switchView('quality')">数据质量</button> 页。</div>
@@ -1192,34 +1208,34 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     <span class="anbar-tip">点击图表元素可回总览页按该维度筛选</span>
   </div>
 
-  <div class="sec-title"><span class="bar"></span><span class="n">01</span>资源结构<span class="hint">谁在提供医疗服务 · 办别 / 等级 / 类型</span></div>
+  <div class="sec-title"><span class="bar"></span><span class="n">01</span>资源结构<span class="hint">谁在提供医疗服务 · 办别 / 等级 / 类型（两张构成条豁免本维度筛选）</span></div>
   <div class="agrid ag-n3">
     <div class="apanel"><h3>办别分布（公立 / 民营） <span class="tag">OWNERSHIP</span></h3><div class="achart" id="ch_own"></div></div>
-    <div class="apanel"><h3>等级 × 办别（仅参评机构） <span class="tag">SUNBURST · LEVEL × OWNER</span></h3><div class="achart" id="ch_lvown"></div></div>
-    <div class="apanel"><h3>机构类型 × 办别版图 <span class="tag">TREEMAP · 面积 = 机构数</span></h3><div class="achart" id="ch_catown"></div></div>
+    <div class="apanel"><h3>等级 × 办别构成（仅参评机构） <span class="tag">100% 构成条 · 段长 = 占比</span></h3><div class="achart" id="ch_lvown"></div></div>
+    <div class="apanel"><h3>机构类型 × 办别构成 <span class="tag">100% 构成条 · 段长 = 占比</span></h3><div class="achart" id="ch_catown"></div></div>
   </div>
 
   <div class="sec-title"><span class="bar"></span><span class="n">02</span>专科能力<span class="hint">专科资源的厚度与集中在哪些机构</span></div>
   <div class="agrid ag-n5">
-    <div class="apanel"><h3>重点专科分级 <span class="tag">LOLLIPOP · FEATURE LEVEL</span></h3><div class="achart" id="ch_feat"></div></div>
+    <div class="apanel"><h3>重点专科分级 <span class="tag">BAR · FEATURE LEVEL</span></h3><div class="achart" id="ch_feat"></div></div>
     <div class="apanel"><h3>专科能力 TOP<span id="an_topn_lbl">10</span> <span class="tag">KEY SPECIALTY</span></h3><div class="achart" id="ch_topsp"></div></div>
     <div class="apanel"><h3>专科能力分档（仅挂牌重点专科） <span class="tag">PARETO · 累计占比</span></h3><div class="achart" id="ch_spdist"></div></div>
-    <div class="apanel"><h3>重点专科级别流向 <span class="tag">SANKEY · 机构等级 → 国家级 / 市级</span></h3><div class="achart" id="ch_splv"></div></div>
+    <div class="apanel"><h3>重点专科级别的等级分布 <span class="tag">100% STACKED · 等级 × 级别</span></h3><div class="achart" id="ch_splv"></div></div>
     <div class="apanel"><h3>科室覆盖 TOP15 <span class="tag">DEPT COVERAGE</span></h3><div class="achart" id="ch_deptop"></div></div>
   </div>
 
-  <div class="sec-title"><span class="bar"></span><span class="n">03</span>空间格局<span class="hint">16 区资源密度与专科实力横向对比</span></div>
+  <div class="sec-title"><span class="bar"></span><span class="n">03</span>空间格局<span class="hint" id="hint_space">16 区资源密度、专科实力与资源禀赋横向对比</span></div>
   <div class="agrid ag-n3">
-    <div class="apanel"><h3>区域 × 等级 密集度矩阵 <span class="tag">HEATMAP · 色深 = 机构数</span></h3><div class="achart" id="ch_distlv"></div></div>
-    <div class="apanel"><h3>区域专科实力 <span class="tag">DISTRICT SPECIALTY</span></h3><div class="achart" id="ch_distsp"></div></div>
-    <div class="apanel"><h3>区域综合实力雷达 <span class="tag">RADAR · NORMALIZED</span></h3><div class="achart" id="ch_radar"></div></div>
+    <div class="apanel"><h3>区域 × 等级 机构数矩阵 <span class="tag">HEATMAP · 色深 = 机构数 · 按三级机构数排序</span></h3><div class="achart" id="ch_distlv"></div></div>
+    <div class="apanel"><h3>区域专科实力 <span class="tag">BAR · 挂牌数 + 每百家强度</span></h3><div class="achart" id="ch_distsp"></div></div>
+    <div class="apanel"><h3>区域资源禀赋矩阵 <span class="tag">MATRIX · 按三级机构数排序 · 列内归一 · 格内为原值</span></h3><div class="achart" id="ch_distmx"></div></div>
   </div>
 
   <div class="sec-title"><span class="bar"></span><span class="n">04</span>协作与数据整合<span class="hint">跨机构协同网络 · 合并来源深度 · 数据质量</span></div>
   <div class="agrid ag-n4">
     <div class="apanel"><h3>协作网络覆盖（按网络席位） <span class="tag">NETWORKS</span></h3><div class="achart" id="ch_net"></div></div>
     <div class="apanel"><h3>协作网络 × 等级 <span class="tag">NETWORK × LEVEL</span></h3><div class="achart" id="ch_netlv"></div></div>
-    <div class="apanel"><h3>数据整合深度构成 <span class="tag">FUNNEL · 来源越多机构越少</span></h3><div class="achart" id="ch_srcmap"></div></div>
+    <div class="apanel"><h3>数据整合深度构成 <span class="tag">BAR · 来源越多机构越少</span></h3><div class="achart" id="ch_srcmap"></div></div>
     <div class="apanel"><h3>坐标精度覆盖率 <span class="tag">GAUGE · HIGH PRECISION</span></h3><div class="achart" id="ch_coord"></div></div>
   </div>
 </section>
@@ -1455,7 +1471,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   <div class="kpis k4">
     <div class="card hero"><div class="l">源文件数</div><div class="v" id="q_sources">70</div><div class="s">去重后公开数据文件</div></div>
     <div class="card k2"><div class="l">原始记录</div><div class="v" id="q_raw">13,803</div><div class="s">合并前累计记录</div></div>
-    <div class="card k3"><div class="l">最终机构</div><div class="v" id="q_final">9,791</div><div class="s">去重合并后主表</div></div>
+    <div class="card k3"><div class="l">最终机构</div><div class="v" id="q_final">9,684</div><div class="s">治理后入 ADS 服务表</div></div>
     <div class="card k4"><div class="l">去重名</div><div class="v" id="q_dup">3,139</div><div class="s">多源重复机构名</div></div>
   </div>
   <div class="agrid ag-n4" style="padding:var(--gap) var(--pad-x) 22px">
@@ -1535,7 +1551,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 <div class="footer">
   <div><b>技术栈：</b>Spark 3.5.3 (ARM64) · MySQL 8 · Flask · ECharts · Docker Compose &nbsp;|&nbsp;
     <b>数仓分层：</b>ODS → DWD → DWS → ADS &nbsp;|&nbsp;
-    <b>筛选主表：</b><code>ads_inst_search</code> 9,789 行 &nbsp;|&nbsp;
+    <b>筛选主表：</b><code>ads_inst_search</code> 9,684 行 &nbsp;|&nbsp;
     <b>治理列：</b>办别归属 · 类别细分 · 擅长科室三级分级</div>
   <div style="margin-top:6px">数据来源：北京市卫生健康委员会等公开渠道 · 本系统仅用于学术研究与毕业设计演示，不构成就医建议</div>
 </div>

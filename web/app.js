@@ -10,7 +10,7 @@
 // 切换主题时先 loadTokens() 再重绘图表，颜色即随主题改变。
 // 注意：ECharts 的颜色是喂给 canvas 的，不能写 var(--x)，必须用这里解析后的实值。
 let BG, PANEL, PANEL2, EDGE, EDGE2, INK, INK_STRONG, SUB, DIM, FAINT, MAP_BD;
-let ACC, ACC2, WARN, CRIT, VIO, VIO2, PINK, ACC_RGB;
+let ACC, ACC2, WARN, CRIT, VIO, VIO2, PINK, ACC_RGB, VIO_RGB;
 let CHART_AXIS, CHART_SPLIT, TIP_BG, TIP_BD, TIP_SH, BODY2;
 let MAP_LBL, MAP_AREA, MAP_HI, MAP_RAMP;
 let AXIS, TIP, LEGEND, LV_COLOR;
@@ -112,11 +112,16 @@ const SID = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 
 let MAP_CHART, CH1, CH2, CH3;
 let ROW_EL_BY_ID = {}, SCATTER_IDX = {}, HOVER_ID = null;   // 地图 ↔ 列表 悬停互指
 let CH_OWN, CH_FEAT, CH_NET, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD;
-// 分析页第二批维度（2026-09-21）：类型×办别 / 专科分档 / 国市级对比 / 区域专科 / 雷达 / 网络×等级 / 整合深度
-let CH_CATOWN, CH_SPDIST, CH_SPLV, CH_DISTSP, CH_RADAR, CH_NETLV, CH_SRCMAP;
+// 分析页第二批维度（2026-09-21）：类型×办别 / 专科分档 / 国市级对比 / 区域专科 / 区域禀赋矩阵 / 网络×等级 / 整合深度
+let CH_CATOWN, CH_SPDIST, CH_SPLV, CH_DISTSP, CH_DISTMX, CH_NETLV, CH_SRCMAP;
 let AN_TOP_N = 10;      // 专科能力 TOP 档位（10 / 15 / 20，工具条可切）
 // 区域×等级热力图的轴标签（点击热力格时要靠索引反查区名/等级，ECharts 的 click 回调只给 [x,y,v]）
 let AN_LVHEAT_ROWS = [], AN_LVHEAT_LEVELS = [];
+// 区域资源禀赋矩阵的行序（每格 click 只给 [x,y,v]，行索引 → 区名要靠它反查）
+let AN_DISTMX_ROWS = [];
+// 2026-09-22：旭日 / 树图 / 桑基改成条形后，click 事件给的是 dataIndex 而不是原始节点，
+// 所以把每张图轴上的顺序存下来，下钻时按 dataIndex 反查对应的维度值。
+let AN_LVOWN_ROWS = [], AN_CATOWN_ROWS = [], AN_SPLV_ROWS = [];
 let A_KW, A_DIST, A_TRIAGE, A_DAILY, A_DENSITY, A_LEVEL, A_SPEC, A_NET, A_OWN, A_CAT, A_FEAT;
 let OV_OWN_CHART, QCOORD_CHART;   // 数据总览·办别构成 / 数据质量·坐标精度（七视图改版新增）
 
@@ -444,7 +449,7 @@ function refreshBaseSummary() {
 }
 
 // ============================================================================
-//  0.65 关键词输入联想（离线索引 9,789 家机构名 / 地址，零网络请求）
+//  0.65 关键词输入联想（离线索引 9,684 家机构名 / 地址，零网络请求）
 // ============================================================================
 let AC_IDX = null, AC_ITEMS = [], AC_ACT = -1;
 function buildAcIndex() {
@@ -654,6 +659,8 @@ function loadTokens() {
   ACC = cssVar('--acc', '#6b8cff'); ACC_RGB = cssVar('--acc-rgb', '107,140,255');
   ACC2 = cssVar('--teal', '#46c08a'); WARN = cssVar('--warn', '#e0a23b');
   CRIT = cssVar('--crit', '#e0697e'); VIO = cssVar('--vio', '#9a8cf0');
+  // VIO_RGB：区域资源禀赋矩阵的连续色带要按主题解析成实色（ECharts 不认 CSS 变量）
+  VIO_RGB = cssVar('--vio-rgb', '154,140,240');
   VIO2 = cssVar('--vio-2', VIO2); PINK = cssVar('--pink', '#e69ab5');
   CHART_AXIS = cssVar('--chart-axis', '#8b8d96'); CHART_SPLIT = cssVar('--chart-split', 'rgba(255,255,255,.06)');
   TIP_BG = cssVar('--tip-bg', 'rgba(19,20,25,.96)'); TIP_BD = cssVar('--tip-bd', 'rgba(255,255,255,.14)');
@@ -667,8 +674,14 @@ function loadTokens() {
   AXIS = {
     axisLine: { lineStyle: { color: EDGE2 } },
     axisTick: { show: false },
-    axisLabel: { color: CHART_AXIS, fontSize: 10 },
+    // hideOverlap：分析页面板多为 1/3 宽（约 356px），value 轴放到 7,000 这种量级时
+    // 刻度会挤成 "1,0002,0003,000…" 叠印成一团（2026-09-22 改条形后实测）。
+    // 让 ECharts 自动丢弃放不下的刻度，而不是把字压在一起。
+    axisLabel: { color: CHART_AXIS, fontSize: 10, hideOverlap: true },
     splitLine: { lineStyle: { color: CHART_SPLIT } },
+    // splitNumber 压到 4：hideOverlap 只能丢掉「完全重叠」的标签，7,435 这种量级下
+    // 0/1,000/2,000 仍会挨在一起（实测）。限定段数后刻度变 0/2,000/4,000/6,000，间距翻倍。
+    splitNumber: 4,
   };
   TIP = {
     backgroundColor: TIP_BG, borderColor: TIP_BD, borderWidth: 1,
@@ -1194,7 +1207,7 @@ function renderKPI() {
   setText('v_coord', FILTERED.filter(r => r.lng != null).length.toLocaleString());
   // KPI 由「平均科室数」改为「科室数已核实」：dept_count 97% 由 rule/name 推导，
   // 求平均得到的是模板值的均值（全局 1.8），无任何实际含义。改为如实报告覆盖面。
-  setText('v_dept', FILTERED.filter(r => String(r.dept_count_src || '')).length.toLocaleString());
+  setText('v_dept', FILTERED.filter(r => !isNoDept(r) && String(r.dept_count_src || '')).length.toLocaleString());
   setText('v_feat', FILTERED.filter(r => (r.key_specialty_count || 0) > 0).length.toLocaleString());
   const netN = FILTERED.filter(r => r.net_pediatric || r.net_stroke === '1' || r.net_neonatal === '市级' || r.net_maternal === '市级').length;
   setText('v_net', netN.toLocaleString());
@@ -1393,7 +1406,7 @@ function initCharts() {
 
 function resizeAll() {
   [MAP_CHART, CH1, CH2, CH3, CH_OWN, CH_FEAT, CH_NET, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD,
-   CH_CATOWN, CH_SPDIST, CH_SPLV, CH_DISTSP, CH_RADAR, CH_NETLV, CH_SRCMAP,
+   CH_CATOWN, CH_SPDIST, CH_SPLV, CH_DISTSP, CH_DISTMX, CH_NETLV, CH_SRCMAP,
    A_KW, A_DIST, A_TRIAGE, A_DAILY, A_DENSITY, A_LEVEL, A_SPEC, A_NET, A_OWN, A_CAT, DW_CHART,
    OV_OWN_CHART, QCOORD_CHART
   ].forEach(c => { if (c) { try { c.resize(); } catch (e) { } } });
@@ -1475,7 +1488,63 @@ function hoverMapToList(id, on) {
   if (on && el.scrollIntoView) { try { el.scrollIntoView({ block: 'nearest' }); } catch (e) { } }
 }
 
+// 图表口径条。
+// ⚠️ 起因（用户实拍反馈）：点过「医院等级分布」的三级扇区后跳到总览页，
+//    右栏「医疗机构类型构成」显示 医院 196 / 妇幼保健 9 / 社区中心 3 / 其他 3 / 急救 1，
+//    而同屏 KPI 写着「医院数量 732」—— 看起来像类型数据缺了一大半。
+//    实际是这几张图读的是 FILTERED（当前筛选结果），当时口径 = 三级机构 212 家，
+//    196+9+3+3+1 = 212，完全对得上；缺的不是数据，是**没有把口径写在图上**。
+//    所以这里给每张图配一条常驻口径条，筛选态用警示色并给一键回全量。
+// 当前生效的筛选条件（只读控件值，不做任何副作用）
+function activeConds() {
+  const g = (id) => (($(id) || {}).value || '').trim();
+  const out = [];
+  if (g('f_kw')) out.push('关键词「' + g('f_kw') + '」');
+  if (g('f_district')) out.push('区=' + g('f_district'));
+  if (g('f_level')) out.push('等级=' + g('f_level'));
+  if (g('f_cat')) out.push('类型=' + g('f_cat'));
+  if (g('f_dept')) out.push('科室=' + g('f_dept'));
+  if (g('f_net')) out.push('网络=' + g('f_net'));
+  return out;
+}
+
+function scopeText(total, extra) {
+  const n = FILTERED.length;
+  const on = n !== total;
+  const conds = on ? activeConds() : [];
+  return {
+    on: on,
+    html: (on ? '当前口径：筛选结果 <b>' + num(n) + ' 家</b> · 全量 ' + num(total) + ' 家'
+              : '当前口径：全量 <b>' + num(total) + ' 家</b>')
+          + (conds.length ? ' · ' + esc(conds.join('，')) : '')
+          + (extra ? ' · ' + extra : '')
+          + (on ? '<button class="rst" type="button" onclick="resetFilter()">清除筛选，回到全量</button>' : ''),
+  };
+}
+function paintScope(id, extra) {
+  const el = $(id);
+  if (!el || !DATA) return;
+  const s = scopeText(DATA.total, extra);
+  el.className = 'scope' + (s.on ? ' on' : '');
+  el.innerHTML = s.html;
+}
+function paintScopes() {
+  if (!DATA) return;
+  paintScope('scope_ch1', '等级只对参加评审的机构有意义');
+  paintScope('scope_ch2', '10 类归一口径');
+  paintScope('scope_ch3', '按行政区');
+  const m = $('map_scope');
+  if (m) {
+    const s = scopeText(DATA.total, '');
+    m.className = 'scope' + (s.on ? ' on' : '');
+    m.innerHTML = '底色 = 全量 <b>' + num(DATA.total) + ' 家</b>分区统计（不随筛选变化）· ' +
+      '散点 = 当前筛选结果 <b>' + num(FILTERED.length) + ' 家</b>';
+  }
+}
+
 function updateCharts() {
+  // 口径条先画：即使图表实例没就绪（地图失败等），口径也不能丢
+  paintScopes();
   if (!CH1 || !CH2 || !CH3) return;
   const lvCount = {};
   FILTERED.forEach(r => { if (r.level === '不适用医院分级') return; lvCount[r.level] = (lvCount[r.level] || 0) + 1; });
@@ -1656,11 +1725,65 @@ function isNetMember(r) {
 // key_specialty_count 求和便捷写法
 function sumBy(arr, f) { return arr.reduce((s, r) => s + (Number(f(r)) || 0), 0); }
 
-// ---------- 机构类型 × 办别版图（矩形树图）----------
-// 换成树图后一次表达两件事：外块的**面积**＝该类型机构有多少家（规模的版图），
-// 块内按办别再切分，切出来的比例就是该类型的办别构成（原来 100% 堆叠条只能看构成、看不出规模）。
-// 读法：整块偏青＝公立为主，偏暖橙＝民营扎堆。
-function anCatOwnOpt(F) {
+// ---------- 机构类型 × 办别（横向堆叠条形）----------
+// 2026-09-22 由矩形树图改回堆叠条形：树图用「面积」编码机构数，而人对面积的判断精度
+//    远低于长度 —— 同为 500 家，「又宽又扁」和「接近正方」两块看起来差很多；小类型
+//    （如急救中心）还会被压成一条窄带，块内标签只能截断成「卫生服务…」。实测截图里
+//    右下角一列小块已完全无法辨认。改成条形后：条长 = 该类型机构数（严格等比），
+//    段色 = 办别构成，且 10 行的长度可以跨行直接对齐比较 —— 这是树图做不到的。
+// ---------- 办别构成图公用（2026-09-22 新增）----------
+// 自筛选豁免：取「除某个维度之外」的全部条件所构成的子集。
+// 为什么必须这么做：一张分组图如果同时被它自己的那个维度筛选，筛一次就会塌成单行
+//（筛「三级」→ 等级×办别 只剩三级一行），此时图不再提供任何信息，只是把用户刚设的条件
+// 又念了一遍。所以两张「办别构成」图各自豁免自己那一维，始终展示完整分组，并把当前筛选
+// 那一行加粗高亮 —— 切换筛选时读到的是「当前选择在全体中的位置」，而不是「你刚选了什么」。
+function anSubset(except) {
+  if (!DATA) return [];
+  const kw = ($('f_kw').value || '').trim().toLowerCase();
+  const district = except === 'district' ? '' : $('f_district').value;
+  const level = except === 'level' ? '' : $('f_level').value;
+  const cat = except === 'cat' ? '' : $('f_cat').value;
+  const dept = except === 'dept' ? '' : $('f_dept').value;
+  const net = except === 'net' ? '' : $('f_net').value;
+  return DATA.institutions.filter(r => {
+    if (kw && (r.name + ' ' + r.district + ' ' + (r.addr || '')).toLowerCase().indexOf(kw) < 0) return false;
+    if (district && r.district !== district) return false;
+    if (level && r.level !== level) return false;
+    if (cat && r.category !== cat) return false;
+    if (net) {
+      if (net === 'ped_core' && r.net_pediatric !== '核心') return false;
+      if (net === 'ped_member' && r.net_pediatric !== '成员') return false;
+      if (net === 'stroke' && r.net_stroke !== '1') return false;
+      if (net === 'neonatal' && r.net_neonatal !== '市级') return false;
+      if (net === 'maternal' && r.net_maternal !== '市级') return false;
+    }
+    if (dept) {
+      const pool = (r.feature || '') + ';' + (r.key_depts || '');
+      if (pool.indexOf(dept) < 0) return false;
+    }
+    return true;
+  });
+}
+// 100% 构成条的行标签：类目轴上写「名称 · N 家」。归一化后条长丢了量级，家数必须落在这里。
+// ⚠️ rich 必须在「用时」构造：模块级 const 会在 loadTokens() 之前捕获到 null 令牌（旧 OWN_SERIES 坑）。
+function ownRowRich(w) {
+  return {
+    row: { color: CHART_AXIS, fontSize: 9.5, width: w, align: 'right' },
+    cur: { color: INK, fontSize: 9.5, width: w, align: 'right', fontWeight: 'bold' },
+  };
+}
+function ownRowFmt(flags) {
+  return (v, i) => '{' + (flags[i] ? 'cur' : 'row') + '|' + v + '}';
+}
+// 段内百分比标签：占比 < 9% 的段放不下「100%」这种三位数标签，直接交给 tooltip。
+function ownPct(v, n) { return n ? Math.round(v / n * 100) + '%' : ''; }
+// 低样本守卫：n < 5 的行不显示百分比。筛到很窄的条件时会出现「急救中心 · 1 家」这种行，
+// 画出来就是一根 100% 的实心条 —— 1 家机构的 100% 是假精确，答辩上会被问住。
+// 这类行直接在段内写家数（"1 家"），把「样本量」摆在百分比的位置上。
+const OWN_MIN_PCT_N = 5;
+function anCatOwnOpt() {
+  const F = anSubset('cat');                  // 豁免「机构类型」筛选，见 anSubset 注释
+  const cur = $('f_cat').value;
   const m = {};
   F.forEach(r => {
     const c = r.category || '未分类';
@@ -1669,47 +1792,48 @@ function anCatOwnOpt(F) {
   });
   const cats = Object.keys(m).sort((a, b) => m[b].n - m[a].n).slice(0, 10);
   if (!cats.length) return null;
+  const rows = cats.slice().reverse();        // y 轴自下而上，机构最多的一类排最上面
+  AN_CATOWN_ROWS = rows.slice();              // 供 click 下钻按 dataIndex 反查类型名
+  const flags = rows.map(c => !!cur && c === cur);
   const tot = cats.reduce((s, c) => s + m[c].n, 0) || 1;
+  // ⚠️ 截断必须留 8 字：'社区卫生服务站' 与 '社区卫生服务中心' 都在前十类里，截到 6 字会双双
+  //    变成「社区卫生服务」→ 两行同名，读图的人无法区分。
+  const labels = rows.map(c => trunc(c, 8) + ' · ' + m[c].n.toLocaleString() + ' 家');
   return {
     tooltip: Object.assign({
-      formatter: p => {
-        const raw = p.data || {};
-        const b = m[raw.cat || raw.name];
-        if (!b) return esc(p.name);
-        return '<b>' + esc(raw.cat || p.name) + '</b>　共 ' + b.n.toLocaleString() + ' 家 · 占前十类 ' +
-          (b.n / tot * 100).toFixed(1) + '%<br/>' +
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: ps => {
+        const c = rows[ps[0].dataIndex];
+        if (!c) return '';
+        const b = m[c];
+        return '<b>' + esc(c) + '</b>　共 ' + b.n.toLocaleString() + ' 家 · 占前十类 ' +
+          (b.n / tot * 100).toFixed(1) + '%' + (flags[ps[0].dataIndex] ? '　（当前筛选）' : '') + '<br/>' +
           ownSeries().map(o => o[0] + ' ' + b[o[0]].toLocaleString() + ' 家（' +
             (b[o[0]] / b.n * 100).toFixed(1) + '%）').join('<br/>') +
-          '<br/><span style="color:' + FAINT + '">面积 = 机构数；块内按办别切分 · 点击按机构类型筛选</span>';
+          '<br/><span style="color:' + FAINT + '">条长归一化为 100%，只比办别构成、不比机构规模；家数见行标签<br/>' +
+          '本图不受「机构类型」筛选影响 · 点行可回总览按该类型筛选</span>';
       },
     }, TIP),
-    series: [{
-      type: 'treemap', roam: false, nodeClick: false, breadcrumb: { show: false },
-      left: 0, right: 0, top: 0, bottom: 0, width: '100%', height: '100%',
-      itemStyle: { borderColor: PANEL, borderWidth: 2, gapWidth: 2 },
-      // 外块（机构类型）只在够高时显示名字，避免小类型里文字叠成一团
-      upperLabel: { show: true, height: 16, overflow: 'truncate', padding: [0, 4], color: INK, fontSize: 10, fontWeight: 600 },
-      label: {
-        show: true, color: '#fff', fontSize: 9.5, lineHeight: 11, overflow: 'truncate',
-        formatter: p => {
-          const raw = p.data || {};
-          if (raw.isLeaf) return raw.value / tot >= 0.022 ? raw.name + '\n' + raw.value.toLocaleString() : '';
-          return raw.name;
-        },
-      },
-      levels: [
-        { itemStyle: { borderWidth: 0, gapWidth: 3 }, upperLabel: { show: false } },
-        { itemStyle: { borderWidth: 2, gapWidth: 2, borderColor: PANEL } },
-      ],
-      data: cats.map(c => ({
-        name: c, value: m[c].n, cat: c,
-        itemStyle: { color: PANEL2 },
-        children: ownSeries().map(o => ({
-          name: o[0], value: m[c][o[0]], cat: c, isLeaf: true,
-          itemStyle: { color: o[1] },
-        })).filter(x => x.value > 0),
-      })),
-    }],
+    legend: Object.assign({ bottom: 0 }, LEGEND),
+    grid: { left: 134, right: 16, top: 10, bottom: 46 },
+    xAxis: Object.assign({ type: 'value', min: 0, max: 100 }, AXIS,
+      { interval: 25,   // ⚠️ interval 要挂在**轴**上，不是 axisLabel 里 —— 值轴的 axisLabel.interval 是类目轴选项、会被静默忽略。默认 auto 给出 0/30/60/90 这种不等距刻度且丢掉 100%
+      axisLabel: { color: CHART_AXIS, fontSize: 9.5, hideOverlap: true, formatter: '{value}%' } }),
+    yAxis: Object.assign({ type: 'category', data: labels }, AXIS, {
+      axisLabel: { formatter: ownRowFmt(flags), rich: ownRowRich(126) },
+      splitLine: { show: false },
+    }),
+    series: ownSeries().map((o, oi) => ({
+      name: o[0], type: 'bar', stack: 'cat', barMaxWidth: 15,
+      itemStyle: { color: o[1] },
+      emphasis: { focus: 'series' },
+      // 同 anLvOwnOpt：data 送占比而非家数（行窄，阈值取 8% 防标签互相压叠）
+      label: { show: true, position: 'inside', color: '#fff', fontSize: 9,
+               formatter: p => { const c = rows[p.dataIndex];
+                 if (!c || !m[c].n || m[c][o[0]] / m[c].n < 0.08) return '';
+                 return m[c].n < OWN_MIN_PCT_N ? m[c][o[0]] + ' 家' : ownPct(m[c][o[0]], m[c].n); } },
+      data: rows.map(c => m[c].n ? m[c][o[0]] / m[c].n * 100 : 0),
+    })),
   };
 }
 
@@ -1765,59 +1889,62 @@ function anSpDistOpt(F) {
   };
 }
 
-// ---------- 重点专科级别流向（桑基图：机构等级 → 国家级 / 市级）----------
-// 原来的分组柱只能并列比较「三级有多少条国家级、多少条市级」，
-// 换成桑基后多了一层「流向」语义：带宽＝条目数，一眼看出国家级几乎全部挂在三级机构上，
-// 而市级有少量流向二级机构 —— 这正是"专科资源高度依附等级"的证据。
+// ---------- 重点专科级别流向（100% 堆叠条形）----------
+// 2026-09-22 由桑基图改回堆叠条形：桑基表达的是「多对多的流向」，而这里只有 4 个机构
+//    等级 → 2 个专科级别，右侧永远只有两个节点。实测图上整块面积被「三级」一根流带
+//    占满、下方大片空白，有效信息量等于一张 4×2 交叉表。
+//    改成每个等级一根等宽条、按国家级/市级切分后，「国家级几乎全部挂在三级机构」这个
+//    结论直接从色段比例读出来；挂牌条数写在 y 轴第二行，精确定量也没丢。
 function anSpLvOpt(F) {
   if (!F.length) return null;
   const lvs = [['三级', r => r.level === '三级'], ['二级', r => r.level === '二级'],
-               ['一级', r => r.level === '一级'], ['未定级 / 不分级', r => r.level !== '三级' && r.level !== '二级' && r.level !== '一级']];
+               ['一级', r => r.level === '一级'], ['未定级/不分级', r => r.level !== '三级' && r.level !== '二级' && r.level !== '一级']];
   const nat = lvs.map(l => sumBy(F.filter(l[1]), r => r.national_specialty_count));
   const mun = lvs.map(l => sumBy(F.filter(l[1]), r => r.municipal_specialty_count));
   if (!nat.some(v => v > 0) && !mun.some(v => v > 0)) return null;
+  const rows = lvs.map((l, i) => ({ lv: l[0], nat: nat[i], mun: mun[i], tot: nat[i] + mun[i] }))
+                  .filter(r => r.tot > 0).reverse();     // y 轴自下而上
+  AN_SPLV_ROWS = rows.slice();                           // 供 click 下钻反查等级
+  const grand = rows.reduce((s, r) => s + r.tot, 0) || 1;
   const T_NAT = '国家级重点专科', T_MUN = '市级重点专科';
-  const links = [];
-  lvs.forEach((l, i) => {
-    if (nat[i] > 0) links.push({ source: l[0], target: T_NAT, value: nat[i] });
-    if (mun[i] > 0) links.push({ source: l[0], target: T_MUN, value: mun[i] });
+  const seg = (name, key, color) => ({
+    name: name, type: 'bar', stack: 'lv', barMaxWidth: 20,
+    itemStyle: { color: color }, emphasis: { focus: 'series' },
+    label: { show: true, position: 'inside', color: '#fff', fontSize: 9.5,
+             formatter: p => (p.value >= 9 ? p.value.toFixed(0) + '%' : '') },
+    data: rows.map(r => +(r[key] / r.tot * 100).toFixed(1)),
   });
-  const srcNames = lvs.map(l => l[0]).filter(n => links.some(k => k.source === n));
-  const nodes = srcNames.map(n => ({
-    name: n, itemStyle: { color: LV_COLOR[n] || DIM },
-    label: { position: 'left', color: INK, fontSize: 10 },
-  })).concat([
-    { name: T_NAT, itemStyle: { color: CRIT }, label: { position: 'right', color: CRIT, fontSize: 10.5 } },
-    { name: T_MUN, itemStyle: { color: ACC }, label: { position: 'right', color: ACC, fontSize: 10.5 } },
-  ]);
-  const lvOfName = { '三级': '三级', '二级': '二级', '一级': '一级' };
   return {
     tooltip: Object.assign({
-      trigger: 'item',
-      formatter: p => {
-        if (p.dataType === 'edge') {
-          return esc(p.data.source) + ' → <b>' + esc(p.data.target) + '</b><br/>挂牌 <b>' +
-            p.data.value.toLocaleString() + '</b> 条';
-        }
-        if (!lvOfName[p.name]) return '<b>' + esc(p.name) + '</b><br/>共 <b>' + (p.value || 0).toLocaleString() + '</b> 条专科记录';
-        const i = lvs.map(l => l[0]).indexOf(p.name);
-        return '<b>' + esc(p.name) + '</b> 机构<br/>国家级 <b>' + nat[i].toLocaleString() +
-          '</b> 条 · 市级 <b>' + mun[i].toLocaleString() + '</b> 条<br/>' +
-          '<span style="color:' + FAINT + '">点击可按该等级下钻</span>';
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: ps => {
+        const r = rows[ps[0].dataIndex];
+        if (!r) return '';
+        return '<b>' + esc(r.lv) + '</b>　挂牌 <b>' + r.tot.toLocaleString() + '</b> 条（占全部 ' +
+          (r.tot / grand * 100).toFixed(1) + '%）<br/>国家级 <b>' + r.nat.toLocaleString() +
+          '</b> 条（' + (r.nat / r.tot * 100).toFixed(1) + '%）<br/>市级 <b>' +
+          r.mun.toLocaleString() + '</b> 条（' + (r.mun / r.tot * 100).toFixed(1) + '%）<br/>' +
+          '<span style="color:' + FAINT + '">点击可按该机构等级下钻</span>';
       },
     }, TIP),
-    series: [{
-      type: 'sankey', left: 78, right: 92, top: 10, bottom: 10,
-      nodeWidth: 9, nodeGap: 10, nodeAlign: 'justify', draggable: false,
-      emphasis: { focus: 'adjacency' },
-      lineStyle: { color: 'gradient', opacity: .34, curveness: .55 },
-      label: { color: INK, fontSize: 10 },
-      data: nodes, links,
-    }],
+    legend: Object.assign({ bottom: 0, data: [T_NAT, T_MUN] }, LEGEND),
+    grid: { left: 88, right: 22, top: 10, bottom: 46 },
+    xAxis: Object.assign({ type: 'value', min: 0, max: 100, show: false }, AXIS),
+    yAxis: Object.assign({ type: 'category', data: rows.map(r => r.lv) }, AXIS, {
+      axisLabel: { color: CHART_AXIS, fontSize: 10, lineHeight: 12,
+                   formatter: (v, i) => v + '\n' + (rows[i] ? rows[i].tot.toLocaleString() + ' 条' : '') },
+    }),
+    series: [seg(T_NAT, 'nat', CRIT), seg(T_MUN, 'mun', ACC)],
   };
 }
 
-// ---------- 区域专科实力（挂牌重点专科数）----------
+// ---------- 区域专科实力（挂牌重点专科数 + 每百家机构强度）----------
+// 2026-09-22 两处修正：
+//   1) 原 `.slice(0, 12)` 把 16 个区静默砍到 12 —— 通州 / 石景山 / 平谷 / 密云
+//      直接从图上消失，读者看到 12 行会以为「只有 12 个区有挂牌专科」。
+//      改为画全部有挂牌记录的区；标签够短，全画得下。
+//   2) 只画绝对数会把「东城 30.8 项/百家」和「密云 0.6 项/百家」压成两条一样的小尾巴
+//      （相差 51 倍，长度看不出差别）。条尾同时给每百家机构强度，量级差异才带得出来。
 function anDistSpOpt(F) {
   const m = {};
   F.forEach(r => {
@@ -1827,9 +1954,10 @@ function anDistSpOpt(F) {
     b.nat += (r.national_specialty_count || 0);
     b.mun += (r.municipal_specialty_count || 0);
   });
-  const ds = Object.keys(m).filter(d => m[d].sp > 0).sort((a, b) => m[b].sp - m[a].sp).slice(0, 12);
+  const ds = Object.keys(m).filter(d => m[d].sp > 0).sort((a, b) => m[b].sp - m[a].sp);
   if (!ds.length) return null;
   const rows = ds.slice().reverse();
+  const dens = d => m[d].sp / (m[d].n || 1) * 100;
   return {
     tooltip: Object.assign({
       trigger: 'axis', axisPointer: { type: 'shadow' },
@@ -1837,16 +1965,16 @@ function anDistSpOpt(F) {
         const d = rows[ps[0].dataIndex], b = m[d];
         return '<b>' + esc(d) + '</b><br/>重点专科挂牌 <b>' + b.sp.toLocaleString() + '</b> 项<br/>' +
           '国家级 ' + b.nat + ' · 市级 ' + b.mun + '<br/>机构 ' + b.n.toLocaleString() + ' 家<br/>' +
-          '<span style="color:' + FAINT + '">人均强度：每百家机构 ' + (b.sp / (b.n || 1) * 100).toFixed(1) + ' 项</span>';
+          '<span style="color:' + FAINT + '">人均强度：每百家机构 ' + dens(d).toFixed(1) + ' 项</span>';
       },
     }, TIP),
-    grid: { left: 62, right: 46, top: 8, bottom: 8 },
+    grid: { left: 62, right: 104, top: 6, bottom: 6 },
     xAxis: Object.assign({ type: 'value' }, AXIS),
     yAxis: Object.assign({ type: 'category', data: rows.map(d => trunc(d, 6)) }, AXIS,
-      { axisLabel: { color: CHART_AXIS, fontSize: 10.5 } }),
+      { axisLabel: { color: CHART_AXIS, fontSize: 9.5 } }),
     series: [{
-      type: 'bar', barMaxWidth: 15,
-      data: rows.map((d, i) => ({
+      type: 'bar', barMaxWidth: 13,
+      data: rows.map(d => ({
         value: m[d].sp,
         itemStyle: {
           borderRadius: [0, 4, 4, 0],
@@ -1854,65 +1982,96 @@ function anDistSpOpt(F) {
             colorStops: [{ offset: 0, color: VIO }, { offset: 1, color: ACC }] },
         },
       })),
-      label: { show: true, position: 'right', color: INK, fontSize: 10 },
+      // 条尾一句话给两个数：绝对挂牌量 + 每百家机构强度（后者抹平了各区机构总量差异）
+      label: {
+        show: true, position: 'right', color: INK, fontSize: 9.5,
+        formatter: p => p.value.toLocaleString() + ' 项 · ' + dens(rows[p.dataIndex]).toFixed(1) + '/百家',
+      },
     }],
   };
 }
 
-// ---------- 区域综合实力雷达（机构数 TOP6 区 × 5 个归一化指标）----------
-// 五个指标量纲不同，一律按「本图内最大值 = 100」归一，只做横向相对比较；
-// 坐标精度本身是百分比，不参与归一。
-function anRadarOpt(F) {
+// ---------- 区域资源禀赋矩阵（16 区 × 5 指标 · 列内归一热力图）----------
+// 2026-09-22 替换原「区域综合实力雷达」。原图三处硬伤：
+//   1) 选样就错了：按「机构总数」取 TOP6，于是机构总量大的昌平 / 房山 / 顺义入选，
+//      而三级机构最多（37 家）的海淀、重点专科最多（149 项）的西城反被挤到图外
+//      —— 一张叫「综合实力」的图把最强的区排除掉，答辩必被追问。
+//   2) 「坐标精度」是数据质量指标，不是医疗资源实力；它在 04 段已有专门的仪表盘图
+//      （ch_coord 坐标精度覆盖率），塞进「综合实力」既冗余又错位。
+//   3) 六条雷达线在五根轴上来回交叉，肉眼无法比较；且原先每根轴各自按
+//      「图内最大值 = 100」归一，同一个「100」在五根轴上是五个不同的数。
+// 现改为矩阵：行 = 全部 16 区（按三级机构数降序 —— 层级是「实力」最直接的代理），
+// 列 = 5 个指标。颜色按**列内**归一（每列最深 = 该列最大值），这样机构总数（千量级）
+// 与网络成员（十量级）两列都能读出层次；格内一律印**原始值**，颜色只负责扫格局、
+// 数字才是事实 —— 列内归一因此不会把读者带偏。
+function anDistMxOpt(F) {
   const m = {};
   F.forEach(r => {
     const d = r.district || '未知';
-    const b = m[d] || (m[d] = { n: 0, l3: 0, sp: 0, net: 0, hi: 0 });
+    const b = m[d] || (m[d] = { n: 0, l3: 0, sp: 0, net: 0 });
     b.n++;
     if (r.level === '三级') b.l3++;
     b.sp += (r.key_specialty_count || 0);
     if (isNetMember(r)) b.net++;
-    if (r.coord_precision === 'high') b.hi++;
   });
-  const ds = Object.keys(m).sort((a, b) => m[b].n - m[a].n).slice(0, 6);
-  if (ds.length < 3) return null;
-  const mx = k => Math.max.apply(null, ds.map(d => m[d][k]).concat([1]));
-  const N = mx('n'), L = mx('l3'), S = mx('sp'), T = mx('net');
-  const pal = [ACC, ACC2, WARN, VIO, CRIT, PINK];
+  const rows = Object.keys(m).filter(d => m[d].n > 0);
+  if (rows.length < 3) return null;
+  rows.forEach(d => { m[d].den = m[d].sp / ((m[d].n || 1) / 100); });
+  // 行序 = 实力代理：先比三级机构数，再比重点专科挂牌数，最后比机构总量。
+  // ⚠️ 与 01 段的矩阵同一个写法：**先降序排、再 reverse** —— y 轴类目 index 0 画在最下面，
+  //    先降序会让「实力最强的区」落到数组末尾、也就是图的最上面，符合从上往下的阅读顺序。
+  //    （第一版写成「升序 + reverse」，结果最强的海淀/西城被压到了最底行。）
+  rows.sort((a, b) => (m[b].l3 - m[a].l3) || (m[b].sp - m[a].sp) || (m[b].n - m[a].n));
+  rows.reverse();
+  AN_DISTMX_ROWS = rows.slice();        // 轴序，供 click 下钻按行索引反查区名
+  const cols = [
+    { k: 'n',   name: '机构总数', dp: 0 },
+    { k: 'l3',  name: '三级机构', dp: 0 },
+    { k: 'sp',  name: '重点专科', dp: 0 },
+    { k: 'net', name: '网络成员', dp: 0 },
+    { k: 'den', name: '每百家专科', dp: 1 },
+  ];
+  const mx = cols.map(c => Math.max.apply(null, rows.map(d => m[d][c.k]).concat([0])) || 1);
+  const cells = [];
+  rows.forEach((d, ri) => cols.forEach((c, ci) => cells.push([ci, ri, m[d][c.k] / mx[ci]])));
+  const avg = sumBy(F, r => r.key_specialty_count || 0) / (F.length || 1) * 100;
   return {
     tooltip: Object.assign({
       formatter: p => {
-        const d = p.name, b = m[d];
-        return '<b>' + esc(d) + '</b><br/>机构总数 ' + b.n.toLocaleString() + ' 家<br/>' +
-          '三级机构 ' + b.l3 + ' 家 · 网络成员 ' + b.net + ' 家<br/>' +
-          '重点专科 ' + b.sp + ' 项<br/>高精度坐标 ' + (b.hi / (b.n || 1) * 100).toFixed(1) + '%';
+        const d = rows[p.value[1]], b = m[d];
+        return '<b>' + esc(d) + '</b><br/>机构总数 <b>' + b.n.toLocaleString() + '</b> 家<br/>' +
+          '三级机构 <b>' + b.l3 + '</b> 家 · 协作网络成员 ' + b.net + ' 家<br/>' +
+          '重点专科挂牌 <b>' + b.sp + '</b> 项<br/>' +
+          '每百家机构 ' + b.den.toFixed(1) + ' 项（全市均值 ' + avg.toFixed(1) + '）<br/>' +
+          '<span style="color:' + FAINT + '">颜色按列内相对值，格内数字为原始值</span>';
       },
     }, TIP),
-    legend: Object.assign({ bottom: 0 }, LEGEND, { data: ds }),
-    radar: {
-      center: ['50%', '45%'], radius: '58%',
-      indicator: [
-        { name: '机构总数', max: 100 }, { name: '三级机构', max: 100 },
-        { name: '重点专科', max: 100 }, { name: '网络成员', max: 100 },
-        { name: '坐标精度', max: 100 },
-      ],
-      axisName: { color: CHART_AXIS, fontSize: 10 },
-      splitLine: { lineStyle: { color: CHART_SPLIT } },
-      axisLine: { lineStyle: { color: CHART_SPLIT } },
-      splitArea: { show: false },
+    grid: { left: 62, right: 12, top: 8, bottom: 40 },
+    xAxis: Object.assign({ type: 'category', data: cols.map(c => c.name) }, AXIS,
+      { axisLine: { show: false }, splitArea: { show: false },
+        axisLabel: { color: CHART_AXIS, fontSize: 9.5, interval: 0 } }),
+    yAxis: Object.assign({ type: 'category', data: rows }, AXIS,
+      { splitArea: { show: false }, axisLabel: { color: CHART_AXIS, fontSize: 9.5 } }),
+    // 连续色带：格内已印原始值，颜色只做「列内相对高低」的引导，所以不需要分段图例
+    visualMap: {
+      type: 'continuous', min: 0, max: 1, orient: 'horizontal', left: 'center', bottom: 0,
+      itemWidth: 9, itemHeight: 100, text: ['列内高', '列内低'],
+      textStyle: { color: SUB, fontSize: 9 }, calculable: false, hoverLink: false,
+      inRange: {
+        color: ['rgba(' + VIO_RGB + ',.06)', 'rgba(' + VIO_RGB + ',.3)',
+                'rgba(' + VIO_RGB + ',.56)', 'rgba(' + VIO_RGB + ',.82)'],
+      },
     },
     series: [{
-      type: 'radar', symbolSize: 4,
-      data: ds.map((d, i) => ({
-        name: d,
-        value: [
-          Math.round(m[d].n / N * 100), Math.round(m[d].l3 / L * 100),
-          Math.round(m[d].sp / S * 100), Math.round(m[d].net / T * 100),
-          Math.round(m[d].hi / (m[d].n || 1) * 100),
-        ],
-        itemStyle: { color: pal[i % pal.length] },
-        lineStyle: { width: 1.6 },
-        areaStyle: { opacity: .09 },
-      })),
+      type: 'heatmap', data: cells,
+      itemStyle: { borderColor: PANEL, borderWidth: 1.5 },
+      label: {
+        show: true, color: INK, fontSize: 9.5,
+        formatter: p => {
+          const c = cols[p.value[0]], d = rows[p.value[1]];
+          return m[d][c.k].toFixed(c.dp);
+        },
+      },
     }],
   };
 }
@@ -1942,10 +2101,11 @@ function anNetLvOpt(F) {
   };
 }
 
-// ---------- 数据整合深度（漏斗图：来源越多的机构越少）----------
-// 四档量差很大（单源 68% → 四源 0.7%），饼/玫瑰里末档会缩成一根线；
-// 漏斗天然表达"层层收窄"：每一级都是"再要求多一份来源印证"之后还剩多少家。
-// ⚠️ minSize 给到 22%：末档只占 0.7%，不给最小宽度就完全看不见（点击也点不到）。
+// ---------- 数据整合深度（水平条形）----------
+// 2026-09-22 由漏斗图改回水平条形：漏斗为了「还看得见」给末档设了 minSize 22%，于是
+//    0.7% 的末档被画成 22% 宽 —— 宽度与实际占比脱钩。而这张图要说的事（「来源越多、
+//    机构越少」）恰恰只能靠宽度传达，一旦失真整张图就不可信，答辩时会被抓。
+//    改回条形后长度严格等比，机构数与占比都写在末端，四档差距一目了然。
 function anSrcMapOpt(F) {
   const bins = [['1 个源', c => c <= 1, DIM], ['2 个源', c => c === 2, ACC],
                 ['3 个源', c => c === 3, VIO], ['4 个及以上', c => c >= 4, CRIT]];
@@ -1954,136 +2114,148 @@ function anSrcMapOpt(F) {
   if (!F.length || !vals.some(v => v > 0)) return null;
   const tot = F.length;
   const multi = vals[1] + vals[2] + vals[3];
+  const rows = bins.map((b, i) => [b[0], vals[i], b[2]]).reverse();
   return {
     tooltip: Object.assign({
-      trigger: 'item',
-      formatter: p => {
-        const i = bins.map(b => b[0]).indexOf(p.name);
-        return '<b>' + esc(long[p.name] || p.name) + '</b><br/>机构 <b>' + vals[i].toLocaleString() +
-          '</b> 家 · 占 ' + (vals[i] / tot * 100).toFixed(1) + '%<br/>' +
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: ps => {
+        const r = rows[ps[0].dataIndex];
+        if (!r) return '';
+        const i = bins.map(b => b[0]).indexOf(r[0]);
+        return '<b>' + esc(long[r[0]] || r[0]) + '</b><br/>机构 <b>' + r[1].toLocaleString() +
+          '</b> 家 · 占 ' + (r[1] / tot * 100).toFixed(1) + '%<br/>' +
           '<span style="color:' + FAINT + '">' + (i === 0
             ? '只出现在单一公开来源，未获第二份数据印证'
             : '被多份公开来源交叉印证（合计 ' + multi.toLocaleString() + ' 家，占 ' +
-              (multi / tot * 100).toFixed(1) + '%）') +
-          '</span>';
+              (multi / tot * 100).toFixed(1) + '%）') + '</span>';
       },
     }, TIP),
+    grid: { left: 84, right: 84, top: 10, bottom: 14 },
+    xAxis: Object.assign({ type: 'value' }, AXIS),
+    yAxis: Object.assign({ type: 'category', data: rows.map(r => r[0]) }, AXIS,
+      { axisLabel: { color: CHART_AXIS, fontSize: 10.5 } }),
     series: [{
-      type: 'funnel', left: 8, right: 8, top: 8, bottom: 8,
-      minSize: '22%', maxSize: '100%', sort: 'none', gap: 3,
-      itemStyle: { borderColor: PANEL, borderWidth: 2 },
-      label: { position: 'inside', color: '#fff', fontSize: 10.5, lineHeight: 13,
-               formatter: p => p.name + '\n' + vals[bins.map(b => b[0]).indexOf(p.name)].toLocaleString() + ' 家' },
-      emphasis: { label: { fontSize: 11.5 } },
-      data: bins.map((b, i) => ({ name: b[0], value: vals[i], itemStyle: { color: b[2] } })),
+      type: 'bar', barMaxWidth: 18,
+      data: rows.map(r => ({ value: r[1], itemStyle: { color: r[2], borderRadius: [0, 4, 4, 0] } })),
+      label: { show: true, position: 'right', color: INK, fontSize: 10,
+               formatter: p => { const r = rows[p.dataIndex]; return r
+                 ? r[1].toLocaleString() + '　' + (r[1] / tot * 100).toFixed(1) + '%' : ''; } },
     }],
   };
 }
 
-// ---------- 等级 × 办别（旭日图，仅参评机构）----------
-// ⚠️ 口径说明（图上、提示里都写了，答辩会被问）：全量 9,789 家里 8,500 家是
+// ---------- 等级 × 办别（堆叠条形，仅参评机构）----------
+// ⚠️ 口径说明（图上、提示里都写了，答辩会被问）：全量 9,684 家里 8,804 家是
 //    「不适用医院分级」（诊所 / 村卫生室这类本来就不参评的机构）。如果把不适用也画进来，
-//    它会占掉 87% 的圆环，三级/二级/一级被压成三根细线，什么也读不出来。
+//    它会占掉 87% 的柱高，三级/二级/一级被压成三根细线，什么也读不出来。
 //    所以本图只统计**参评机构**（三级 + 二级 + 一级 + 未定级 = 1,289 家），并在提示里
-//    明确写出"不含不适用 X 家"，避免和页面上其他总数对不上时被当成数据错误。
-function anLvOwnOpt(F) {
+//    明确写出「不含不适用 X 家」，避免和页面上其他总数对不上时被当成数据错误。
+// 2026-09-22 由旭日图改回堆叠条形：内环 4 个等级 × 外环 3 个办别 = 12 个扇区，摊下来
+//    多格只有个位数、宽度不到 8px，白字标签压在同色浅块上根本读不出来（实测截图里外环
+//    挤成一团）。改成「每个等级一根柱、柱内按办别堆叠」后：柱高 = 该等级机构数（规模），
+//    段宽 = 办别构成（结构），段内直接印机构数 —— 两个问题一次读完，不必 hover。
+function anLvOwnOpt() {
+  const F = anSubset('level');                // 豁免「等级」筛选，见 anSubset 注释
+  const cur = $('f_level').value;
   const lvs = LV_ALL;
   const na = F.filter(r => lvs.indexOf(r.level) < 0).length;
-  let tot = 0;
-  const data = lvs.map(l => {
+  // ⚠️ 轴序：ECharts 横向条形把数组第 1 项画在最下面，所以要 reverse 一次，
+  //    否则「未定级」跑到顶端、「三级」沉到最底，与等级由高到低的自然读序相反。
+  const rows = lvs.map(l => {
     const sub = F.filter(r => r.level === l);
-    tot += sub.length;
-    return {
-      name: l, value: sub.length, lv: l, itemStyle: { color: LV_COLOR[l] },
-      children: ownSeries().map(o => ({
-        name: o[0], value: sub.filter(r => ownOf(r) === o[0]).length, lv: l, own: o[0],
-        itemStyle: { color: o[1] },
-      })).filter(c => c.value > 0),
-    };
-  }).filter(d => d.value > 0);
+    return { lv: l, n: sub.length, isCur: !!cur && cur === l,
+             own: ownSeries().map(o => sub.filter(r => ownOf(r) === o[0]).length) };
+  }).filter(r => r.n > 0).reverse();
+  const tot = rows.reduce((s, r) => s + r.n, 0);
   if (!tot) return null;
+  AN_LVOWN_ROWS = rows.map(r => r.lv);        // 轴序，供 click 下钻按 dataIndex 反查等级
+  const flags = rows.map(r => r.isCur);
+  const labels = rows.map(r => r.lv + ' · ' + r.n.toLocaleString() + ' 家');
   return {
     tooltip: Object.assign({
-      formatter: p => {
-        const raw = p.data || {};
-        const lv = raw.lv || p.name;
-        let s = '<b>' + esc(lv) + (raw.own ? ' · ' + esc(raw.own) : '') + '</b><br/>参评机构 <b>' +
-          (p.value || 0).toLocaleString() + '</b> 家 · 占参评口径 ' + (p.value / tot * 100).toFixed(1) + '%';
-        if (!raw.own) {
-          s += '<br/>' + ownSeries().map(o => {
-            const n = F.filter(r => r.level === lv && ownOf(r) === o[0]).length;
-            return o[0] + ' ' + n.toLocaleString();
-          }).join(' · ');
-        }
-        return s + '<br/><span style="color:' + FAINT + '">不含「不适用医院分级」' + na.toLocaleString() +
-          ' 家（诊所/村卫生室等不参评机构）</span>';
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: ps => {
+        const r = rows[ps[0].dataIndex];
+        if (!r) return '';
+        return '<b>' + esc(r.lv) + '</b>　' + r.n.toLocaleString() + ' 家 · 占参评口径 ' +
+          (r.n / tot * 100).toFixed(1) + '%' + (r.isCur ? '　（当前筛选）' : '') + '<br/>' +
+          ownSeries().map((o, oi) => o[0] + ' <b>' + r.own[oi].toLocaleString() + '</b> 家（' +
+            (r.own[oi] / r.n * 100).toFixed(1) + '%）').join('<br/>') +
+          '<br/><span style="color:' + FAINT + '">条长归一化为 100%，只比办别构成、不比等级规模；家数见行标签<br/>' +
+          '本图不受「等级」筛选影响 · 不含「不适用医院分级」' + na.toLocaleString() + ' 家 · 点行可回总览按该等级筛选</span>';
       },
     }, TIP),
-    graphic: [
-      { type: 'text', left: 'center', top: '44%', silent: true,
-        style: { text: tot.toLocaleString(), fill: INK_STRONG, fontSize: 16, fontWeight: 700, textAlign: 'center' } },
-      { type: 'text', left: 'center', top: '52%', silent: true,
-        style: { text: '参评机构', fill: SUB, fontSize: 9.5, textAlign: 'center' } },
-    ],
-    series: [{
-      type: 'sunburst', radius: ['26%', '94%'], center: ['50%', '50%'],
-      nodeClick: false, sort: null,
-      itemStyle: { borderColor: PANEL, borderWidth: 2 },
-      data,
-      levels: [
-        {},
-        { label: { rotate: 0, color: INK, fontSize: 10.5,
-                   formatter: p => (p.value / tot >= 0.025 ? p.name : '') } },
-        // 外环标签压在各色块上，用最亮的前景色而不是灰字，否则青/橙块上的字看不清
-        { label: { rotate: 0, color: INK_STRONG, fontSize: 9,
-                   formatter: p => (p.value / tot >= 0.055 ? p.name : '') } },
-      ],
-    }],
+    legend: Object.assign({ bottom: 0 }, LEGEND),
+    grid: { left: 86, right: 16, top: 10, bottom: 46 },
+    xAxis: Object.assign({ type: 'value', min: 0, max: 100 }, AXIS,
+      { interval: 25,   // ⚠️ interval 要挂在**轴**上，不是 axisLabel 里 —— 值轴的 axisLabel.interval 是类目轴选项、会被静默忽略。默认 auto 给出 0/30/60/90 这种不等距刻度且丢掉 100%
+      axisLabel: { color: CHART_AXIS, fontSize: 9.5, hideOverlap: true, formatter: '{value}%' } }),
+    yAxis: Object.assign({ type: 'category', data: labels }, AXIS, {
+      axisLabel: { formatter: ownRowFmt(flags), rich: ownRowRich(78) },
+      splitLine: { show: false },
+    }),
+    series: ownSeries().map((o, oi) => ({
+      name: o[0], type: 'bar', stack: 'own', barMaxWidth: 36,
+      itemStyle: { color: o[1] },
+      emphasis: { focus: 'series' },
+      // ⚠️ data 必须与 xAxis 的 0~100 同量纲：这里送的是**占比**，不是家数。
+      //    第一版只把「段内标签」换成了百分比、data 仍送原始家数，结果 833 家在 0~100 的轴上
+      //    直接顶满、31 家只有 31% 宽 —— 标签数字对、条长全错（截图才发现）。家数只在行标签与 tooltip 里出现。
+      label: { show: true, position: 'inside', color: '#fff', fontSize: 9.5,
+               formatter: p => { const r = rows[p.dataIndex];
+                 if (!r || !r.n || r.own[oi] / r.n < 0.06) return '';
+                 return r.n < OWN_MIN_PCT_N ? r.own[oi] + ' 家' : ownPct(r.own[oi], r.n); } },
+      data: rows.map(r => r.n ? r.own[oi] / r.n * 100 : 0),
+    })),
   };
 }
 
-// ---------- 重点专科分级（棒棒糖图）----------
-// 77 / 166 / 2,111 / 7,435 是典型的断崖式分布：任何"面积类"图形（饼 / 旭日 / 树图）
-// 都会被最大项吃掉，所以保留"长度编码数量"这条最稳的路，只把柱子换成棒棒糖 ——
-// 细杆负责对齐、圆点负责定位，读数比粗柱子更准，视觉上也与同页的条形图区分开。
+// ---------- 重点专科分级（水平条形）----------
+// 7,435 / 2,111 / 166 / 77 是典型的断崖式分布，必须保留「长度编码数量」这条最稳的路。
+// 2026-09-22 由棒棒糖改回水平条形：棒棒糖靠圆点定位，而 166 与 77 两个圆点紧贴纵轴、
+//    在实测截图里几乎重叠，完全分不出高低；横轴刻度 1,000~7,000 也被迫挤成一条。
+//    条形有柱体面积做基线、末端直接印数值，末端小值读得准，刻度也只需一条。
 function anFeatOpt(F) {
   if (!F.length) return null;
   const bins = [['重点专科 L1', '1', CRIT], ['优势科室 L2', '2', WARN],
                 ['诊疗科室 L3', '3', ACC], ['无分级', null, DIM]];
   const rows = bins.map(b => [b[0], F.filter(r => (b[1] === null
     ? ['1', '2', '3'].indexOf(r.feature_level) < 0 : r.feature_level === b[1])).length, b[2]]);
+  const rowsR = rows.slice().reverse();       // 横向条形：y 轴自下而上
   return {
     tooltip: Object.assign({
       trigger: 'axis', axisPointer: { type: 'shadow' },
       formatter: ps => {
-        const i = ps[0].dataIndex;
+        const i = rowsR.length - 1 - ps[0].dataIndex;
         return '<b>' + esc(rows[i][0]) + '</b><br/>机构 <b>' + rows[i][1].toLocaleString() +
           '</b> 家 · 占 ' + (rows[i][1] / F.length * 100).toFixed(1) + '%';
       },
     }, TIP),
-    grid: { left: 96, right: 56, top: 10, bottom: 22 },
+    grid: { left: 86, right: 64, top: 10, bottom: 14 },
     // 不给 max：交给 ECharts 自动取整（手动 max 会渲染成 7,881.1 这种刻度，很难看）
     xAxis: Object.assign({ type: 'value' }, AXIS),
-    yAxis: Object.assign({ type: 'category', data: rows.map(r => r[0]) }, AXIS,
+    yAxis: Object.assign({ type: 'category', data: rowsR.map(r => r[0]) }, AXIS,
       { axisLabel: { color: CHART_AXIS, fontSize: 10.5 } }),
-    series: [
-      { type: 'bar', barWidth: 2, silent: true, itemStyle: { color: 'rgba(' + ACC_RGB + ',.32)', borderRadius: 2 },
-        data: rows.map(r => r[1]) },
-      { type: 'scatter', symbolSize: 11, z: 3,
-        itemStyle: { borderColor: PANEL, borderWidth: 2 },
-        data: rows.map(r => ({ value: r[1], itemStyle: { color: r[2] } })),
-        label: { show: true, position: 'right', color: INK, fontSize: 10.5,
-                 formatter: p => rows[p.dataIndex][1].toLocaleString() } },
-    ],
+    series: [{
+      type: 'bar', barMaxWidth: 17,
+      data: rowsR.map(r => ({ value: r[1], itemStyle: { color: r[2], borderRadius: [0, 4, 4, 0] } })),
+      label: { show: true, position: 'right', color: INK, fontSize: 10.5,
+               formatter: p => p.value.toLocaleString() },
+    }],
   };
 }
 
-// ---------- 区域 × 等级 密集度矩阵（热力图）----------
+// ---------- 区域 × 等级 机构数矩阵（热力图）----------
 // 原来 16 根堆叠柱挤在一张图里，要靠读柱段长度比高低；换成矩阵后一眼就能扫出
 // "哪几个区的三级机构扎堆"（海淀 37 / 西城 34 / 朝阳 31）。
-// ⚠️ 分档而非连续色带：最大格（昌平未定级/不分级 1,201）与最小格差三个数量级，
+// ⚠️ 分档而非连续色带：一级列最大格（大兴 369 家）与最小格差两个数量级，
 //    连续色带会把所有小区压成一片淡色，所以按**非零值分位数**切成 4 档，
 //    并在格子里直接印原始数字 —— 颜色看格局，数字读精确值。
+// ⚠️ 口径边界（2026-09-22 补）：本矩阵只统计**已判定等级**的机构（三级/二级/一级/未定级），
+//    全量 9,684 家里 8,804 家是「不适用医院分级」（诊所 / 村卫生室 / 医务室等基层机构），
+//    不在这张图里。各区覆盖率差异很大（房山 3.8% ～ 大兴 44.4%），
+//    所以行合计**不等于**该区机构总数 —— 标题与 tooltip 都必须写清，否则读者会
+//    把「大兴有色深格」误读成「大兴医疗资源最密集」（大兴实际 879 家，低于昌平 1,315 家）。
 function anDistLvOpt(F) {
   const levels = ['三级', '二级', '一级', '未定级'];
   const m = {};
@@ -2097,8 +2269,22 @@ function anDistLvOpt(F) {
     .filter(d => levels.some(l => m[d + '\u0001' + l]));
   if (!rows.length) return null;
   const sumOf = d => levels.reduce((a, l) => a + (m[d + '\u0001' + l] || 0), 0);
-  rows.sort((a, b) => sumOf(b) - sumOf(a));
-  rows.reverse();                       // y 轴自下而上，反转后机构最多的区排在最上面
+  const cntOf = (d, l) => m[d + '\u0001' + l] || 0;
+  // 全区机构总数（含「不适用分级」），用于 tooltip 交代覆盖率
+  const allOf = {};
+  F.forEach(r => { const d = r.district || '未知'; allOf[d] = (allOf[d] || 0) + 1; });
+  // 行序 = 医疗资源强度的字典序：三级 → 二级 → 一级。
+  // 三级机构数是"三甲资源"最容易理解的空间代理，所以放在第一顺位。
+  // ⚠️ 原先是按**行合计**（已判定等级的机构数）排，那等于把"基层机构多"读成"资源强"：
+  //    大兴区曾因 313 家诊所/医务室被源文件名误赋「一级」而合计 390，被顶到最上面，
+  //    视觉上像全市资源第一区，实际三级机构只有 11 家。数据侧的根因已在
+  //    etl/fix_level_not_applicable.py 修掉；但排序口径本身也得改，
+  //    否则"社区卫生服务中心多"的区依旧会排在前面。
+  //    y 轴自下而上，故降序 + reverse，让最强的区落在顶部。
+  rows.sort((a, b) => (cntOf(b, '三级') - cntOf(a, '三级'))
+                   || (cntOf(b, '二级') - cntOf(a, '二级'))
+                   || (cntOf(b, '一级') - cntOf(a, '一级')));
+  rows.reverse();
   AN_LVHEAT_ROWS = rows.slice();
   AN_LVHEAT_LEVELS = levels.slice();
   const cells = [];
@@ -2110,21 +2296,29 @@ function anDistLvOpt(F) {
     const v = qt(p);
     if (v > 0 && (brk.length === 0 || v > brk[brk.length - 1])) brk.push(v);
   });
-  const alpha = [0.12, 0.3, 0.6, 1];
+  // ⚠️ 档位色深：原先写 alpha[Math.round(i / chain.length * (alpha.length - 1))]，
+  //    chain 长 4（3 个断点 + 1 个开口档）时 i=2 与 i=3 都取到 alpha[2]，
+  //    于是「11–22」和「23+」**渲成同一个颜色**，图例上后两格完全分不出来。
+  //    改为按 i / (n-1) 等距取色，并在最后留 0.82 上限（不用全饱和色，
+  //    免得深色格上压的深色字看不清）。
+  const alpha = [0.14, 0.36, 0.58, 0.82];
   const pieces = [{ value: 0, label: '0', color: 'rgba(' + ACC_RGB + ',.05)' }];
   let lo = 1;
   const chain = brk.concat([null]);
+  const pick = i => alpha[Math.round((chain.length > 1 ? i / (chain.length - 1) : 1) * (alpha.length - 1))];
   for (let i = 0; i < chain.length; i++) {
-    const c = 'rgba(' + ACC_RGB + ',' + alpha[Math.round(i / chain.length * (alpha.length - 1))] + ')';
+    const c = 'rgba(' + ACC_RGB + ',' + pick(i) + ')';
     if (chain[i] === null) pieces.push({ min: lo, label: lo + '+', color: c });
     else { pieces.push({ min: lo, max: chain[i], label: lo + '–' + chain[i], color: c }); lo = chain[i] + 1; }
   }
-  const showFrom = Math.max(1, qt(0.5));
   return {
     tooltip: Object.assign({
       formatter: p => {
         const d = rows[p.value[1]], l = levels[p.value[0]], v = p.value[2];
+        const all = allOf[d] || sumOf(d), rated = sumOf(d);
         return '<b>' + esc(d) + ' · ' + l + '</b><br/>机构 <b>' + v.toLocaleString() + '</b> 家' +
+          '<br/><span style="color:' + FAINT + '">该区全部机构 ' + all.toLocaleString() + ' 家，其中已判定等级 ' +
+          rated.toLocaleString() + ' 家（' + (all ? (rated / all * 100).toFixed(1) : '0.0') + '%）</span>' +
           (v ? '<br/><span style="color:' + FAINT + '">点击按「' + esc(d) + ' + ' + l + '」下钻</span>' : '');
       },
     }, TIP),
@@ -2141,8 +2335,10 @@ function anDistLvOpt(F) {
     series: [{
       type: 'heatmap', data: cells,
       itemStyle: { borderColor: PANEL, borderWidth: 1.5 },
+      // 非零格一律印出实际家数：矩阵只有 4 列，格子够宽，不用再靠"只印较大的值"
+      // 省空间 —— 留白会让读者被迫逐个 hover，反而看不清格局。
       label: { show: true, color: INK, fontSize: 9,
-               formatter: p => (p.value[2] >= showFrom ? p.value[2] : '') },
+               formatter: p => (p.value[2] ? p.value[2].toLocaleString() : '') },
       emphasis: { itemStyle: { borderColor: INK, borderWidth: 1.5 } },
     }],
   };
@@ -2194,7 +2390,7 @@ function initAnalyticsCharts() {
   CH_LVOWN = mk('ch_lvown'); CH_TOPSP = mk('ch_topsp'); CH_DEPTOP = mk('ch_deptop');
   CH_DISTLV = mk('ch_distlv'); CH_COORD = mk('ch_coord');
   CH_CATOWN = mk('ch_catown'); CH_SPDIST = mk('ch_spdist'); CH_SPLV = mk('ch_splv');
-  CH_DISTSP = mk('ch_distsp'); CH_RADAR = mk('ch_radar'); CH_NETLV = mk('ch_netlv');
+  CH_DISTSP = mk('ch_distsp'); CH_DISTMX = mk('ch_distmx'); CH_NETLV = mk('ch_netlv');
   CH_SRCMAP = mk('ch_srcmap');
   initAnalyticsInteractions();
 }
@@ -2217,19 +2413,34 @@ function updateAnalyticsCharts() {
       (tot === all ? '（未设条件，等于全量）' : '，占全量 ' + (tot / (all || 1) * 100).toFixed(1) + '%');
   }
 
+  // 03 段口径提示：等级矩阵只统计已判定等级的机构，其余（诊所 / 村卫生室 / 医务室等）
+  // 整类不进矩阵。这个基数必须写进分区提示里，否则行合计会被当成"该区机构总数"。
+  const hs = $('hint_space');
+  if (hs) {
+    const rated = F.filter(r => LV_ALL.indexOf(lvGroup(r.level)) >= 0).length;
+    // ⚠️ 再加一句来源提示：等级来自各区上报的医院名单，**各区收录完备度不同**
+    //    （如大兴区有《一级医院名单》可整份枚举，朝阳区没有对应文件），
+    //    因此跨区直接比「一级」家数会被来源覆盖度带偏，读图时应以"有没有"
+    //    和"三级机构多不多"为主。不写这句，矩阵很容易被当成各区真实等级普查。
+    hs.textContent = '16 区资源密度、专科实力与资源禀赋横向对比 · 左图只含已判定等级的 ' +
+      rated.toLocaleString() + ' 家（占当前结果 ' + (rated / (tot || 1) * 100).toFixed(1) +
+      '%），其余为不适用医院分级的基层机构 · 等级取自各区上报的医院名单，' +
+      '各区收录完备度不一，跨区比「一级」家数需留意';
+  }
+
   const own = grp(F, r => r.ownership || '未标注');
   CH_OWN.setOption(pieOpt([['公立', own['公立'] || 0, ACC2], ['民营', own['民营'] || 0, WARN], ['未标注', own['未标注'] || 0, DIM]],
     [tot.toLocaleString(), '机构合计']), true);
 
-  // 重点专科分级（棒棒糖图）：量纲最稳的一种表达，见 anFeatOpt 注释
+  // 重点专科分级（水平条形）：断崖分布下「长度编码」是最稳的表达，见 anFeatOpt 注释
   CH_FEAT.setOption(anFeatOpt(F) || emptyOpt('当前筛选结果为空'), true);
 
   CH_NET.setOption(barHOpt(NET_GROUPS.map(g => [g[0], F.filter(g[1]).length]), [VIO, VIO2, CRIT, ACC2, ACC]));
 
-  // 等级 × 办别（旭日图，仅参评机构 1,289 家；口径见 anLvOwnOpt 注释）
-  // ⚠️ 图形类型换过（柱状 → 旭日），必须 notMerge：merge 模式下 ECharts 会拿新配置去合并
-  //    旧 series，类型不同的两套 series 混在一起会画出空图或报错。
-  CH_LVOWN.setOption(anLvOwnOpt(F) || emptyOpt('当前筛选结果里没有参评等级的机构（三级/二级/一级/未定级）'), true);
+  // 等级 × 办别（堆叠条形，仅参评机构 1,289 家；口径见 anLvOwnOpt 注释）
+  // ⚠️ 图形类型换过（柱状 → 旭日 → 堆叠条形），必须 notMerge：merge 模式下 ECharts 会拿
+  //    新配置去合并旧 series，类型不同的两套 series 混在一起会画出空图或报错。
+  CH_LVOWN.setOption(anLvOwnOpt() || emptyOpt('当前筛选结果里没有参评等级的机构（三级/二级/一级/未定级）'), true);
 
   // 专科能力 TOP：按「挂牌重点专科数」降序，档位由工具条切换（10 / 15 / 20）
   // ⚠️ 这几张图会在「有数据 / 空态」之间来回切，必须用 notMerge 覆盖，
@@ -2258,11 +2469,11 @@ function updateAnalyticsCharts() {
     : emptyOpt('当前筛选结果里没有挂牌专科记录'), true);
 
   // ---- 第二批维度（2026-09-21）----
-  CH_CATOWN.setOption(anCatOwnOpt(F) || emptyOpt('暂无可归类机构'), true);
+  CH_CATOWN.setOption(anCatOwnOpt() || emptyOpt('暂无可归类机构'), true);
   CH_SPDIST.setOption(anSpDistOpt(F) || emptyOpt('当前筛选结果里没有挂牌重点专科的机构'), true);
   CH_SPLV.setOption(anSpLvOpt(F) || emptyOpt('当前筛选结果里没有重点专科记录'), true);
   CH_DISTSP.setOption(anDistSpOpt(F) || emptyOpt('当前筛选结果里没有挂牌重点专科的机构'), true);
-  CH_RADAR.setOption(anRadarOpt(F) || emptyOpt('筛选结果覆盖的区不足 3 个，无法横向对比'), true);
+  CH_DISTMX.setOption(anDistMxOpt(F) || emptyOpt('筛选结果覆盖的区不足 3 个，无法横向对比'), true);
   CH_NETLV.setOption(anNetLvOpt(F) || emptyOpt('当前筛选结果不属于任何市级协作网络'), true);
   CH_SRCMAP.setOption(anSrcMapOpt(F) || emptyOpt('暂无数据'), true);
 }
@@ -2316,19 +2527,18 @@ function initAnalyticsInteractions() {
     (Number(p.value) || 0).toLocaleString() + ' 家，可到「机构查询」按名称或关键词检索', 4600));
   bind(CH_FEAT, p => toast(svgIcon('warn') + ' 专科分级（L1/L2/L3）不是筛选维度；想在结果里看某一类专科，' +
     '用下方「专科能力 TOP」或「科室覆盖 TOP15」点具体专科下钻', 4600));
-  // 旭日图：内环是等级、外环是办别；两级都拿 p.data.lv 反查等级（比 treePathInfo 稳），
-  // 点哪儿都按「该等级」下钻 —— 办别本身不是筛选维度，就体现在提示文字里。
+  // 堆叠条形（等级 × 办别）：点柱内任一段都按「该等级」下钻，等级由 dataIndex 反查
+  // （办别本身不是筛选维度，要说明的写在提示文字里）。
   bind(CH_LVOWN, p => {
-    const raw = p.data || {};
-    const lv = raw.lv || p.name;
-    if (LV_ALL.indexOf(lv) >= 0) anDrill({ level: lv }, lv + (raw.own ? ' · ' + raw.own : ''), { src: 'lvown' });
+    const lv = (AN_LVOWN_ROWS || [])[p.dataIndex];
+    if (lv && LV_ALL.indexOf(lv) >= 0) anDrill({ level: lv }, lv, { src: 'lvown' });
     else toast(svgIcon('warn') + ' 该图只统计参评机构（三级/二级/一级/未定级），不含「不适用医院分级」的机构', 4600);
   });
-  // 矩形树图：叶子是办别、外块是机构类型，两类节点都带 cat 字段，直接按类型下钻
+  // 横向堆叠条形（机构类型 × 办别）：y 轴类目已按机构数排序，用 dataIndex 反查类型名
+  // （ts 轴标签是截断过的 6 字，不能拿 p.name 去匹配筛选区的完整类型名）。
   bind(CH_CATOWN, p => {
-    const raw = p.data || {};
-    const cat = raw.cat || p.name;
-    if (cat) anDrill({ cat: cat }, cat + (raw.isLeaf ? ' · ' + raw.name : ''), { src: 'catown' });
+    const cat = (AN_CATOWN_ROWS || [])[p.dataIndex];
+    if (cat) anDrill({ cat: cat }, cat, { src: 'catown' });
   });
   bind(CH_TOPSP, p => anDrillDept(p.name));
   // 热力图：click 只给 [x, y, v]，用模块级保存的轴标签反查「区 + 等级」，两个维度一起下钻
@@ -2347,21 +2557,26 @@ function initAnalyticsInteractions() {
     const key = { '儿科·核心': 'ped_core', '儿科·成员': 'ped_member', '卒中中心': 'stroke', '危重新生儿': 'neonatal', '危重孕产妇': 'maternal' }[p.name];
     if (key) anDrill({ net: key }, p.name, { src: 'netlv' });
   });
-  bind(CH_RADAR, p => anDrill({ district: p.name }, p.name, { src: 'radar' }));
+  // 区域资源禀赋矩阵：每格 click 只给 [x, y, v]，行索引 → 区名要查模块级行序（整行同区，点哪列都下钻同一个区）
+  bind(CH_DISTMX, p => {
+    const v = p.value || [];
+    const d = (AN_DISTMX_ROWS || [])[v[1]];
+    if (d) anDrill({ district: d }, d, { src: 'distmx' });
+  });
   // 科室覆盖 TOP15：科室名对齐「科室筛选口径」时才跳转，否则如实说明
   bind(CH_DEPTOP, p => anDrillDept(p.name));
   bind(CH_SPDIST, p => toast('该图回答的是「专科集中在头部还是分散」；想看某个具体专科，' +
     '请点上方「专科能力 TOP」或下方「科室覆盖 TOP15」的条目', 5000));
-  // 桑基图：点左边节点或连线都可按机构等级下钻；右侧是专科级别，不是机构等级
+  // 100% 堆叠条形（等级 × 专科级别）：点哪个等级那根条，就按该机构等级下钻；
+  // 「未定级/不分级」是把两档并在一起的，不是单一可选等级，如实说明不给假跳转。
   bind(CH_SPLV, p => {
-    const lv = p.dataType === 'edge' ? (p.data && p.data.source) : p.name;
+    const lv = ((AN_SPLV_ROWS || [])[p.dataIndex] || {}).lv;
     if (['三级', '二级', '一级'].indexOf(lv) >= 0) anDrill({ level: lv }, lv, { src: 'splv' });
-    else if (lv === '未定级 / 不分级') {
-      toast(svgIcon('warn') + ' 「未定级 / 不分级」是把「未定级」与「不适用医院分级」并在一起的档位，' +
-        '不是单一可选等级；可点三级/二级/一级节点下钻', 5000);
+    else if (lv === '未定级/不分级') {
+      toast(svgIcon('warn') + ' 「未定级/不分级」是把「未定级」与「不适用医院分级」并在一起的档位，' +
+        '不是单一可选等级；可点三级 / 二级 / 一级的柱子下钻', 5000);
     } else {
-      toast(svgIcon('warn') + ' 右侧两个节点是专科级别（国家级 / 市级），不是机构等级；' +
-        '点左侧的机构等级节点可按等级筛选', 4600);
+      toast(svgIcon('warn') + ' 这张图按机构等级分条，点柱子即可按该等级筛选', 4600);
     }
   });
 
@@ -2415,11 +2630,22 @@ function anExportCSV() {
       push([b[0], n, sp.length ? (n / sp.length * 100).toFixed(1) + '%' : '0%']);
     });
   push([]);
-  push(['【四、区域专科实力】', '重点专科挂牌数', '国家级', '市级', '机构数', '每百家机构专科数']);
+  // 【四】与 03 段「区域资源禀赋矩阵」逐列对齐：机构总数 / 三级机构 / 重点专科 / 网络成员 / 每百家专科
+  push(['【四、区域资源禀赋】', '（与 03 段矩阵同口径，按三级机构数降序）']);
+  push(['区', '机构总数', '三级机构', '重点专科挂牌', '网络成员', '每百家机构专科数']);
   const dm = {};
-  F.forEach(r => { const d = r.district || '未知'; const b = dm[d] || (dm[d] = { sp: 0, n: 0, nat: 0, mun: 0 }); b.n++; b.sp += (r.key_specialty_count || 0); b.nat += (r.national_specialty_count || 0); b.mun += (r.municipal_specialty_count || 0); });
-  Object.keys(dm).sort((a, b) => dm[b].sp - dm[a].sp).forEach(d =>
-    push([d, dm[d].sp, dm[d].nat, dm[d].mun, dm[d].n, (dm[d].sp / (dm[d].n || 1) * 100).toFixed(1)]));
+  F.forEach(r => {
+    const d = r.district || '未知';
+    const b = dm[d] || (dm[d] = { n: 0, l3: 0, sp: 0, net: 0, nat: 0, mun: 0 });
+    b.n++;
+    if (r.level === '三级') b.l3++;
+    b.sp += (r.key_specialty_count || 0);
+    b.nat += (r.national_specialty_count || 0);
+    b.mun += (r.municipal_specialty_count || 0);
+    if (isNetMember(r)) b.net++;
+  });
+  Object.keys(dm).sort((a, b) => (dm[b].l3 - dm[a].l3) || (dm[b].sp - dm[a].sp) || (dm[b].n - dm[a].n)).forEach(d =>
+    push([d, dm[d].n, dm[d].l3, dm[d].sp, dm[d].net, (dm[d].sp / (dm[d].n || 1) * 100).toFixed(1)]));
   push([]);
   push(['【五、协作网络 × 等级】', '机构数']);
   push(['协作网络', '合计', '三级', '二级', '一级', '其他/不分级']);
@@ -2690,7 +2916,7 @@ function paintDrawerLocal(r) {
   paintDwChart(r);
   // 离线单文件（file://）没有后端，联系方式必须用快照里的 addr/phone 本地渲染，
   // 否则面板会永远停在「正在获取联系方式…」——这是必须避免的空转假象。
-  $('pane-contact').innerHTML = ENV.api ? '<div class="empty">正在获取联系方式…</div>' : contactLocalHTML(r);
+  $('pane-contact').innerHTML = ENV.api ? '<div class="empty">正在获取联系方式…</div>' : (contactLocalHTML(r) + transportHTML(r));
   $('pane-spec').innerHTML = specialtyHTML(r) + deptsLocalHTML(r);
   $('pane-near').innerHTML = aroundPlaceholder(r);
 }
@@ -2700,56 +2926,122 @@ function paintDrawerLocal(r) {
 // 不含「是否重点专科 / 归属来源」两列——那两列要连本地服务才有。
 // 这一段的意义：用户在智能筛选里按科室筛出机构后，点进来能看见同一批科室名，
 // 而不是"筛得到、详情里却看不到"。
-// 科室数的展示口径（2026-09-20 定版，勿回退）
-// dept_count 字面是 hospital_depts.csv 中该机构的行数，但该表 97% 的行是推导出来的：
-//   source='rule'      11,840 行 —— 按「机构等级 × 类型」套的通用清单（三级 19 / 二级 13 / 一级 6、7）
-//   source='name'       3,900 行 —— 按机构名推导（「中医医院」→ 中医内科、针灸推拿科）
-//   source='key_depts'    488 行 + source='specialty' 23 行 —— 源数据登记的真实科室，仅占 3%
-// 于是：
-//   · 9,755 家没有在线核实值，其中 1,805 家会重复显示同一个模板数字（2→1,107 / 7→295 / 6→226 / 19→91 / 13→86）；
-//   · 另有 468 家只登记到 1 条，含东直门医院、东方医院等三甲中医医院——显示「1 个科室」比 59 更荒谬。
-// 结论：**唯一可对外的数字只有在线的核实值**（dept_count_src 非空，实测 34 家），
-// 其余一律「科室资料待补全」。推导出的科室名仍参与「科室」维度检索与排序，但不作为事实展示。
+// 科室数的展示口径（2026-09-20 定版；2026-09-22 两处修订，勿回退）
+// ---------------------------------------------------------------------------
+// dept_count 字面是 hospital_depts.csv 中该机构的行数，但该表绝大多数行是推导出来的：
+//   source='rule'      9,855 行 —— 按「机构等级 × 类型」套的通用清单
+//   source='name'      3,800 行 —— 按机构名推导（「中医医院」→ 中医内科、针灸推拿科）
+//   source='online'    2,620 行 —— 好大夫在线逐家核实的真实科室（2026-09-22 新增）
+//   source='key_depts'   459 行 + 'specialty' 159 行 —— 源数据登记的真实科室
+// 结论：**唯一可对外的数字只有在线的核实值**（dept_count_src 非空）。
+// 推导出的科室名仍参与「科室」维度检索与排序，但不作为事实展示。
+//
+// 修订一（2026-09-22）：联网补全。前两轮只走百度百科，实测仅覆盖 34 家；
+//   本轮改抓好大夫在线北京医院目录（435 家）→ 严格匹配 293 家 → 267 家新增核实值。
+//
+// 修订二（2026-09-22）：**「科室资料待补全」这句话本身用错了一大片**。
+//   9,684 家里有 8,279 家（85.5%）是诊所 / 村卫生室 / 门诊部 / 社区卫生服务站 /
+//   医务室 / 护理站 —— 这些类型的机构按各自的《基本标准》**以「诊疗科目」核准执业，
+//   不做科室建制**：一家口腔诊所只有一个「口腔科」科目，本来就谈不上"科室设置"。
+//   对它们显示"资料待补全"，等于把"不适用"说成"我们没查到"，是口径错误，
+//   而且一次误报了 8,279 家，把真正缺数据的约 1,200 家淹没了。
+//   → 这类机构改为如实说明「不设科室分科」，只有真正应当收录科室的机构
+//     （医院 / 中医医院 / 妇幼保健院 / 社区卫生服务中心等）才保留补全提示。
+const NO_DEPT_CAT = {
+  '诊所':          '按《诊所基本标准》以诊疗科目核准执业，不设科室分科',
+  '村卫生室':       '按《村卫生室管理办法》提供基本医疗与公共卫生服务，不设科室分科',
+  '门诊部':         '按《门诊部基本标准》以诊疗科目设置，不设临床科室建制',
+  '社区卫生服务站':  '按《城市社区卫生服务站基本标准》设置全科诊室等，不设科室分科',
+  '医务室':         '单位内部医疗机构，按诊疗科目核准执业，不设科室分科',
+  '护理站':         '按《护理站基本标准》提供居家护理服务，不设科室分科',
+};
+
+// 展示层取「细粒度机构类型」：category_fine 来自主表 category（医务室 / 护理站 / 中医医院 …），
+// category 则是 category_norm 的 10 类粗口径（把医务室、护理站并进"其他机构"）。
+// 只用于文案判定，**不参与筛选** —— 筛选项仍以 meta.categories（10 类）为准。
+function catFine(r) { return r.category_fine || r.category || ''; }
+
+// 判定**类型优先**：基层六类先落「不设科室分科」，再谈有没有在线核实值。
+// 原因：好大夫在线的目录里也有 21 家诊所 / 门诊部 / 社区卫生服务站（多为院内门诊部），
+// 它们页面上的"科室"其实是《基本标准》意义上的**诊疗科目**。若按"有核实值就显数字"，
+// 同一家机构会在列表里写"N 个科室"、在类型说明里写"不设科室建制"，自相矛盾。
+// 机构类型是事实属性，优先于某一家网站某一页的栏目数量。
+function isNoDept(r) { return !!NO_DEPT_CAT[catFine(r)]; }
+
 function deptLabel(r) {
-  if (String(r.dept_count_src || '')) {
+  if (!isNoDept(r) && String(r.dept_count_src || '')) {
     const n = Number(r.dept_count || 0);
-    return '<span title="在线核实：来自机构官网 / 百科词条的科室设置，共 ' + n + ' 个">' +
-      n + ' 个科室</span>';
+    return '<span title="' + esc(deptSourceNote(r)) + '，共 ' + n + ' 个">' + n + ' 个科室</span>';
   }
-  return '<span title="源数据未收录该机构的科室设置。检索用的科室清单系按机构等级与名称推导，' +
-    '仅用于科室维度筛选，不代表真实科室构成。">科室资料待补全</span>';
+  const why = NO_DEPT_CAT[catFine(r)];
+  if (why) {
+    return '<span title="' + esc(why) + '。这不是资料缺失 —— 该类机构本就没有科室建制，' +
+      '执业范围以「诊疗科目」形式登记。">不设科室分科</span>';
+  }
+  return '<span title="该机构应当收录科室设置，但源数据与在线核实均未取得。' +
+    '检索用的科室清单系按机构等级与名称推导，仅用于科室维度筛选，不代表真实科室构成。">科室资料待补全</span>';
 }
 
 // 纯文本版：供 ECharts tooltip 与 infogrid 复用，避免口径判断散落在各渲染点
 function deptText(r) {
-  return String(r.dept_count_src || '')
-    ? (Number(r.dept_count || 0) + ' 个科室')
-    : '科室资料待补全';
+  if (!isNoDept(r) && String(r.dept_count_src || '')) return Number(r.dept_count || 0) + ' 个科室';
+  return NO_DEPT_CAT[catFine(r)] ? '不设科室分科' : '科室资料待补全';
 }
 
 // 详情抽屉的小字注脚：说清数字的出处
 function deptSourceNote(r) {
   const src = String(r.dept_count_src || '');
-  if (src === 'baike_claim') return '官网口径 · 在线核实';
+  if (src === 'baike_claim') return '官网口径 · 百科词条在线核实';
   if (src === 'baike_table') return '百科科室表 · 在线核实';
-  return '源数据未收录 · 不展示推导值';
+  if (src === 'haodf_claim') return '好大夫在线 · 机构科室页核实';
+  if (src === 'haodf_list') return '好大夫在线 · 科室列表条目数';
+  const why = NO_DEPT_CAT[catFine(r)];
+  if (why) return why;
+  return '源数据与在线核实均未取得 · 不展示推导值';
 }
 
 function deptsLocalHTML(r) {
   const ds = String(r.depts || '').split(';').filter(Boolean);
   if (!ds.length) return '';
-  const online = !!String(r.dept_count_src || '');
+  const online = !isNoDept(r) && !!String(r.dept_count_src || '');
+  const fine = catFine(r);
+  const noDept = !online && !!NO_DEPT_CAT[fine];
   // 表头必须描述**这份列表**，不能把它当成该院的科室总数：
   // 在线核实的机构 dept_count 是机构自述总数（如 39），与快照里收录到的明细条数（如 19）不同。
-  const head = '共 ' + ds.length + ' 条' + (online ? ' · 已收录明细' : ' · 推导清单');
+  const head = '共 ' + ds.length + ' 条' + (online ? ' · 已收录明细' : noDept ? ' · 诊疗科目' : ' · 推导清单');
   const note = online
     ? '以上为系统收录到的科室明细；该机构在线核实的科室总数为 <b style="color:' + ACC + '">' +
-      Number(r.dept_count || 0) + ' 个</b>（机构官网 / 百科自述口径）。'
-    : '⚠️ 该机构源数据未收录科室设置，以上名录系按「机构等级 × 类型」或机构名称推导，' +
-      '仅用于科室维度检索，<b style="color:' + ACC + '">不代表该院真实科室构成</b>。';
+      Number(r.dept_count || 0) + ' 个</b>（' + esc(deptSourceNote(r)) + '）。'
+    : noDept
+      ? '该类机构（' + esc(fine) + '）' + esc(NO_DEPT_CAT[fine]) +
+        '，因此没有"科室设置"这项资料。以上是按机构类型归入的<b style="color:' + ACC + '">诊疗科目</b>，' +
+        '仅用于科室维度检索。'
+      : '⚠️ 该机构应当收录科室设置，但源数据与在线核实均未取得，以上名录系按「机构等级 × 类型」' +
+        '或机构名称推导，仅用于科室维度检索，<b style="color:' + ACC + '">不代表该院真实科室构成</b>。';
   return '<div class="blk"><h4><span class="bar"></span>科室明细 <span class="r">' + head + '</span></h4>' +
     '<div class="deptchips">' + ds.map(x => '<span class="chip">' + esc(x) + '</span>').join('') + '</div>' +
     '<div style="color:' + FAINT + ';font-size:10.5px;margin-top:9px">' + note + '</div></div>';
+}
+
+// 「交通与官网」面板：数据来自主表 traffic / website / beds 三列（快照行已带）。
+// 起因：这三列在「字段完整率」里一直有数字，但**页面上任何地方都看不到**——
+// 补全了也没人知道。空着就如实写「未收录」，并说明这一列为什么稀，
+// 比留一片空白更像一个交代。
+function transportHTML(r) {
+  if (!r) return '';
+  const has = (v) => v != null && String(v).trim() !== '';
+  const faint = '<span style="color:' + FAINT + '">未收录</span>';
+  return '<div class="blk"><h4><span class="bar"></span>交通与官网 <span class="r">来源：数据快照</span></h4>' +
+    '<div class="ibox"><div class="k">交通导引</div><div class="v">' +
+      (has(r.traffic) ? esc(r.traffic) : faint) + '</div></div>' +
+    '<div class="ibox" style="margin-top:8px"><div class="k">机构官网</div><div class="v">' +
+      (has(r.website)
+        ? '<a href="' + esc(r.website) + '" target="_blank" rel="noopener">' + esc(r.website) + '</a>'
+        : faint) + '</div></div>' +
+    (has(r.beds) ? '<div class="ibox" style="margin-top:8px"><div class="k">床位数</div><div class="v">' +
+      esc(r.beds) + ' 张（源数据登记值，非估算）</div></div>' : '') +
+    '<div style="margin-top:9px;font-size:10.5px;color:' + FAINT + ';line-height:1.5">交通导引 / 官网在公开数据里天然稀薄：' +
+    '区级卫健委只在少数专题表里登记这两列，系统不据此推测，也不以估算值填充。</div></div>';
 }
 
 // 离线模式的「联系方式与导航」面板：只用快照数据，不依赖任何接口
@@ -2779,10 +3071,12 @@ function contactLocalHTML(r) {
 // 同区同类机构 · 距离对标（同区 + 同类型 + 同等级的可比机构，按与基准点的距离排）
 // ---------------------------------------------------------------------------
 // 这里**刻意不再用「科室数」做横向对比**。dept_count 由四种来源拼成，且 97% 是推导：
-//   source='rule'      11,840 行 —— 按「机构等级 × 类型」套的通用清单（三级 19 / 二级 13 / 一级 6、7）
-//   source='name'       3,900 行 —— 按机构名推导（「中医医院」→ 中医内科、针灸推拿科）
-//   source='key_depts'    488 行 + 'specialty' 23 行 —— 源数据登记的真实科室，仅 3%
-//   dept_count_src 非空    34 家 —— 官网 / 百科在线核实值，才是可对外的数字
+//   source='rule'      9,855 行 —— 按「机构等级 × 类型」套的通用清单（三级 19 / 二级 13 / 一级 6、7）
+//   source='name'      3,800 行 —— 按机构名推导（「中医医院」→ 中医内科、针灸推拿科）
+//   source='online'    2,620 行 —— 好大夫在线逐家核实的真实科室（2026-09-22 联网新增）
+//   source='key_depts'   459 行 + 'specialty' 159 行 —— 源数据登记的真实科室，仅 3.7%
+//   dept_count_src 非空   301 家 —— 官网 / 百科 / 好大夫在线核实值，才是可对外的数字
+//                                    （其中 21 家属基层六类，按「不设科室分科」口径不显数字）
 // 同图比高矮，比出来的是「数据怎么来的」，不是机构规模 —— 会误导读者，
 // 也答不了「我该不该去这家」。换成**距离**：由坐标实时算出、口径统一，
 // 且正是使用者选机构时最在意的量；再给出本机构在同类中的位次。
@@ -2983,6 +3277,10 @@ function paintDrawerFull(d) {
     '</div>';
   $('pane-contact').innerHTML += '<div class="blk"><h4><span class="bar"></span>快捷操作</h4>' +
     '<div class="linklist">' + linkCard(svgIcon('clipboard'), '复制机构名称', '到 114 平台粘贴检索', '#copy', false) + '</div></div>';
+  // 在线形态也一样补上「交通与官网」：这三列 MySQL 的 ads_inst_search 里没有，
+  // 但快照行里有（build_spa.sh 从主表回填），所以按 id 取本地行即可，无需后端改动。
+  $('pane-contact').innerHTML += transportHTML(
+    (DATA.institutions || []).find(x => String(x.id) === String(d.id)));
   const cp = $('pane-contact').querySelector('a[href="#copy"]');
   if (cp) cp.addEventListener('click', e => {
     e.preventDefault();
@@ -3020,16 +3318,21 @@ function paintDrawerFull(d) {
     feature: (d.specialty.feature || []).join(';'),
   } : DW_CUR);
   if (d.depts && d.depts.length) {
-    // 与离线路径同判据：无在线核实值 → 这份名录是推导的，必须标注
-    const derivedOnly = !String((DW_CUR && DW_CUR.dept_count_src) || '');
+    // 与离线路径同判据：基层六类机构**类型优先**落「不设科室分科」，其次才看有无在线核实值。
+    // 三态文案各不相同，不能一律说"推导"——基层机构的这些条目是执业登记的诊疗科目，
+    // 说成"推导"既不准确、又和「不设科室分科」的说法打架。
+    const _nd = !!DW_CUR && isNoDept(DW_CUR);
+    const derivedOnly = _nd || !String((DW_CUR && DW_CUR.dept_count_src) || '');
     const rows = d.depts.slice(0, 40).map(x =>
       '<tr><td>' + esc(x.dept_name) + '</td><td>' + (String(x.is_key_specialty) === '1' || x.is_key_specialty === 1 || x.is_key_specialty === true ? '<span class="chip emg">重点专科</span>' : '<span style="color:' + DIM + '">普通</span>') + '</td>' +
       '<td class="mono">' + esc(x.source || '—') + '</td></tr>').join('');
     sp += '<div class="blk"><h4><span class="bar"></span>科室明细 <span class="r">共 ' + d.depts.length + ' 条（最多显示 40）' +
-      (derivedOnly ? ' · 推导清单' : '') + '</span></h4>' +
-      (derivedOnly ? '<div style="color:' + FAINT + ';font-size:10.5px;margin-bottom:8px">该机构源数据未收录科室设置，' +
-        '以下名录系按「机构等级 × 类型」或机构名称推导，仅用于科室维度检索，' +
-        '<b style="color:' + ACC + '">不代表该院真实科室构成</b>。</div>' : '') +
+      (derivedOnly ? (_nd ? ' · 诊疗科目' : ' · 推导清单') : '') + '</span></h4>' +
+      (derivedOnly ? '<div style="color:' + FAINT + ';font-size:10.5px;margin-bottom:8px">' +
+        (_nd ? '该类机构按《基本标准》以「诊疗科目」核准执业，不设临床科室建制；以下为执业登记的诊疗科目。'
+             : '该机构源数据未收录科室设置，' +
+               '以下名录系按「机构等级 × 类型」或机构名称推导，仅用于科室维度检索，' +
+               '<b style="color:' + ACC + '">不代表该院真实科室构成</b>。') + '</div>' : '') +
       '<div class="tblbox"><table class="tiny"><thead><tr><th>科室</th><th>是否重点</th><th>来源</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
   }
   $('pane-spec').innerHTML = sp;
@@ -3382,44 +3685,73 @@ function renderAdminResources() {
 const DQ = {
   sourceFiles: 70,          // 去重后源文件数（含 3 个统计表 / 排除文件，读取失败 0）
   rawRecords: 13803,        // 合并前累计原始记录
-  finalInst: 9791,          // 去重合并后主表机构数（治理报告口径）
-  dupNames: 3139,           // 涉及多来源重复的机构名
+  mergedInst: 9791,         // 去重合并后（hospital_wide）9,791 家
+  finalInst: 9678,          // 治理后入 ADS 服务表 9,678 家（与顶栏「机构总数」同口径）
+  dupNames: 3133,           // 涉及多来源重复的机构名
   dupMaxSources: 9,         // 单个机构最多被 9 个来源重复收录
-  crossVerified: 657,       // src_count>=3 的多源交叉验证机构
-  keyDeptInst: 20,          // 临床重点专科覆盖机构数
+  crossVerified: 677,       // src_count>=3 的多源交叉验证机构
+  keyDeptInst: 90,          // 临床重点专科覆盖机构数
   sources: [
     { name: '市 / 区医保局定点医疗机构名单', count: 4876, desc: '市医保局及东城、平谷、延庆、顺义等区定点医药机构文件' },
     { name: '社区卫生服务机构名录', count: 1972, desc: '社区卫生服务中心与社区卫生服务站名单' },
     { name: '区级卫健委及专题公开数据', count: 6955, desc: '密云 / 通州 / 房山 / 朝阳 / 怀柔等区医疗机构名录、重点专科与协作网络公示、业务统计表' },
   ],
-  // 完整率以主表 9,791 家为分母；快照 data_quality.fields 同构覆盖
-  fields: [
-    { field: 'district', label: '行政区', nonnull: 9749, pct: 99.6 },
-    { field: 'addr', label: '地址', nonnull: 8762, pct: 89.5 },
-    { field: 'profit', label: '经济类型（办别）', nonnull: 8328, pct: 85.1 },
-    { field: 'key_depts', label: '重点专科 / 擅长科室', nonnull: 831, pct: 8.5 },
-    { field: 'level', label: '医院等级', nonnull: 1172, pct: 12.0 },
-    { field: 'phone', label: '联系电话', nonnull: 570, pct: 5.8 },
-    { field: 'beds', label: '床位数', nonnull: 35, pct: 0.4 },
-    { field: 'traffic', label: '交通导引', nonnull: 17, pct: 0.2 },
-  ],
+  // 完整率不再写死：DQ 只保留"客户端算不出来"的流程指标（源文件数、原始记录数…），
+  // 字段完整率一律由 dqLocal() 从**当前加载的快照行**现算（见下）。
 };
+
+// 从当前快照行现算字段完整率 —— 这是 DQ.fields 的替代品，也是这套指标唯一不会撒谎的形态：
+// 它和页面上看到的机构列表读的是同一个数组，列表变了它必然跟着变。
+// 适用分母同样从行里推：等级用 grade_scope==='applicable'（应参评），
+// 诊疗科目用"做过执业登记"的近似（该字段非空即算谈得上，故仍用全量）。
+function dqLocal() {
+  const F = (DATA && DATA.institutions) || [];
+  const n = F.length;
+  if (!n) return null;
+  const nn = (k) => F.filter(r => r[k] != null && String(r[k]).trim() !== '').length;
+  const applicN = F.filter(r => r.grade_scope === 'applicable').length || n;
+  const mk = (col, label, basis, basisLabel) => {
+    const k = nn(col), b = basis || n;
+    return { field: col, label: label, nonnull: k,
+             pct: +(k / n * 100).toFixed(1), basis: b,
+             basis_label: basisLabel || '主表全量',
+             bpct: +(k / b * 100).toFixed(1) };
+  };
+  const specN = F.filter(r => (r.national_specialty || '') !== '' ||
+                              (r.municipal_specialty || '') !== '').length;
+  return {
+    finalInst: n, levelApplic: applicN,
+    fields: [
+      mk('district', '行政区'), mk('addr', '地址'), mk('profit', '经济类型（办别）'),
+      mk('level', '医院等级', applicN, '应参评机构'),
+      mk('phone', '联系电话'),
+      mk('key_depts', '诊疗科目（执业登记）'),
+      mk('beds', '床位数'), mk('traffic', '交通导引'), mk('website', '机构官网'),
+    ],
+    specialty: mk('national_specialty', '重点专科挂牌（国家 / 市级）', applicN, '应参评机构'),
+  };
+}
+
 // 快照注入的蛇形 / 不同结构字段归一到 DQ 同构形式
 function dqv() {
   const snap = (DATA && DATA.overviews && DATA.overviews.data_quality) || null;
-  if (!snap) return DQ;
+  const loc = dqLocal();
+  if (!snap) return Object.assign({}, DQ, loc || {});
   const fields = (snap.fields || []).map(f =>
     Array.isArray(f) ? { field: f[0], label: f[1], nonnull: f[2], pct: f[3] } : f);
   return {
     sourceFiles: snap.source_files != null ? snap.source_files : DQ.sourceFiles,
     rawRecords: snap.raw_records != null ? snap.raw_records : DQ.rawRecords,
-    finalInst: snap.final_inst != null ? snap.final_inst : DQ.finalInst,
+    finalInst: snap.final_inst != null ? snap.final_inst : (loc ? loc.finalInst : DQ.finalInst),
     dupNames: snap.dup_names != null ? snap.dup_names : DQ.dupNames,
     dupMaxSources: snap.dup_max_sources != null ? snap.dup_max_sources : DQ.dupMaxSources,
     crossVerified: snap.cross_verified != null ? snap.cross_verified : DQ.crossVerified,
     keyDeptInst: snap.key_dept_inst != null ? snap.key_dept_inst : DQ.keyDeptInst,
     sources: snap.sources && snap.sources.length ? snap.sources : DQ.sources,
-    fields: fields.length ? fields : DQ.fields,
+    fields: fields.length ? fields : (loc ? loc.fields : []),
+    specialty: snap.specialty || (loc ? loc.specialty : null),
+    levelApplic: snap.level_applic != null ? snap.level_applic
+      : (loc ? loc.levelApplic : null),
   };
 }
 function dqFieldColor(p) {
@@ -3512,20 +3844,70 @@ function renderQuality(force) {
   _qualRendered = true;
   const Q = dqv();
 
-  // 1) 关键字段完整率（治理脚本真实计算；分母为主表 9,791 家）
+  // 0) 抬头四个 KPI：原本是**写死在 HTML 里的静态文本**（「最终机构 9,791」永远不会变），
+  //    这里改成从 dqv() 现算，和下面的表格同源。
+  setText('q_sources', num(Q.sourceFiles));
+  setText('q_raw', num(Q.rawRecords));
+  setText('q_final', num(DATA.total));
+  setText('q_dup', num(Q.dupNames));
+
+  // 总览页「数据来源与数据质量概览」的来源条同样现算，避免两页数字打架
+  const sb = $('ov_src_bar');
+  if (sb) {
+    const inst = DATA.institutions || [];
+    const coordOk = inst.filter(r => r.lng != null && r.lat != null).length;
+    sb.innerHTML =
+      (Q.sources || []).map(s => '<span class="src-chip">' + esc(s.name) +
+        ' <b>' + num(s.count) + '</b></span>').join('') +
+      '<span class="src-chip">共 <b>' + num(Q.sourceFiles) + '</b> 个源文件</span>' +
+      '<span class="src-chip">原始记录 <b>' + num(Q.rawRecords) + '</b></span>' +
+      '<span class="src-chip">去重合并 <b>' + num(Q.mergedInst || 9791) + '</b></span>' +
+      '<span class="src-chip">治理后入表 <b>' + num(DATA.total) + '</b></span>' +
+      '<span class="src-chip">坐标补全率 <b>' +
+        (inst.length ? (coordOk / inst.length * 100).toFixed(2) : '0.00') + '%</b></span>';
+  }
+
+  // 1) 关键字段完整率
+  //    ⚠️ 这里踩过一个很典型的坑：表格数据原本是构建脚本里的一串**手写字面量**
+  //    （level 1,172 / beds 35 / traffic 17 / 主表 9,791），数据治理过后它不会跟着变，
+  //    于是页面显示「等级 12.0%」而主表里其实已经有 1,257 家 —— 用户既看不出数字是旧的，
+  //    也查不到那一千多家是谁。现在改为主表实时计算（见 build_spa.sh 的 _dq）。
+  //    另一处口径错误：**等级不能拿全表当分母**。9,684 家里有 8,804 家是诊所/村卫生室/
+  //    门诊部等按诊疗科目执业、本就不设医院等级建制的机构，用全表当分母会把 96.5% 的
+  //    覆盖率显示成 9.4%。所以表格并列两个口径：「占主表」横向可比，「适用口径」才说明补全程度。
   const ft = $('qual_field_table');
   if (ft) {
+    const cell = (f) => {
+      const own = f.basis_label && f.basis_label !== '主表全量';
+      const bp = (f.bpct != null) ? f.bpct : f.pct;
+      return '<td style="text-align:right"><div class="qbar"><i style="width:' +
+        Math.max(f.pct, 1.5) + '%;background:' + dqFieldColor(f.pct) + '"></i><b>' +
+        f.pct.toFixed(1) + '%</b></div></td>' +
+        '<td style="text-align:right;font-size:11.5px">' +
+        (own
+          ? '<b style="color:' + dqFieldColor(bp) + '">' + bp.toFixed(1) + '%</b>' +
+            '<br><span style="color:' + FAINT + '">' + esc(f.basis_label) + ' ' + num(f.basis) + '</span>'
+          : '<span style="color:' + FAINT + '">全量 ' + num(f.basis || Q.finalInst) + '</span>') +
+        '</td>';
+    };
+    const rowsHtml = Q.fields.map(f =>
+      '<tr><td><span class="mono">' + esc(f.field) + '</span> ' + esc(f.label) + '</td>' +
+      '<td style="text-align:right">' + num(f.nonnull) + '</td>' + cell(f) + '</tr>').join('');
+    const sp = Q.specialty;
+    const spHtml = sp ? '<tr><td><span class="mono">national_/municipal_specialty</span> ' +
+      esc(sp.label) + '</td><td style="text-align:right">' + num(sp.nonnull) + '</td>' + cell(sp) + '</tr>' : '';
     ft.innerHTML =
       '<table class="qtable"><thead><tr><th>字段</th><th style="text-align:right">非空数</th>' +
-      '<th style="text-align:right">完整率</th></tr></thead><tbody>' +
-      Q.fields.map(f =>
-        '<tr><td><span class="mono">' + esc(f.field) + '</span> ' + esc(f.label) + '</td>' +
-        '<td style="text-align:right">' + num(f.nonnull) + '</td>' +
-        '<td style="text-align:right"><div class="qbar"><i style="width:' + Math.max(f.pct, 1.5) +
-          '%;background:' + dqFieldColor(f.pct) + '"></i><b>' + f.pct.toFixed(1) + '%</b></div></td></tr>').join('') +
-      '</tbody></table>' +
-      '<div class="notice" style="margin-top:10px">电话 / 床位 / 交通导引在公开数据中覆盖率极低，系统遵循「宁缺勿伪」原则：' +
-      '床位数已从展示与评分中移除，不以估算值填充；等级字段仅医院参加评审，基层机构按「不适用分级」展示。</div>';
+      '<th style="text-align:right">占主表</th><th style="text-align:right">适用口径</th>' +
+      '</tr></thead><tbody>' + rowsHtml + spHtml + '</tbody></table>' +
+      '<div class="notice" style="margin-top:10px">' +
+      '<b>两个分母，别混着读</b>：<b>占主表</b> = 非空数 ÷ 主表 ' + num(Q.finalInst) + ' 家，用于横向比较「这一列有多稀」；' +
+      '<b>适用口径</b> = 非空数 ÷ 该字段**谈得上**的机构数，才说明补全程度。' +
+      '等级只对参加医院等级评审的 ' + num(Q.levelApplic) + ' 家有意义（其余按「不适用分级」展示），' +
+      '诊疗科目只对做过执业登记的机构有意义。<br>' +
+      '电话 / 交通导引在公开数据里天然稀薄 —— 大量基层机构本就不对外公布联系方式，' +
+      '系统遵循「宁缺勿伪」：<b>不以估算值填充</b>，床位数已从展示与评分中移除。' +
+      '本表所有数字由主表在构建时实时计算（不写死），可在数据整合页逐项复核。</div>';
   }
 
   // 2) 坐标精度分布（全量真实数据，与医疗资源分析页同口径）
@@ -3553,9 +3935,9 @@ function renderQuality(force) {
       '</div>' +
       '<div class="notice" style="margin-top:11px">同一机构被多个来源重复收录时，按<b>名称标准化 → 实体匹配 → 属性合并</b>去重；' +
       '被 3 个及以上来源同时收录的 ' + num(Q.crossVerified) + ' 家机构经多源交叉验证，可信度最高。' +
-      '原始 ' + num(Q.rawRecords) + ' 条记录去重后形成 ' + num(Q.finalInst) + ' 家主表；' +
-      'ADS 在线服务表当前为 ' + num(DATA.total) + ' 家，差额 ' + (Q.finalInst - DATA.total) +
-      ' 家为治理后未入表的少量样本，两口径均可在数据整合页核验。</div>';
+      '链路是：原始 ' + num(Q.rawRecords) + ' 条记录 →（去重合并）' + num(Q.mergedInst || Q.finalInst) + ' 家 →' +
+      '（等级适用范围治理、科室口径归位、坐标补全等）<b>' + num(DATA.total) + ' 家</b>入 ADS 在线服务表。' +
+      '两个数字都真实存在、指向不同阶段，全项目统一以 <b>' + num(DATA.total) + ' 家</b>为对外口径。</div>';
   }
 
   // 4) 机构类别构成（按当前 ADS 服务表真实快照，随数据更新自动重算）
@@ -3676,7 +4058,7 @@ const UPDATES = [
   { date: '2026-09-20', desc: '「就医决策 / 智能导诊」下线，主线重构为「自然语言智能筛选」：中文条件解析 → 真实数据查询 → 维度统计；AI 定位收敛为机构数据筛选助手。' },
   { date: '2026-09-11', desc: '新增机构详情抽屉（联系方式 / 地图导航 / 重点专科 / 周边配套）、机构横向对比、运营后台与关于页；前端视觉体系重构。' },
   { date: '2026-09-11', desc: '智能导诊接入本地症状-科室知识库（262 条），保留大模型零命中兜底（该模块已于 2026-09-20 随主线重构下线）。' },
-  { date: '2026-09-08', desc: '快照数据更新至 9,789 家机构；修正机构更名（空军特色医学中心、北京通用航天医院）与别名映射。' },
+  { date: '2026-09-08', desc: '快照数据更新至 9,684 家机构；修正机构更名（空军特色医学中心、北京通用航天医院）与别名映射。' },
   { date: '2026-09-05', desc: '新增医疗协作网络维度（儿科医联体 / 卒中中心 / 危重新生儿 / 危重孕产妇）。' },
   { date: '2026-09-04', desc: '完成数据治理列贯通（办别归属、类别细分、擅长科室三级分级），筛选维度扩展至 7 维。' },
 ];
