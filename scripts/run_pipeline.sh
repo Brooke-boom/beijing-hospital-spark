@@ -71,11 +71,16 @@ ok "HDFS 可访问（NameNode: http://localhost:9870）"
 #
 # 两个脚本都做了幂等：已治理过则零改动、不备份、不写盘，安全重复执行。
 # 从原始数据重建（clean_merge.py 重跑）后，这一步会自动把同名/多牌子记录收拢。
-step "0.5/6 主表治理：等级适用范围 + 同名合并"
+step "0.5/6 主表治理：等级适用范围 + 同名合并 + 挂牌名裁定"
 "$PY" etl/build_grade_scope.py --apply >/dev/null
 ok "grade_scope 已按「不设等级建制的六类机构」重算"
 "$PY" etl/merge_dup_institutions.py --apply | tail -4
 ok "同名合并（挂牌名合并 / 院区保留）已对齐"
+# 同上，幂等，且**不改主表**：只把「挂牌名 → 宿主机构」映射连同证据
+# 落盘为 data/processed/alias_map.csv 与 govern_report_alias.md。
+# 必须在 merge 之后 —— 它要断言这些挂牌名确实没有独立成行。
+"$PY" etl/build_alias_map.py --apply | tail -2
+ok "挂牌名（别名）映射已留档"
 
 # ---------------------------------------------------------------------------
 if [[ "$SKIP_INGEST" == "1" ]]; then

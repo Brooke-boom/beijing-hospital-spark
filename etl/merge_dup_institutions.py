@@ -159,10 +159,15 @@ MANUAL_MERGE = {
 EXCLUDE_FROM_MERGE = (set(RENAME_RULES) | set(SPLIT_RULES) | set(MANUAL_MERGE)
                       | {i for s in MERGE_RENAME.values() for i in s["ids"]})
 
-# ⑤ 被折叠进来的「其实是独立机构」的名字。
-#    它们与主记录**不是同一家**（不同法人/不同执业地点），但在源数据里被登记成
-#    了主记录的附属。本轮按「合并挂牌名」口径不单独建条（避免凭名字臆造地址电话，
-#    违反「宁缺勿伪」），但**必须留档**，等下一轮联网核实后补录为独立机构。
+# ⑤ 被折叠进来、**当时判不准**是否是独立机构的名字。
+#
+#    ⚠️ 这份清单的**性质已在第二轮变更**：2026-09-24 逐文件回查 + 联网核实后确认，
+#    下面 9 个全部不是被误删的独立机构，而是宿主机构执业许可证上的**另一块牌子**
+#    （同一个医疗机构编码 / 医保定点编码）。因此不新增行，改由
+#    `etl/patch_alias_names.py` 把牌子名**写回宿主行的 `name`**（机构总数仍 9,678）。
+#    逐条依据见 `data/processed/govern_report_alias.md`。
+#
+#    本清单保留为**第一轮的历史留档**，不再是待办事项；脚本自身不读它来改数。
 PENDING_INSTITUTIONS = [
     ("北京市海淀区老年康复医院", "1504 / 3936", "海淀区",
      "中关村医院行把它带进了名字；本身是区属独立机构"),
@@ -527,12 +532,18 @@ def main():
         f.write("留档是为了事后能回答「合并有没有丢信息」。\n\n")
         f.write(f"按字段汇总：{dict(conflict_stat)}\n\n```\n")
         f.write("\n".join(conflict_log) + "\n```\n")
-        f.write("\n## 待补录机构（被折叠进来、但其实是独立机构）\n\n")
-        f.write("这些名字与主记录**不是同一家**（不同法人或不同执业地点），本轮未单独建条 ——\n")
-        f.write("凭名字臆造地址电话会违反「宁缺勿伪」。留档待下一轮联网核实后补录。\n\n")
-        f.write("| 机构名 | 来源 id | 区 | 说明 |\n|---|---|---|---|\n")
+        f.write("\n## 曾判不准的挂牌名（第一轮留档，已于 2026-09-24 裁定）\n\n")
+        f.write("第一轮把这 9 个名字**整块丢掉**了 —— 既没单独立条，也没写回宿主名。\n")
+        f.write("第二轮逐文件回查确认：它们都是宿主机构执业许可证上的另一块牌子\n")
+        f.write("（同一个医疗机构编码 / 医保定点编码），**不是被误删的独立机构**。\n")
+        f.write("故不新增行，机构总数仍为 9,678；映射落盘为\n")
+        f.write("`data/processed/alias_map.csv`，逐条依据见 "
+                "`data/processed/govern_report_alias.md`。\n\n")
+        f.write("> 名字不进 `name` —— 与 `strip_affix()`「保留行只留主名」的既定口径保持一致。\n\n")
+        f.write("| 挂牌名 | 第一轮记录来源 id | 区 | 第一轮的判断（已被第二轮取代） |\n|---|---|---|---|\n")
         for nm, src, dist, why in PENDING_INSTITUTIONS:
             f.write(f"| {nm} | {src} | {dist} | {why} |\n")
+        f.write("\n> 上表「第一轮的判断」当时认为它们可能是独立机构；第二轮据执业编码证据推翻。\n")
         f.write("\n## 院区·部门（既有口径保留，本轮不动）\n\n")
         for s in payload["skips"]:
             for k in s["kept"]:
