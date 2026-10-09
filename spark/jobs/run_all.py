@@ -9,7 +9,7 @@
   space        空间维度分析          DWD → DWS/space
   category     类型等级维度分析      DWD → DWS/category
   dept         科室维度分析          DWD+科室 → DWS/dept
-  deptstrength 科室实力指数          DWD+科室 → DWS/dept + MySQL（就医决策用）
+  deptstrength 科室实力指数          DWD+科室 → DWS/dept + MySQL（下线主线遗留：作业仍产出，前端已无引用）
   network      协作网络维度分析      DWD → DWS/network
   time         时间维度分析          行为日志+DWD → DWS/time（含批次快照）
   ads          服务层落库            HDFS 结果 → MySQL（业务库）
@@ -51,7 +51,7 @@ STAGES = [
     ("space",        "空间维度分析",            dim_space.main,            True),
     ("category",     "类型与等级维度分析",      dim_category.main,         True),
     ("dept",         "科室维度分析",            dim_dept.main,             True),
-    ("deptstrength", "科室实力指数（就医决策）", dim_dept_strength.main,    True),
+    ("deptstrength", "科室实力指数（下线主线遗留·前端已无引用）", dim_dept_strength.main, True),
     ("network",      "协作网络维度分析",        dim_network.main,          True),
     ("time",         "时间维度分析",            dim_time.main,             True),
     ("ads",          "ADS 服务层·结果落业务库", layer_ads.main,            False),
