@@ -169,7 +169,7 @@ var NLQ_UI = (function () {
       if (cond.dimension) parsed.dimension = cond.dimension;
     }
     if (parsed.intent === 'stats') {
-      var st = NLQ.runStats(DATA.institutions, cond, parsed.dimension || 'district');
+      var st = NLQ.runStats(DATA.institutions, cond, parsed.dimension || 'district', typeof curBase === 'function' ? curBase() : null);
       var tot = st.rows.reduce(function (a, b) { return a + (b.cnt || 0); }, 0);
       return { ok: true, intent: 'stats', conditions: cond, applied: parsed.applied || NLQ.describe(cond),
                dimension: st.dimension, dimension_label: st.label, chart: st.chart, rows: st.rows,
@@ -336,6 +336,9 @@ var NLQ_UI = (function () {
     if (!COND) return;
     if (key === 'district') delete COND.district;
     else if (key === 'level') delete COND.level;
+    else if (key === 'grades') delete COND.grades;
+    else if (key === 'radius') delete COND.radius;
+    else if (key === 'dept_evidence') delete COND.dept_evidence;
     else if (key === 'level_min') delete COND.level_min;
     else if (key === 'category') delete COND.category;
     else if (key === 'ownership') delete COND.ownership;
@@ -760,6 +763,8 @@ function rowHtml(r) {
 
     fillSelect('q_district', districts, '全部行政区');
     fillSelect('q_level', levels, '全部等级');
+    fillSelect('q_grade', ['三级甲等', '二级甲等', '三级乙等'], '不限等次');
+    fillSelect('q_dept', deptNames(), '全部科室');
     fillSelect('q_cat', cats, '全部机构类型');
     fillSelect('q_own', owns, '全部所有制');
     fillSelect('q_source', srcs, '全部数据来源');
@@ -779,6 +784,12 @@ function rowHtml(r) {
         s = el('q_source'), k = el('q_kw'), so = el('q_sort');
     if (d && d.value) c.district = [d.value];
     if (l && l.value) c.level = [l.value];
+    var grade = el('q_grade'), radius = el('q_radius'), evidence = el('q_evidence');
+    if (grade && grade.value) { c.grades = [grade.value]; delete c.level; }
+    if (radius && radius.value !== '') c.radius = Number(radius.value);
+    var dept = el('q_dept');
+    if (dept && dept.value) c.dept = dept.value;
+    if (dept && dept.value && evidence && evidence.value) c.dept_evidence = evidence.value;
     if (t && t.value) c.category = [t.value];
     if (o && o.value) c.ownership = [o.value];
     if (s && s.value) {
@@ -800,6 +811,10 @@ function rowHtml(r) {
     var set = function (id, v) { var e = el(id); if (e) e.value = v || ''; };
     set('q_district', (COND.district || []).join(','));
     set('q_level', (COND.level || [])[0]);
+    set('q_grade', (COND.grades || [])[0]);
+    set('q_radius', COND.radius);
+    set('q_evidence', COND.dept_evidence);
+    set('q_dept', COND.dept);
     set('q_cat', (COND.category || [])[0]);
     set('q_own', (COND.ownership || [])[0]);
     var sk = (COND.source || [])[0];
@@ -810,7 +825,7 @@ function rowHtml(r) {
   }
 
   function resetCondControls() {
-    ['q_district', 'q_level', 'q_cat', 'q_own', 'q_source', 'q_kw'].forEach(function (id) {
+    ['q_district', 'q_level', 'q_grade', 'q_radius', 'q_evidence', 'q_dept', 'q_cat', 'q_own', 'q_source', 'q_kw'].forEach(function (id) {
       var e = el(id); if (e) e.value = '';
     });
     var s = el('q_sort'); if (s) s.value = 'score';

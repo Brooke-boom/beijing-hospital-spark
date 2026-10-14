@@ -122,8 +122,11 @@ def api_institutions():
       dept      科室名（如 口腔科）
       net       协作网络（ped_core/ped_member/stroke/neonatal/maternal）
       lng/lat   参考点坐标（默认天安门），用于距离计算与排序
-      sort      排序策略：score（条件匹配度加权）| distance（近→远）| level（等级优先）
+      sort      排序策略：score（严格条件匹配，同分按名称）| distance（近→远）| level（等级优先）
                           | depts（科室收录量多→少）| name（机构名称，默认 score）
+      radius    直线距离半径（0 < km <= 200，仅高精度坐标）
+      level_sub 等级等次（甲等/乙等/丙等）；level 支持三甲等简称
+      dept_evidence recorded 表示只使用 specialty/online/key_depts 来源映射
       page      页码（默认 1）
       page_size 每页条数（默认 20，最大 100）
     返回：{total, page, page_size, items[], meta{}}
@@ -144,9 +147,32 @@ def api_institutions():
     try:
         lng = float(args.get("lng", DEFAULT_LNG))
         lat = float(args.get("lat", DEFAULT_LAT))
-    except ValueError:
-        lng, lat = DEFAULT_LNG, DEFAULT_LAT
+    except (ValueError, TypeError):
+        return jsonify({"error": "距离基准点无效"}), 400
+    if (args.get("lng") is None) != (args.get("lat") is None):
+        return jsonify({"error": "请同时提供经度和纬度"}), 400
 
+    import math
+    if not math.isfinite(lng) or not math.isfinite(lat) or not (-180 <= lng <= 180 and -90 <= lat <= 90):
+        return jsonify({"error": "距离基准点无效"}), 400
+    radius = args.get("radius")
+    if radius not in (None, ""):
+        try:
+            radius = float(radius)
+            if not math.isfinite(radius) or not 0 < radius <= 200:
+                raise ValueError()
+        except (ValueError, TypeError):
+            return jsonify({"error": "距离半径应大于 0 且不超过 200 km"}), 400
+    else:
+        radius = None
+    level_sub = (args.get("level_sub") or "").strip()
+    grade = re.fullmatch(r"([一二三])(?:级)?([甲乙丙])(?:等)?", level)
+    if grade:
+        if level_sub and level_sub[0] != grade[2]:
+            return jsonify({"error": "等级与等次条件冲突"}), 400
+        level, level_sub = grade[1] + "级", grade[2] + "等"
+    if level_sub and level_sub not in ("甲", "甲等", "乙", "乙等", "丙", "丙等"):
+        return jsonify({"error": "等级等次无效"}), 400
     where, params = ["1=1"], []
     if q:
         where.append("name LIKE %s")
@@ -157,12 +183,16 @@ def api_institutions():
     if level:
         where.append("level_norm = %s")
         params.append(level)
+    if level_sub:
+        where.append("t.level_sub IN (%s, %s)")
+        params.extend([level_sub[0], level_sub[0] + "等"])
     if category:
         where.append("category_norm = %s")
         params.append(category)
     if dept:
+        evidence = " AND source IN ('specialty','online','key_depts')" if args.get("dept_evidence") == "recorded" else ""
         where.append(
-            "t.id IN (SELECT hospital_id FROM dwd_dept_relation_clean WHERE dept_name = %s)"
+            "t.id IN (SELECT hospital_id FROM dwd_dept_relation_clean WHERE dept_name = %s" + evidence + ")"
         )
         params.append(dept)
     if net:
@@ -173,6 +203,9 @@ def api_institutions():
             _c, _v = _net_map[net]
             where.append(f"{_c} = %s")
             params.append(_v)
+    if radius is not None:
+        where.append("t.coord_precision = 'high' AND d.distance_km <= %s")
+        params.append(radius)
     where_sql = " AND ".join(where)
 
     # Haversine 距离（km）—— 有坐标的机构才算距离
@@ -187,13 +220,11 @@ def api_institutions():
     dist_params = [lat, lat, lng]
 
     # 排序策略
-    # 加权评分 = 0.5*等级 + 0.3*距离归一 + 0.2*科室归一（床位数据覆盖率仅1.5%且真实性存疑，已移除并权重重配）
-    score_expr = (
-        "ROUND(0.5 * (CASE level_norm WHEN '三级' THEN 3 WHEN '二级' THEN 2"
-        " WHEN '一级' THEN 1 ELSE 0.5 END) / 3"
-        " + 0.3 * (1 - LEAST(IFNULL(distance_km, 60) / 60, 1))"
-        " + 0.2 * LEAST(IFNULL(dept_count, 0) / 30, 1), 4)"
-    )
+    # 匹配度只表示满足条件，不使用医院等级或推断科室数评估医疗质量。
+    # Hard filters guarantee every returned row satisfies all submitted conditions.
+    # Do not use hospital level, uncertain coordinates or inferred department counts
+    # as an implicit institution quality score.
+    score_expr = "1.0"
     if sort == "distance":
         order_sql = "distance_km IS NULL, distance_km ASC"
     elif sort == "level":
@@ -209,7 +240,7 @@ def api_institutions():
         order_sql = "name ASC"
     else:
         sort = "score"
-        order_sql = "score DESC, distance_km ASC"
+        order_sql = "score DESC, t.name ASC"
 
     base_select = (
         f"FROM ads_inst_search t"
@@ -230,6 +261,7 @@ def api_institutions():
         " t.category_sub, t.ownership, t.feature, t.feature_level,"
         " t.net_pediatric, t.net_stroke, t.net_neonatal, t.net_maternal,"
         " t.lng, t.lat, t.coord_precision, t.dept_count, t.dept_count_src, t.key_specialty_count,"
+        " CASE WHEN t.coord_precision = 'high' THEN '门址或兴趣点，直线距离' ELSE '近似位置，距离仅供参考' END AS distance_note,"
         " d.distance_km, COALESCE(rc.rule_dept_count, 0) AS rule_dept_count, " + score_expr + " AS score " + base_select +
         f" ORDER BY {order_sql} LIMIT %s OFFSET %s",
         dist_params + params + [page_size, offset],
@@ -1330,8 +1362,11 @@ def _nlq_base(body):
             return None
     lng = num(body.get("lng", request.args.get("lng")))
     lat = num(body.get("lat", request.args.get("lat")))
-    if lng is None or lat is None:
+    if body.get("lng", request.args.get("lng")) is None and body.get("lat", request.args.get("lat")) is None:
         return None
+    import math
+    if lng is None or lat is None or not math.isfinite(lng) or not math.isfinite(lat) or not (-180 <= lng <= 180 and -90 <= lat <= 90):
+        raise ValueError("距离基准点无效，请同时提供有效经纬度")
     return (lng, lat)
 
 
@@ -1345,7 +1380,7 @@ def _nlq_execute(parsed, text="", base=None):
     cn = dict(parsed.get("conditions") or {})
     try:
         if parsed.get("intent") == "stats":
-            stats = nlq.run_stats(query, cond, parsed.get("dimension") or "district")
+            stats = nlq.run_stats(query, cond, parsed.get("dimension") or "district", base=base)
             return {"ok": True, "intent": "stats", "conditions": cond,
                     "applied": parsed.get("applied") or nlq.describe(cond),
                     "dimension": stats["dimension"], "dimension_label": stats["label"],
@@ -1361,7 +1396,7 @@ def _nlq_execute(parsed, text="", base=None):
                 "total": data["total"], "page": data["page"], "page_size": data["page_size"],
                 "sort": data["sort"], "base": data.get("base"), "items": data["items"],
                 "summary": nlq.summarize_filter(cn, data),
-                "stats": _result_overview(cn),
+                "stats": _result_overview(cn, base=base),
                 "data_source": _data_source_note()}
     except Exception as e:
         return {"ok": False, "intent": "error",
@@ -1370,10 +1405,10 @@ def _nlq_execute(parsed, text="", base=None):
                 "data_source": _data_source_note()}
 
 
-def _result_overview(cond):
+def _result_overview(cond, base=None):
     """筛选结果的小统计（总数 / 三级 / 二级 / 公立 / 民营 / 含坐标）。"""
     try:
-        where, params = nlq.build_where(cond)
+        where, params = nlq.build_where(cond, base=base)
         row = query(
             "SELECT COUNT(*) AS total,"
             " SUM(CASE WHEN level_norm='三级' THEN 1 ELSE 0 END) AS level3,"
@@ -1396,8 +1431,8 @@ def _data_source_note():
         row = query("SELECT CAST(MAX(batch_date) AS CHAR) AS d FROM ads_etl_snapshot", one=True)
         batch = (row or {}).get("d") or ""
         total = query("SELECT COUNT(*) AS n FROM ads_inst_search", one=True)["n"]
-        files = query("SELECT COUNT(*) AS n FROM (SELECT source_files FROM ads_inst_search"
-                      " WHERE source_files <> '' GROUP BY source_files) x", one=True)["n"]
+        source_rows = query("SELECT DISTINCT source_files FROM ads_inst_search WHERE source_files <> ''")
+        files = len({name.strip() for r in source_rows for name in (r.get("source_files") or "").split("|") if name.strip()})
     except Exception:
         pass
     return {
@@ -1435,7 +1470,11 @@ def api_nlq_query():
             parsed["dimension"] = conditions["dimension"]
     else:
         parsed = nlq.parse(text, dept_names=_dept_dict())
-    res = _nlq_execute(parsed, text, base=_nlq_base(body))
+    try:
+        base = _nlq_base(body)
+    except ValueError as e:
+        return jsonify({"ok": False, "message": str(e)}), 400
+    res = _nlq_execute(parsed, text, base=base)
     if text:
         res["parsed"] = {"intent": parsed.get("intent"),
                          "dimension": parsed.get("dimension"),

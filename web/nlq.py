@@ -385,6 +385,15 @@ def parse(text, dept_names=None):
             seen_lv.add(name)
             levels.append(name)
         spans.append((start, ln))
+    grade_hits = re.findall(r"([一二三])([甲乙丙])|([一二三])级([甲乙丙])等", t)
+    if grade_hits:
+        spans.extend((m.start(), len(m.group())) for m in re.finditer(r"[一二三](?:级)?[甲乙丙](?:等)?", t))
+        cond["grades"] = list(dict.fromkeys(
+            (a or c) + "级" + (b or d) + "等" for a, b, c, d in grade_hits))
+        # Qualified levels already carry their main level. Preserve separate bare levels.
+        bare = re.sub(r"[一二三](?:级)?[甲乙丙](?:等)?", "", t)
+        cond_levels = [lv for lv in levels if lv in bare]
+        levels = cond_levels
     if levels:
         cond["level"] = levels
     if level_min is not None:
@@ -441,6 +450,33 @@ def parse(text, dept_names=None):
             dept = word
             spans.append((start, ln))
             cond["dept"] = word
+
+    # ---------- 6.5 科室证据与距离半径（结构化条件之外的自然语言入口） ----------
+    # 「（仅有/只有/有）来源记录」→ 科室只认 specialty/online/key_depts 三类真实来源
+    # 映射，不认 name/rule 推断。整段说法必须掩蔽，否则"记录"两个字会漏进
+    # 机构名关键词，把结果悄悄掐成 0。
+    m_ev = re.search(r"(?:仅|只)?有?来源记录", t)
+    if m_ev:
+        cond["dept_evidence"] = "recorded"
+        spans.append((m_ev.start(), len(m_ev.group())))
+    # 「N 公里/千米/km（以内/内/范围内）」→ 直线半径；「N 米内」换算成 km。
+    # 半径只在高精度坐标上生效（build_where 会强制 coord_precision='high'）。
+    m_rad = re.search(r"(\d+(?:\.\d+)?)\s*(?:公里|千米|km)(?:以内|内|范围内|范围)?", t, re.I)
+    if m_rad:
+        cond["radius"] = float(m_rad.group(1))
+        spans.append((m_rad.start(), len(m_rad.group())))
+    else:
+        m_met = re.search(r"(\d+(?:\.\d+)?)\s*米", t)
+        if m_met:
+            cond["radius"] = round(float(m_met.group(1)) / 1000, 2)
+            spans.append((m_met.start(), len(m_met.group())))
+    if cond.get("radius") is not None:
+        # 基准点词是"从哪算"的参照物，不是机构名 —— 不掩蔽会把"天安门"漏进 kw
+        _occ = _occupied(spans)
+        for _bp in ("天安门", "市中心"):
+            _p = t.find(_bp)
+            if _p >= 0 and not any(i in _occ for i in range(_p, _p + len(_bp))):
+                spans.append((_p, len(_bp)))
 
     # ---------- 7. 结构性附加条件 ----------
     if re.search(r"有地址|有详细地址|地址信息|填了地址", t):
@@ -500,7 +536,9 @@ def parse(text, dept_names=None):
             cond.pop("kw")
 
     # ---------- 10. 意图判定 ----------
-    has_structured = bool(dists or levels or level_min is not None or owns or dept)
+    has_structured = bool(dists or levels or level_min is not None or owns or dept
+                          or cond.get("grades") or cond.get("radius") is not None
+                          or cond.get("dept_evidence"))
     med_hits = [w for w in MEDICAL_WORDS if w in t]
     narrative = (any(w in t for w in NARRATIVE_CROWD)
                  and any(w in t for w in NARRATIVE_COURSE))
@@ -550,6 +588,15 @@ def describe(cond):
     if cond.get("level"):
         chips.append({"key": "level", "label": "医院等级", "values": cond["level"],
                       "text": "、".join(cond["level"])})
+    if cond.get("grades"):
+        chips.append({"key": "grades", "label": "等级与等次", "values": cond["grades"],
+                      "text": "、".join(cond["grades"]) + "（等次缺失不计入）"})
+    if cond.get("dept_evidence") == "recorded":
+        chips.append({"key": "dept_evidence", "label": "科室证据", "values": ["recorded"],
+                      "text": "仅有来源记录（排除名称及规则推断）"})
+    if cond.get("radius") is not None:
+        chips.append({"key": "radius", "label": "直线距离", "values": [cond["radius"]],
+                      "text": str(cond["radius"]) + " km 内（仅高精度坐标）"})
     if cond.get("level_min") is not None:
         name = {3: "三级", 2: "二级", 1: "一级"}.get(cond["level_min"], "")
         chips.append({"key": "level_min", "label": "等级下限", "values": [cond["level_min"]],
@@ -588,7 +635,7 @@ def describe(cond):
 # =============================================================================
 #  五、条件 → SQL
 # =============================================================================
-def build_where(cond):
+def build_where(cond, base=None):
     """把条件字典编译成 WHERE 子句（全部参数化，杜绝拼接注入）。
 
     表别名固定为 t，指向 ads_inst_search。
@@ -598,10 +645,18 @@ def build_where(cond):
         marks = ",".join(["%s"] * len(cond["district"]))
         where.append("t.district IN (%s)" % marks)
         params.extend(cond["district"])
+    level_parts = []
     if cond.get("level"):
         marks = ",".join(["%s"] * len(cond["level"]))
-        where.append("t.level_norm IN (%s)" % marks)
+        level_parts.append("t.level_norm IN (%s)" % marks)
         params.extend(cond["level"])
+    for grade in cond.get("grades") or []:
+        if not re.fullmatch(r"[一二三]级[甲乙丙]等", grade):
+            raise ValueError("等级与等次格式无效")
+        level_parts.append("(t.level_norm = %s AND t.level_sub IN (%s, %s))")
+        params.extend([grade[:2], grade[2:], grade[2]])
+    if level_parts:
+        where.append("(" + " OR ".join(level_parts) + ")")
     if cond.get("level_min") is not None:
         allowed = [lv for lv, rk in LEVEL_RANK.items() if rk >= cond["level_min"]]
         marks = ",".join(["%s"] * len(allowed))
@@ -628,8 +683,9 @@ def build_where(cond):
             where.append("(" + " OR ".join(ors) + ")")
             params.extend(args)
     if cond.get("dept"):
+        evidence = " AND source IN ('specialty','online','key_depts')" if cond.get("dept_evidence") == "recorded" else ""
         where.append("t.id IN (SELECT hospital_id FROM dwd_dept_relation_clean"
-                     " WHERE dept_name = %s)")
+                     " WHERE dept_name = %s" + evidence + ")")
         params.append(cond["dept"])
     if cond.get("has_addr"):
         where.append("t.addr IS NOT NULL AND t.addr <> ''")
@@ -641,19 +697,26 @@ def build_where(cond):
     if cond.get("kw"):
         where.append("(t.name LIKE %s OR t.addr LIKE %s)")
         params.extend(["%%%s%%" % cond["kw"]] * 2)
+    if cond.get("radius") is not None:
+        import math
+        radius = float(cond["radius"])
+        if not math.isfinite(radius) or not 0 < radius <= 200:
+            raise ValueError("距离半径应大于 0 且不超过 200 km")
+        lng, lat = base or DEFAULT_BASE
+        if not math.isfinite(lng) or not math.isfinite(lat) or not (-180 <= lng <= 180 and -90 <= lat <= 90):
+            raise ValueError("距离基准点无效")
+        distance, args = haversine_sql(lng, lat)
+        where.append("t.coord_precision = 'high'")
+        where.append("(" + distance + ") <= %s")
+        params.extend(args + [radius])
     return " AND ".join(where), params
 
 
-# 条件匹配度：只统计"用户明确说了的条件里，该机构满足几条"，不做任何实力打分。
-# 公式（答辩要能写出来）：
-#     match = Σ(命中条件的权重) / Σ(全部条件的权重)
-# 权重：行政区 0.30 / 等级 0.25 / 类型 0.20 / 所有制 0.15 / 来源 0.10
-# 该值只反映"与本次筛选条件的吻合程度"，与医院好坏无关。
+# 严格筛选下所有返回记录均满足全部条件；匹配度恒为 1，并列按名称排序。
+# 保留权重导出字段供历史离线页面兼容，不再用于评分。
 MATCH_WEIGHTS = {"district": 0.30, "level": 0.25, "category": 0.20,
                  "ownership": 0.15, "source": 0.10}
-MATCH_FORMULA = ("条件匹配度 = 命中条件权重之和 ÷ 本次筛选条件权重之和；"
-                 "权重 行政区 0.30 / 等级 0.25 / 类型 0.20 / 所有制 0.15 / 来源 0.10。"
-                 "该指标只衡量「与本次条件的吻合程度」，不代表机构实力或好坏。")
+MATCH_FORMULA = "结果须满足全部筛选条件，匹配度统一为 1；并列按机构名称排序，不代表机构实力或好坏。"
 
 ORDER_BY = {
     "score": "score DESC, t.name ASC",
@@ -669,35 +732,7 @@ SORT_LABEL = {"score": "条件匹配度", "distance": "距离（近→远）", "
 
 def match_score_sql(cond):
     """按用户实际给出的条件生成匹配度表达式；没有可打分条件时返回常量 1。"""
-    parts, total = [], 0.0
-    for key, weight in MATCH_WEIGHTS.items():
-        if not cond.get(key):
-            continue
-        total += weight
-        if key == "district":
-            labels = cond["district"]
-            col = "t.district"
-        elif key == "level":
-            labels = cond["level"]
-            col = "t.level_norm"
-        elif key == "category":
-            labels = cond["category"]
-            col = "t.category_norm"
-        elif key == "ownership":
-            labels = cond["ownership"]
-            col = "t.ownership"
-        else:
-            rules = {r["key"]: r["pattern"] for r in SOURCE_RULES}
-            labels = None
-            col = None
-            for k in cond["source"]:
-                parts.append("(t.source_files REGEXP '%s')" % rules[k].replace("'", ""))
-            continue
-        marks = ",".join("'%s'" % str(v).replace("'", "") for v in labels)
-        parts.append("(CASE WHEN %s IN (%s) THEN 1 ELSE 0 END)" % (col, marks))
-    if not parts or total <= 0:
-        return "1.0", 0.0
-    return "ROUND((%s) / %.2f, 4)" % ("+".join(parts), total), total
+    return "1.0", 0.0
 
 
 # =============================================================================
@@ -727,7 +762,7 @@ def run_filter(q, cond, page=1, page_size=20, base=None):
 
     base 为 (lng, lat) 基准点；不传则按天安门算（与 /api/institutions 一致）。
     """
-    where, params = build_where(cond)
+    where, params = build_where(cond, base=base)
     score_sql, _ = match_score_sql(cond)
     lng, lat = base or DEFAULT_BASE
     dist_expr, dist_args = haversine_sql(lng, lat)
@@ -746,7 +781,7 @@ def run_filter(q, cond, page=1, page_size=20, base=None):
     # 子查询里没有 t 这个别名，`t.lng` 会解析失败——这是原先的第二个缺陷。
     rows = q(
         "SELECT t.id, t.name, t.district, t.category_norm AS category, t.category_sub,"
-        " t.level_norm AS level, t.ownership, t.addr, t.phone, t.lng, t.lat,"
+        " t.level_norm AS level, t.level_sub, t.ownership, t.addr, t.phone, t.lng, t.lat,"
         " t.coord_precision, t.dept_count, t.src_count_int, t.source_files,"
         " COALESCE(NULLIF(t.key_depts,''), '') AS key_depts,"
         " %s AS distance_km, %s AS score" % (dist_expr, score_sql) +
@@ -757,9 +792,9 @@ def run_filter(q, cond, page=1, page_size=20, base=None):
             "base": {"lng": lng, "lat": lat}, "items": rows}
 
 
-def run_stats(q, cond, dimension):
+def run_stats(q, cond, dimension, base=None):
     """按维度分组统计真实数量。dimension ∈ district/category/level/ownership/source"""
-    where, params = build_where(cond)
+    where, params = build_where(cond, base=base)
     if dimension == "district":
         sql = ("SELECT t.district AS name, COUNT(*) AS cnt,"
                " SUM(CASE WHEN t.level_norm='三级' THEN 1 ELSE 0 END) AS level3,"
@@ -783,13 +818,13 @@ def run_stats(q, cond, dimension):
                " FROM ads_inst_search t WHERE %s GROUP BY t.ownership"
                " ORDER BY cnt DESC" % where)
     elif dimension == "source":
-        conds, args = [where], list(params)
+        conds, args = [where], []
         union = []
         for rule in SOURCE_RULES:
             union.append("SELECT '%s' AS name, COUNT(*) AS cnt FROM ads_inst_search t"
                          " WHERE %s AND t.source_files REGEXP %%s"
                          % (rule["label"], where))
-            args.append(rule["pattern"])
+            args.extend(params + [rule["pattern"]])
         sql = " UNION ALL ".join(union) + " ORDER BY cnt DESC"
         return {"dimension": dimension, "label": DIM_LABEL[dimension],
                 "rows": q(sql, args), "chart": DIM_CHART[dimension]}

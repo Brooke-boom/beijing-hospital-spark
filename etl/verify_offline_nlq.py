@@ -46,6 +46,12 @@ if not Path(NODE).exists():
 # ---- 用例：覆盖用户手册里给出的全部示例 + 边界 + 拒答场景 ----------------
 QUERIES = [
     "朝阳区三级医院",
+    "朝阳区三甲医院",
+    "三级甲等医院",
+    "二甲和三乙医院",
+    "东城区有来源记录的儿科医院",
+    "天安门5公里内的三甲医院",
+    "1000米内的医院",
     "海淀区公立医院",
     "北京有哪些三级医院？",
     "帮我找朝阳区综合医院",
@@ -158,8 +164,11 @@ FILTER_CASES = [
 def py_matches(inst, cond):
     if cond.get("district") and inst.get("district") not in cond["district"]:
         return False
-    if cond.get("level") and inst.get("level") not in cond["level"]:
-        return False
+    if cond.get("level") or cond.get("grades"):
+        bare = inst.get("level") in (cond.get("level") or [])
+        qualified = any(inst.get("level") == g[:2] and inst.get("level_sub") in (g[2:], g[2]) for g in cond.get("grades") or [])
+        if not bare and not qualified:
+            return False
     if cond.get("level_min") is not None:
         rank = nlq.LEVEL_RANK.get(inst.get("level"))
         if rank is None or rank < cond["level_min"]:
@@ -178,8 +187,17 @@ def py_matches(inst, cond):
         # 与后端 build_where 同语义：该机构在科室隶属表里**恰好有**这条科室名。
         # 快照把这张表按机构聚合成 ';' 分隔的 depts 字段（build_spa.sh 导出）。
         # 必须精确相等 —— 用包含匹配会让"骨科"把"中医骨伤科"也一起吞进来。
-        ds = str(inst.get("depts") or "")
+        # dept_evidence=recorded 时换用 recorded_depts 池（仅 specialty/online/key_depts）。
+        pool = "recorded_depts" if cond.get("dept_evidence") == "recorded" else "depts"
+        ds = str(inst.get(pool) or "")
         if not ds or (";" + cond["dept"] + ";") not in (";" + ds + ";"):
+            return False
+    if cond.get("radius") is not None:
+        # 与 app.nlq.js matches() 同语义：仅高精度坐标参与，球面直线距离取 2 位小数比较
+        if inst.get("coord_precision") != "high" or inst.get("lng") is None or inst.get("lat") is None:
+            return False
+        if round(py_haversine(nlq.DEFAULT_BASE[0], nlq.DEFAULT_BASE[1],
+                              float(inst["lng"]), float(inst["lat"])), 2) > float(cond["radius"]):
             return False
     if cond.get("has_addr") and not (inst.get("addr") or ""):
         return False
@@ -238,23 +256,7 @@ def py_sort(items, sort):
 
 
 def py_score(inst, cond):
-    hit, total = 0.0, 0.0
-    for k in ("district", "level", "category", "ownership"):
-        if not cond.get(k):
-            continue
-        total += nlq.MATCH_WEIGHTS[k]
-        if inst.get(k) in cond[k]:
-            hit += nlq.MATCH_WEIGHTS[k]
-    if cond.get("source"):
-        import re as _re
-        total += nlq.MATCH_WEIGHTS["source"]
-        pats = {r["key"]: r["pattern"] for r in nlq.SOURCE_RULES}
-        sf = inst.get("source_files") or ""
-        if any(_re.search(pats[k], sf) for k in cond["source"] if k in pats):
-            hit += nlq.MATCH_WEIGHTS["source"]
-    if total <= 0:
-        return 1.0
-    return round(hit / total, 4)
+    return 1.0
 
 
 def py_haversine(lng1, lat1, lng2, lat2):

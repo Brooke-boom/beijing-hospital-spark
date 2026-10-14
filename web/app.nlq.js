@@ -135,6 +135,16 @@ var NLQ = (function () {
       if (!seenL[name]) { seenL[name] = 1; levels.push(name); }
       spans.push([h.start, h.len]);
     });
+    var gradeHits = t.match(/[一二三](?:级)?[甲乙丙](?:等)?/g) || [];
+    if (gradeHits.length) {
+      var gradeRe = /[一二三](?:级)?[甲乙丙](?:等)?/g, gm;
+      while ((gm = gradeRe.exec(t)) !== null) spans.push([gm.index, gm[0].length]);
+      cond.grades = Array.from(new Set(gradeHits.map(function (g) {
+        var chars = g.match(/[一二三甲乙丙]/g); return chars[0] + '级' + chars[1] + '等';
+      })));
+      var bare = t.replace(/[一二三](?:级)?[甲乙丙](?:等)?/g, '');
+      levels = levels.filter(function (lv) { return bare.indexOf(lv) >= 0; });
+    }
     if (levels.length) cond.level = levels;
     if (levelMin !== null) cond.level_min = levelMin;
 
@@ -181,6 +191,34 @@ var NLQ = (function () {
         cond.dept = dh[0].word;
         spans.push([dh[0].start, dh[0].len]);
       }
+    }
+
+    // ---------- 6.5 科室证据与距离半径（与后端 nlq.py 6.5 同源） ----------
+    // 「（仅有/只有/有）来源记录」→ 只认 specialty/online/key_depts 三类真实来源；
+    // 整段掩蔽，防止"记录"漏进机构名关键词。
+    var evM = t.match(/(?:仅|只)?有?来源记录/);
+    if (evM) {
+      cond.dept_evidence = 'recorded';
+      spans.push([evM.index, evM[0].length]);
+    }
+    // 「N 公里/千米/km 内」→ 直线半径（仅高精度坐标）；「N 米内」换算成 km。
+    var radM = t.match(/(\d+(?:\.\d+)?)\s*(?:公里|千米|km)(?:以内|内|范围内|范围)?/i);
+    if (radM) {
+      cond.radius = Number(radM[1]);
+      spans.push([radM.index, radM[0].length]);
+    } else {
+      var metM = t.match(/(\d+(?:\.\d+)?)\s*米/);
+      if (metM) {
+        cond.radius = Math.round(Number(metM[1]) / 10) / 100;
+        spans.push([metM.index, metM[0].length]);
+      }
+    }
+    if (cond.radius != null) {
+      // 基准点词是"从哪算"的参照物，不是机构名（与 nlq.py 6.5 同源）
+      ['天安门', '市中心'].forEach(function (bp) {
+        var p3 = t.indexOf(bp);
+        if (p3 >= 0 && !overlaps(occupiedSet(spans), p3, bp.length)) spans.push([p3, bp.length]);
+      });
     }
 
     // ---------- 7. 结构性附加条件 ----------
@@ -236,7 +274,8 @@ var NLQ = (function () {
 
     // ---------- 10. 意图判定 ----------
     var hasStructured = !!(dists.length || levels.length || levelMin !== null
-      || owns.length || cond.dept);
+      || owns.length || cond.dept || cond.grades || cond.radius != null
+      || cond.dept_evidence);
     var medHits = LEX.medical_words.filter(function (w) { return t.indexOf(w) >= 0; });
     var narrative = LEX.narrative_crowd.some(function (w) { return t.indexOf(w) >= 0; })
       && LEX.narrative_course.some(function (w) { return t.indexOf(w) >= 0; });
@@ -278,6 +317,9 @@ var NLQ = (function () {
     }
     if (cond.district && cond.district.length) add('district', '行政区', cond.district, cond.district.join('、'));
     if (cond.level && cond.level.length) add('level', '医院等级', cond.level, cond.level.join('、'));
+    if (cond.grades && cond.grades.length) add('grades', '等级与等次', cond.grades, cond.grades.join('、') + '（等次缺失不计入）');
+    if (cond.dept_evidence === 'recorded') add('dept_evidence', '科室证据', ['recorded'], '仅有来源记录（排除名称及规则推断）');
+    if (cond.radius != null) add('radius', '直线距离', [cond.radius], Number(cond.radius).toFixed(1) + ' km 内（仅高精度坐标）');
     if (cond.level_min != null) {
       var nm = { 3: '三级', 2: '二级', 1: '一级' }[cond.level_min] || '';
       add('level_min', '等级下限', [cond.level_min], nm + '及以上');
@@ -303,32 +345,27 @@ var NLQ = (function () {
   //  条件匹配度（与后端 MATCH_WEIGHTS 同源）
   // --------------------------------------------------------------------------
   function matchScore(inst, cond) {
-    var W = LEX.match_weights, hit = 0, total = 0;
-    ['district', 'level', 'category', 'ownership'].forEach(function (k) {
-      if (!cond[k] || !cond[k].length) return;
-      total += W[k];
-      var field = { district: 'district', level: 'level', category: 'category',
-        ownership: 'ownership' }[k];
-      if (cond[k].indexOf(inst[field]) >= 0) hit += W[k];
-    });
-    if (cond.source && cond.source.length) {
-      total += W.source;
-      if (cond.source.some(function (key) {
-        var rule = null;
-        LEX.source_rules.forEach(function (r) { if (r.key === key) rule = r; });
-        return rule ? new RegExp(rule.pattern).test(inst.source_files || '') : false;
-      })) hit += W.source;
-    }
-    if (total <= 0) return 1;
-    return Math.round((hit / total) * 10000) / 10000;
+    return 1;
   }
 
   // --------------------------------------------------------------------------
   //  筛选（对应 nlq.build_where + run_filter）
   // --------------------------------------------------------------------------
-  function matches(inst, cond) {
+  function matches(inst, cond, baseIn) {
     if (cond.district && cond.district.length && cond.district.indexOf(inst.district) < 0) return false;
-    if (cond.level && cond.level.length && cond.level.indexOf(inst.level) < 0) return false;
+    if ((cond.level && cond.level.length) || (cond.grades && cond.grades.length)) {
+      var bareMatch = cond.level && cond.level.indexOf(inst.level) >= 0;
+      var gradeMatch = (cond.grades || []).some(function (g) {
+        return inst.level === g.slice(0, 2) && (inst.level_sub === g.slice(2) || inst.level_sub === g.charAt(2));
+      });
+      if (!bareMatch && !gradeMatch) return false;
+    }
+    if (cond.radius != null) {
+      var radius = Number(cond.radius), b = baseIn || DEFAULT_BASE;
+      if (!Number.isFinite(radius) || radius <= 0 || radius > 200) throw new Error('距离半径应大于 0 且不超过 200 km');
+      if (inst.coord_precision !== 'high' || inst.lng == null || inst.lat == null) return false;
+      if (Math.round(haversineKm(b.lng, b.lat, +inst.lng, +inst.lat) * 100) / 100 > radius) return false;
+    }
     if (cond.level_min != null) {
       var rk = LEX.level_rank[inst.level];
       if (rk == null || rk < cond.level_min) return false;
@@ -349,7 +386,7 @@ var NLQ = (function () {
       // 即「该机构在科室隶属表里恰好有这条科室名」——精确相等，不做包含匹配
       // （否则"骨科"会把"中医骨伤科"也吞进来，数字就错了）。
       // inst.depts 正是这张表按机构聚合的结果（';' 分隔），由 build_spa.sh 带库导出。
-      var ds = String(inst.depts || '');
+      var ds = String((cond.dept_evidence === 'recorded' ? inst.recorded_depts : inst.depts) || '');
       if (!ds || (';' + ds + ';').indexOf(';' + cond.dept + ';') < 0) return false;
     }
     if (cond.has_addr && !(inst.addr || '')) return false;
@@ -422,6 +459,11 @@ var NLQ = (function () {
 
   function runFilter(institutions, cond, page, pageSize, baseIn) {
     page = page || 1; pageSize = pageSize || 20;
+    if (cond.radius != null && (!Number.isFinite(Number(cond.radius)) || Number(cond.radius) <= 0 || Number(cond.radius) > 200)) throw new Error('距离半径应大于 0 且不超过 200 km');
+    if (cond.dept && cond.dept_evidence === 'recorded' && institutions.some(function (r) { return !Object.prototype.hasOwnProperty.call(r, 'recorded_depts'); })) {
+      return { total: 0, page: 1, page_size: pageSize, sort: 'score', items: [], all: [], stats: overview([]), unsupported: 'dept',
+        message: '此快照未收录科室来源证据，无法执行仅有来源记录的筛选。请带数据库重建快照，或取消该证据条件。' };
+    }
     if (cond.dept && !hasDeptField(institutions)) {
       // 快照版本过旧：宁可明说算不了，也不要给一个"看起来合理但其实是错的"数量。
       return { total: 0, page: 1, page_size: pageSize, sort: 'score',
@@ -435,13 +477,13 @@ var NLQ = (function () {
     var out = [];
     for (var i = 0; i < institutions.length; i++) {
       var it = institutions[i];
-      if (!matches(it, cond)) continue;
+      if (!matches(it, cond, baseIn)) continue;
       // 与后端 haversine_sql 对齐：缺坐标给 null，有坐标则四舍五入到 2 位小数
       var dkm = (it.lng == null || it.lat == null) ? null
         : Math.round(haversineKm(base.lng, base.lat, +it.lng, +it.lat) * 100) / 100;
       out.push({
         id: it.id, name: it.name, district: it.district, category: it.category,
-        category_sub: it.category_sub || '', level: it.level, ownership: it.ownership,
+        category_sub: it.category_sub || '', level: it.level, level_sub: it.level_sub || '', ownership: it.ownership,
         addr: it.addr || '', phone: it.phone || '', lng: it.lng, lat: it.lat,
         coord_precision: it.coord_precision, dept_count: it.dept_count,
         // 科室数的口径字段必须一并带出：前端靠它判定「在线核实值可显数字 / 其余一律待补全」
@@ -482,10 +524,13 @@ var NLQ = (function () {
   // --------------------------------------------------------------------------
   //  维度统计（对应 nlq.run_stats + summarize_stats）
   // --------------------------------------------------------------------------
-  function runStats(institutions, cond, dimension) {
+  function runStats(institutions, cond, dimension, baseIn) {
+    if (cond.dept && cond.dept_evidence === 'recorded' && institutions.some(function (r) { return !Object.prototype.hasOwnProperty.call(r, 'recorded_depts'); })) {
+      throw new Error('此快照未收录科室来源证据，请带数据库重建快照后再统计。');
+    }
     var pool = [];
     for (var i = 0; i < institutions.length; i++) {
-      if (matches(institutions[i], cond)) pool.push(institutions[i]);
+      if (matches(institutions[i], cond, baseIn)) pool.push(institutions[i]);
     }
     var rows = [];
     if (dimension === 'source') {

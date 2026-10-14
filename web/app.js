@@ -234,7 +234,7 @@ function renderFavList() {
     return;
   }
   $('fav_list').innerHTML = rows.map(r => {
-    const dist = r._dist == null ? '距离 —' : r._dist.toFixed(1) + ' km';
+    const dist = r._dist == null ? '距离 —' : (r.coord_precision === 'high' ? '' : '约 ') + r._dist.toFixed(1) + ' km（直线）';
     return '<div class="favcard">' +
       '<div class="fn">' + esc(r.name) + '</div>' +
       '<div class="fm">' + levelBadge(r.level) + ownBadge(r.ownership) +
@@ -1160,24 +1160,14 @@ function applyFilter() {
       if (net === 'maternal' && r.net_maternal !== '市级') return false;
     }
     if (dept) {
-      const pool = (r.feature || '') + ';' + (r.key_depts || '');
-      if (pool.indexOf(dept) < 0) return false;
+      const pool = ';' + (r.depts || '') + ';';
+      if (pool.indexOf(';' + dept + ';') < 0) return false;
     }
     r._dist = (r.lng != null && r.lat != null) ? haversine(base.lng, base.lat, r.lng, r.lat) : null;
     return true;
   });
 
-  let maxDept = 0, maxDist = 0;
-  FILTERED.forEach(r => {
-    if (r.dept_count) maxDept = Math.max(maxDept, r.dept_count);
-    if (r._dist != null) maxDist = Math.max(maxDist, r._dist);
-  });
-  FILTERED.forEach(r => {
-    const lv = (LEVEL_RANK[r.level] || 1) / 4;
-    const ds = r._dist == null ? 0.5 : Math.max(0, 1 - r._dist / (maxDist || 1));
-    const dp = (r.dept_count || 0) / (maxDept || 1);
-    r._score = W_LEVEL * lv + W_DIST * ds + W_DEPT * dp;
-  });
+  FILTERED.forEach(r => { r._score = 1; });
 
   const ASC = {
     score:    (a, b) => a._score - b._score,
@@ -1188,7 +1178,7 @@ function applyFilter() {
   };
   const cmpAsc = ASC[curSort()] || ASC.score;
   const dirMul = curDir() === 'asc' ? 1 : -1;
-  FILTERED.sort((a, b) => cmpAsc(a, b) * dirMul);
+  FILTERED.sort((a, b) => cmpAsc(a, b) * dirMul || (String(a.name) < String(b.name) ? -1 : String(a.name) > String(b.name) ? 1 : 0));
 
   renderKPI();
   renderList();
@@ -1300,7 +1290,7 @@ function renderList() {
   const distLabel = '距' + (BASE_NOW ? baseNow.name : '市中心');
 
   box.innerHTML = page.map(r => {
-    const dist = r._dist == null ? '—' : r._dist.toFixed(1) + ' km';
+    const dist = r._dist == null ? '—' : (r.coord_precision === 'high' ? '' : '约 ') + r._dist.toFixed(1) + ' km（直线）';
     const on = PICKED.has(String(r.id));
     const ksc = r.key_specialty_count || 0;
     return '<div class="row' + (on ? ' sel' : '') + '" data-id="' + esc(r.id) + '">' +
@@ -1758,8 +1748,8 @@ function anSubset(except) {
       if (net === 'maternal' && r.net_maternal !== '市级') return false;
     }
     if (dept) {
-      const pool = (r.feature || '') + ';' + (r.key_depts || '');
-      if (pool.indexOf(dept) < 0) return false;
+      const pool = ';' + (r.depts || '') + ';';
+      if (pool.indexOf(';' + dept + ';') < 0) return false;
     }
     return true;
   });

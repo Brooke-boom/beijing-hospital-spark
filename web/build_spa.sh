@@ -5,6 +5,7 @@
 #            适用场景：本机没起 MySQL / 只改了前端想重新拼装产物。
 #            注意：源数据变了必须带库重跑（--no-db 不会更新快照内容）。
 set -e
+PYTHON_BIN="${PYTHON_BIN:-python3}"
 cd "$(dirname "$0")/.."
 
 NO_DB=0
@@ -13,7 +14,7 @@ for a in "$@"; do [ "$a" = "--no-db" ] && NO_DB=1; done
 if [ "$NO_DB" = "1" ]; then
   echo "=== 1. 跳过 MySQL（--no-db），复用 web/snapshot_data.json ==="
   [ -s web/snapshot_data.json ] || { echo "✗ web/snapshot_data.json 不存在或为空，请先带库运行一次"; exit 1; }
-  /Users/brooke/.workbuddy/binaries/python/versions/3.13.12/bin/python3 -c "
+  "$PYTHON_BIN" -c "
 import json, os
 d = json.load(open('web/snapshot_data.json', encoding='utf-8'))
 n = len(d.get('institutions') or [])
@@ -32,7 +33,7 @@ print(('  OK 字段 depts 存在（离线可按科室筛选）' if 'depts' in in
 "
 else
 echo "=== 1. 拉 MySQL 全量精简数据 ==="
-/Users/brooke/.workbuddy/binaries/python/envs/default/bin/python << 'PYEOF'
+"$PYTHON_BIN" << 'PYEOF'
 import json, pymysql, datetime
 from pathlib import Path
 conn = pymysql.connect(host='127.0.0.1', port=3307, user='root', password='hospital123',
@@ -80,14 +81,19 @@ for r in rows:
 # 这里把 dwd_dept_relation_clean（29 类科室 / 16,251 条隶属 / 覆盖 9,335 家，
 # 约 200KB）一并内嵌，单文件形态即可与后端按同一张表、同一种语义筛选科室。
 # 命名用 depts，与已有的 key_depts（重点专科挂牌）区分开。
-_dept_rows = q("SELECT hospital_id, dept_name FROM dwd_dept_relation_clean")
+_dept_rows = q("SELECT hospital_id, dept_name, source FROM dwd_dept_relation_clean")
 _dmap = {}
+_recorded_map = {}
 for _r in _dept_rows:
-    _dmap.setdefault(str(_r['hospital_id']).strip(), []).append(_r['dept_name'])
+    _hid = str(_r['hospital_id']).strip()
+    _dmap.setdefault(_hid, []).append(_r['dept_name'])
+    if _r['source'] in ('specialty', 'online', 'key_depts'):
+        _recorded_map.setdefault(_hid, []).append(_r['dept_name'])
 _n_dept = 0
 for r in rows:
     _ds = _dmap.get(r['id'])
     r['depts'] = ';'.join(sorted(_ds)) if _ds else ''
+    r['recorded_depts'] = ';'.join(sorted(set(_recorded_map.get(r['id'], []))))
     if _ds:
         _n_dept += 1
 print('  OK 科室隶属(dwd_dept_relation_clean): %d 条 / %d 家有明细 / 快照已带 depts 字段'
@@ -255,10 +261,10 @@ echo "=== 2. 刷新自然语言筛选词表 ==="
 # 再内联进单文件产物 —— 单文件形态的解析结果因此与后端逐字段一致
 # （etl/verify_offline_nlq.py 会逐条比对，漂移立刻暴露）。
 # 放在构建链路里自动跑，而不是靠人记得手抄。
-/Users/brooke/.workbuddy/binaries/python/versions/3.13.12/bin/python3 etl/export_nlq_lexicon.py
+"$PYTHON_BIN" etl/export_nlq_lexicon.py
 
 echo "=== 3. 拼装单文件 HTML ==="
-/Users/brooke/.workbuddy/binaries/python/versions/3.13.12/bin/python3 << 'PYEOF'
+"$PYTHON_BIN" << 'PYEOF'
 from pathlib import Path
 data = open('web/snapshot_data.json', encoding='utf-8').read()
 html = open('web/dashboard.html', encoding='utf-8').read()

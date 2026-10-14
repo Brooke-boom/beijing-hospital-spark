@@ -1377,10 +1377,14 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
       <div class="nlqconds">
         <label class="nc"><span>行政区</span><select id="q_district" title="限定行政区"></select></label>
         <label class="nc"><span>机构等级</span><select id="q_level" title="限定医院等级"></select></label>
+        <label class="nc"><span>等级与等次</span><select id="q_grade" title="等次缺失不计入"></select></label>
+        <label class="nc"><span>直线半径 km（仅高精度）</span><input id="q_radius" type="number" min="0.01" max="200" step="0.1" placeholder="不限；未定位按天安门"></label>
         <label class="nc"><span>机构类型</span><select id="q_cat" title="限定机构类型"></select></label>
         <label class="nc"><span>所有制</span><select id="q_own" title="限定所有制性质"></select></label>
         <label class="nc"><span>数据来源</span><select id="q_source" title="限定该机构的记录来自哪一类公开数据文件"></select></label>
         <label class="nc"><span>名称关键词</span><input id="q_kw" type="text" placeholder="如：协和、儿童、妇儿"></label>
+        <label class="nc"><span>科室映射（含推断）</span><select id="q_dept"></select></label>
+        <label class="nc"><span>科室证据</span><select id="q_evidence"><option value="">全部映射（含推断）</option><option value="recorded">仅有来源记录</option></select></label>
         <label class="nc"><span>结果排序</span><select id="q_sort" title="结果排序方式"></select></label>
         <div class="nc ncbtn">
           <button class="btn pri sm" id="q_run" type="button">执行筛选</button>
