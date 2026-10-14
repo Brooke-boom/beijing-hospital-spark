@@ -40,7 +40,7 @@
             <td>{{ r.category || '—' }}</td>
             <td :title="deptTip(r)">{{ deptText(r)
               }}<span v-if="deptSuffix(r)" class="muted" style="font-size:10px">·{{ deptSuffix(r) }}</span></td>
-            <td>{{ r.distance_km === null || r.distance_km === undefined ? '—' : r.distance_km + ' km' }}</td>
+            <td>{{ r.distance_km === null || r.distance_km === undefined ? '—' : (r.coord_precision === 'high' ? '' : '约 ') + r.distance_km + ' km（直线）' }}</td>
             <td>{{ r.score === null || r.score === undefined ? '—' : r.score }}</td>
           </tr>
         </tbody>

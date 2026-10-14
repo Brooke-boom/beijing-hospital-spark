@@ -5,7 +5,7 @@ import api from './api'
 export const DEFAULT_BASE = { name: '天安门', lng: 116.397428, lat: 39.90923 }
 
 const EMPTY_QUERY = {
-  q: '', district: '', level: '', category: '', dept: '', net: '',
+  q: '', district: '', level: '', level_sub: '', category: '', dept: '', dept_evidence: '', radius: '', net: '',
   sort: 'score', page: 1, pageSize: 20
 }
 
@@ -13,7 +13,7 @@ const EMPTY_QUERY = {
 // 前端不发明自己的字段名——否则"自然语言解析出来的条件"与"条件筛选 Tab 填的条件"
 // 会变成两套东西，也就无法互相回填。
 function blankNlqForm() {
-  return { district: '', level: '', category: '', ownership: '', source: '', dept: '', kw: '' }
+  return { district: '', level: '', grade: '', category: '', ownership: '', source: '', dept: '', dept_evidence: '', radius: '', kw: '' }
 }
 
 export const useDataStore = defineStore('data', {
@@ -74,6 +74,9 @@ export const useDataStore = defineStore('data', {
       const out = []
       if (s.query.district) out.push({ key: 'district', label: '区域', value: s.query.district })
       if (s.query.level) out.push({ key: 'level', label: '等级', value: s.query.level })
+      if (s.query.level_sub) out.push({ key: 'level_sub', label: '等次', value: s.query.level_sub })
+      if (s.query.radius) out.push({ key: 'radius', label: '直线半径', value: s.query.radius + ' km（仅高精度）' })
+      if (s.query.dept_evidence) out.push({ key: 'dept_evidence', label: '科室证据', value: '仅有来源记录' })
       if (s.query.category) out.push({ key: 'category', label: '类型', value: s.query.category })
       if (s.query.dept) out.push({ key: 'dept', label: '科室', value: s.query.dept })
       if (s.query.net) out.push({ key: 'net', label: '协作网络', value: nameOf(m.nets, 'value', s.query.net) })
@@ -82,7 +85,7 @@ export const useDataStore = defineStore('data', {
     },
 
     hasConditions: (s) => !!(s.query.q || s.query.district || s.query.level ||
-      s.query.category || s.query.dept || s.query.net),
+      s.query.category || s.query.dept || s.query.net || s.query.level_sub || s.query.radius || s.query.dept_evidence),
 
     totalPages: (s) => Math.max(1, Math.ceil(s.total / s.query.pageSize)),
 
@@ -143,6 +146,9 @@ export const useDataStore = defineStore('data', {
           q: this.query.q || undefined,
           district: this.query.district || undefined,
           level: this.query.level || undefined,
+          level_sub: this.query.level_sub || undefined,
+          radius: this.query.radius || undefined,
+          dept_evidence: this.query.dept_evidence || undefined,
           category: this.query.category || undefined,
           dept: this.query.dept || undefined,
           net: this.query.net || undefined,
@@ -321,6 +327,9 @@ export const useDataStore = defineStore('data', {
       const conditions = {}
       if (f.district) conditions.district = [f.district]
       if (f.level) conditions.level = [f.level]
+      if (f.grade) { conditions.grades = [f.grade]; delete conditions.level }
+      if (f.radius !== '') conditions.radius = f.radius
+      if (f.dept && f.dept_evidence) conditions.dept_evidence = f.dept_evidence
       if (f.category) conditions.category = [f.category]
       if (f.ownership) conditions.ownership = [f.ownership]
       if (f.source) conditions.source = [f.source]
@@ -373,6 +382,9 @@ export const useDataStore = defineStore('data', {
           c._page_size = this.nlq.pageSize
           body.conditions = c
         }
+        const base = this.base || DEFAULT_BASE
+        body.lng = base.lng
+        body.lat = base.lat
         const r = await api.nlqQuery(body)
         this.nlq.result = r
         this.nlq.page = r.page || 1

@@ -149,6 +149,9 @@ FILTER_CASES = [
     {"name": "海淀区+骨科+三级", "conditions": {"district": ["海淀区"], "dept": "骨科",
                                                 "level": ["三级"]}},
     {"name": "骨科+民营", "conditions": {"dept": "骨科", "ownership": ["民营"]}},
+    # ---- 科室证据单独使用（无 dept 也必须过滤，否则控件形同虚设）----
+    {"name": "仅来源记录（无科室条件）", "conditions": {"dept_evidence": "recorded"}},
+    {"name": "仅来源记录+骨科", "conditions": {"dept": "骨科", "dept_evidence": "recorded"}},
     # ---- 距离排序：距离必须在排序前算好（否则会静默退化成按名称排序）----
     {"name": "全市医院按距离排序", "conditions": {"category": ["医院"], "_sort": "distance"}},
     {"name": "骨科按距离排序", "conditions": {"dept": "骨科", "_sort": "distance"}},
@@ -191,6 +194,11 @@ def py_matches(inst, cond):
         pool = "recorded_depts" if cond.get("dept_evidence") == "recorded" else "depts"
         ds = str(inst.get(pool) or "")
         if not ds or (";" + cond["dept"] + ";") not in (";" + ds + ";"):
+            return False
+    elif cond.get("dept_evidence") == "recorded":
+        # 与 app.py / app.nlq.js 同语义：未指定科室时，证据条件同样生效——
+        # 至少一条来源证据映射，否则单独勾选「仅有来源记录」形同虚设。
+        if not str(inst.get("recorded_depts") or ""):
             return False
     if cond.get("radius") is not None:
         # 与 app.nlq.js matches() 同语义：仅高精度坐标参与，球面直线距离取 2 位小数比较

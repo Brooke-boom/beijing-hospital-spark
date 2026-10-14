@@ -126,7 +126,8 @@ def api_institutions():
                           | depts（科室收录量多→少）| name（机构名称，默认 score）
       radius    直线距离半径（0 < km <= 200，仅高精度坐标）
       level_sub 等级等次（甲等/乙等/丙等）；level 支持三甲等简称
-      dept_evidence recorded 表示只使用 specialty/online/key_depts 来源映射
+      dept_evidence recorded 表示只使用 specialty/online/key_depts 来源映射；
+                  未指定 dept 时，表示只保留至少有一条来源证据映射的机构
       page      页码（默认 1）
       page_size 每页条数（默认 20，最大 100）
     返回：{total, page, page_size, items[], meta{}}
@@ -195,6 +196,13 @@ def api_institutions():
             "t.id IN (SELECT hospital_id FROM dwd_dept_relation_clean WHERE dept_name = %s" + evidence + ")"
         )
         params.append(dept)
+    elif args.get("dept_evidence") == "recorded":
+        # 未指定科室时，证据条件同样生效：只保留至少有一条来源证据映射的机构。
+        # 否则单独勾选「仅有来源记录」会不过滤任何机构，控件形同虚设。
+        where.append(
+            "t.id IN (SELECT hospital_id FROM dwd_dept_relation_clean"
+            " WHERE source IN ('specialty','online','key_depts'))"
+        )
     if net:
         _net_map = {"ped_core": ("net_pediatric", "核心"), "ped_member": ("net_pediatric", "成员"),
                     "stroke": ("net_stroke", "1"), "neonatal": ("net_neonatal", "市级"),

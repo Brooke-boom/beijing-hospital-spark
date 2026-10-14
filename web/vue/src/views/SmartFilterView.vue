@@ -83,13 +83,39 @@
 
         <div class="row" style="margin-top:12px">
           <div class="field" style="flex:1 1 200px">
-            <label>科室（取自机构实际开展科室）</label>
+            <label>科室映射（包含名称及规则推断）</label>
             <select class="ctl" v-model="form.dept">
               <option value="">全部科室</option>
               <option v-for="d in depts" :key="d.dept_name" :value="d.dept_name">
                 {{ d.dept_name }}（{{ d.hospital_count }}）
               </option>
             </select>
+          </div>
+          <div class="field" style="flex:1 1 170px">
+            <label>等级与等次</label>
+            <select class="ctl" v-model="form.grade">
+              <option value="">不限等次</option>
+              <option value="三级甲等">三级甲等（等次缺失不计入）</option>
+              <option value="二级甲等">二级甲等（等次缺失不计入）</option>
+            </select>
+          </div>
+          <div class="field" style="flex:1 1 190px">
+            <label>科室证据</label>
+            <select class="ctl" v-model="form.dept_evidence">
+              <option value="">全部映射（含推断）</option>
+              <option value="recorded">仅有来源记录（排除推断）</option>
+            </select>
+          </div>
+          <div class="field" style="flex:1 1 170px">
+            <label>距参考点半径（km）</label>
+            <input class="ctl" type="number" min="0.01" max="200" step="0.1" v-model="form.radius" placeholder="不限，仅高精度坐标" />
+            <small>参考点：{{ store.base ? store.base.name : '天安门' }}；直线距离，不代表路程。</small>
+          </div>
+          <div class="field" style="flex:1 1 200px">
+            <label>距离参考点</label>
+            <input class="ctl" v-model.trim="baseText" placeholder="输入地址并设定" @keyup.enter="setReference" />
+            <button class="btn ghost sm" type="button" :disabled="baseBusy" @click="setReference">{{ baseBusy ? '解析中…' : '设定参考点' }}</button>
+            <button v-if="store.base" class="btn ghost sm" type="button" @click="store.setBase(null)">恢复天安门</button>
           </div>
           <div class="field" style="flex:1 1 160px">
             <label>机构名称关键词</label>
@@ -269,7 +295,7 @@
                   </td>
                   <td><span class="badge" :class="lvClass(r.level)">{{ r.level || '—' }}</span></td>
                   <td><span class="badge" :class="ownClass(r.ownership)">{{ r.ownership || '未标注' }}</span></td>
-                  <td>{{ r.distance_km === null || r.distance_km === undefined ? '—' : r.distance_km + ' km' }}</td>
+                  <td>{{ r.distance_km === null || r.distance_km === undefined ? '—' : (r.coord_precision === 'high' ? '' : '约 ') + r.distance_km + ' km（直线）' }}</td>
                   <td>{{ r.score === null || r.score === undefined ? '—' : Number(r.score).toFixed(3) }}</td>
                 </tr>
               </tbody>
@@ -328,6 +354,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch, nextTick } from 'vue'
 import { useDataStore } from '../store'
+import api from '../api'
 import { tokens, tip, echarts } from '../charts'
 // 北京 16 区边界：权威副本在 web/vendor/beijing_geo.json，
 // web/vue/build.sh 每次构建会同步覆盖 geo/ 下的这一份，避免两处边界漂移。
@@ -343,6 +370,18 @@ const EXAMPLES = [
   '查看各区机构数量分布'
 ]
 
+const baseText = ref('')
+const baseBusy = ref(false)
+async function setReference() {
+  if (!baseText.value.trim()) return
+  baseBusy.value = true
+  try {
+    const r = await api.geocode(baseText.value.trim())
+    if (r.ok === false || r.lng == null || r.lat == null) throw new Error(r.error || r.message || '未找到该地址')
+    await store.setBase({ name: r.name || baseText.value, lng: r.lng, lat: r.lat })
+  } catch (e) { store.notify(e.message) }
+  finally { baseBusy.value = false }
+}
 const q = ref(store.nlq.q)
 const elStat = ref(null)
 const elMap = ref(null)
@@ -430,6 +469,9 @@ function submitCond() {
 function clearCond() {
   store.nlq.form.district = ''
   store.nlq.form.level = ''
+  store.nlq.form.grade = ''
+  store.nlq.form.radius = ''
+  store.nlq.form.dept_evidence = ''
   store.nlq.form.category = ''
   store.nlq.form.ownership = ''
   store.nlq.form.source = ''

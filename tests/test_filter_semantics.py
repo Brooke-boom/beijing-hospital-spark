@@ -84,6 +84,14 @@ class FilteringTests(unittest.TestCase):
         result = nlq.run_filter(self.query, {'dept':'骨科','dept_evidence':'recorded'})
         self.assertEqual({r['id'] for r in result['items']}, {'1','4','5','6'})
 
+    def test_evidence_without_dept_still_filters(self):
+        """dept_evidence=recorded 未指定科室时也必须过滤，否则控件形同虚设。"""
+        result = nlq.run_filter(self.query, {'dept_evidence':'recorded'}, page_size=100)
+        self.assertEqual({r['id'] for r in result['items']}, {'1','4','5','6'})
+        manual = self.client.get('/api/institutions?dept_evidence=recorded').get_json()
+        self.assertEqual(manual['total'], 4)
+        self.assertEqual(manual['total'], result['total'])
+
     def test_nl_parses_evidence_and_radius(self):
         """自然语言入口：「有来源记录」「N 公里/米内」必须落成结构化条件，且不漏进 kw。"""
         c = nlq.parse('东城区有来源记录的儿科医院', dept_names=['儿科'])['conditions']
@@ -110,8 +118,8 @@ class FilteringTests(unittest.TestCase):
         self.assertEqual(sql.count('%s'),len(args))
 
     def test_offline_matches_real_sql_and_fails_closed_on_old_evidence(self):
-        cases=[{'grades':['三级甲等']}, {'grades':['三级甲等','二级乙等']}, {'radius':5}, {'dept':'骨科','dept_evidence':'recorded'}]
-        script = """const {NLQ}=require('./web/app.nlq.js');const fs=require('fs');NLQ.init(JSON.parse(fs.readFileSync('web/nlq_lexicon.json')).lex);let x=JSON.parse(fs.readFileSync(0,'utf8'));let results=x.cases.map(c=>NLQ.runFilter(x.rows,c,1,100).items.map(r=>r.id));let old=x.rows.map(r=>{delete r.recorded_depts;return r});let rejected=NLQ.runFilter(old,{dept:'骨科',dept_evidence:'recorded'}).unsupported; console.log(JSON.stringify({results,rejected}));"""
+        cases=[{'grades':['三级甲等']}, {'grades':['三级甲等','二级乙等']}, {'radius':5}, {'dept':'骨科','dept_evidence':'recorded'}, {'dept_evidence':'recorded'}]
+        script = """const {NLQ}=require('./web/app.nlq.js');const fs=require('fs');NLQ.init(JSON.parse(fs.readFileSync('web/nlq_lexicon.json')).lex);let x=JSON.parse(fs.readFileSync(0,'utf8'));let results=x.cases.map(c=>NLQ.runFilter(x.rows,c,1,100).items.map(r=>r.id));let old=x.rows.map(r=>{delete r.recorded_depts;return r});let rejected=NLQ.runFilter(old,{dept_evidence:'recorded'}).unsupported; console.log(JSON.stringify({results,rejected}));"""
         result=json.loads(subprocess.check_output(['node','-e',script], input=json.dumps({'rows':self.rows,'cases':cases}).encode(),cwd=ROOT))
         for cond, ids in zip(cases, result['results']):
             actual=nlq.run_filter(self.query,cond,page_size=100)

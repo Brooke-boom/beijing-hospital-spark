@@ -76,6 +76,11 @@
       </div>
     </div>
 
+    <div class="row" style="margin-top:12px">
+      <div class="field"><label>等级等次</label><select class="ctl" v-model="store.query.level_sub" @change="apply()"><option value="">不限等次</option><option value="甲等">甲等</option><option value="乙等">乙等</option><option value="丙等">丙等</option></select></div>
+      <div class="field"><label>科室证据</label><select class="ctl" v-model="store.query.dept_evidence" @change="apply()"><option value="">全部映射（含推断）</option><option value="recorded">仅有来源记录</option></select></div>
+      <div class="field"><label>直线半径（km，仅高精度）</label><input class="ctl" type="number" min="0.01" max="200" v-model="store.query.radius" @change="apply()" placeholder="不限" /></div>
+    </div>
     <div class="chips" style="margin-top:12px">
       <span v-if="!store.chips.length" class="muted">未设置筛选条件（显示全部机构，按条件匹配度排序）</span>
       <span v-for="c in store.chips" :key="c.key" class="chip">

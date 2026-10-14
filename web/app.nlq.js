@@ -389,6 +389,11 @@ var NLQ = (function () {
       var ds = String((cond.dept_evidence === 'recorded' ? inst.recorded_depts : inst.depts) || '');
       if (!ds || (';' + ds + ';').indexOf(';' + cond.dept + ';') < 0) return false;
     }
+    if (!cond.dept && cond.dept_evidence === 'recorded') {
+      // 与后端同语义：未指定科室时，证据条件同样生效——至少一条来源证据映射，
+      // 否则单独勾选「仅有来源记录」会不过滤任何机构。
+      if (!String(inst.recorded_depts || '')) return false;
+    }
     if (cond.has_addr && !(inst.addr || '')) return false;
     if (cond.has_coord && !(inst.lng != null && inst.lat != null)) return false;
     if (cond.src_min && ((inst.src_count_int != null ? inst.src_count_int : inst.src_count) || 0) < cond.src_min) return false;
@@ -460,7 +465,7 @@ var NLQ = (function () {
   function runFilter(institutions, cond, page, pageSize, baseIn) {
     page = page || 1; pageSize = pageSize || 20;
     if (cond.radius != null && (!Number.isFinite(Number(cond.radius)) || Number(cond.radius) <= 0 || Number(cond.radius) > 200)) throw new Error('距离半径应大于 0 且不超过 200 km');
-    if (cond.dept && cond.dept_evidence === 'recorded' && institutions.some(function (r) { return !Object.prototype.hasOwnProperty.call(r, 'recorded_depts'); })) {
+    if (cond.dept_evidence === 'recorded' && institutions.some(function (r) { return !Object.prototype.hasOwnProperty.call(r, 'recorded_depts'); })) {
       return { total: 0, page: 1, page_size: pageSize, sort: 'score', items: [], all: [], stats: overview([]), unsupported: 'dept',
         message: '此快照未收录科室来源证据，无法执行仅有来源记录的筛选。请带数据库重建快照，或取消该证据条件。' };
     }
@@ -525,7 +530,7 @@ var NLQ = (function () {
   //  维度统计（对应 nlq.run_stats + summarize_stats）
   // --------------------------------------------------------------------------
   function runStats(institutions, cond, dimension, baseIn) {
-    if (cond.dept && cond.dept_evidence === 'recorded' && institutions.some(function (r) { return !Object.prototype.hasOwnProperty.call(r, 'recorded_depts'); })) {
+    if (cond.dept_evidence === 'recorded' && institutions.some(function (r) { return !Object.prototype.hasOwnProperty.call(r, 'recorded_depts'); })) {
       throw new Error('此快照未收录科室来源证据，请带数据库重建快照后再统计。');
     }
     var pool = [];

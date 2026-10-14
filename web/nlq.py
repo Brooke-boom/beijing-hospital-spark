@@ -687,6 +687,10 @@ def build_where(cond, base=None):
         where.append("t.id IN (SELECT hospital_id FROM dwd_dept_relation_clean"
                      " WHERE dept_name = %s" + evidence + ")")
         params.append(cond["dept"])
+    elif cond.get("dept_evidence") == "recorded":
+        # 与 app.py 同语义：未指定科室时，证据条件同样生效（至少一条来源证据映射）
+        where.append("t.id IN (SELECT hospital_id FROM dwd_dept_relation_clean"
+                     " WHERE source IN ('specialty','online','key_depts'))")
     if cond.get("has_addr"):
         where.append("t.addr IS NOT NULL AND t.addr <> ''")
     if cond.get("has_coord"):

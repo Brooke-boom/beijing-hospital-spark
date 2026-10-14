@@ -48,7 +48,7 @@
                 </td>
                 <td><span class="badge" :class="lvClass(r.level)">{{ r.level || '—' }}</span></td>
                 <td><span class="badge" :class="ownClass(r.ownership)">{{ r.ownership || '未标注' }}</span></td>
-                <td>{{ r.distance_km === null || r.distance_km === undefined ? '—' : r.distance_km + ' km' }}</td>
+                <td>{{ r.distance_km === null || r.distance_km === undefined ? '—' : (r.coord_precision === 'high' ? '' : '约 ') + r.distance_km + ' km（直线）' }}</td>
                 <td>{{ r.score === null || r.score === undefined ? '—' : r.score }}</td>
               </tr>
             </tbody>
