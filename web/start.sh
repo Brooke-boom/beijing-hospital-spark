@@ -6,14 +6,8 @@ set -e
 cd "$(dirname "$0")/.."
 PORT=${PORT:-5001}
 
-# 检查端口
-if lsof -nP -iTCP:$PORT -sTCP:LISTEN 2>/dev/null | grep -q LISTEN; then
-  echo "⚠️  端口 $PORT 已被占用："
-  lsof -nP -iTCP:$PORT -sTCP:LISTEN | head -2 | tail -1
-  echo ""
-  echo "可用以下命令换端口：PORT=8000 bash web/start.sh"
-  exit 1
-fi
+# 端口占用由 app.py 启动自愈处理：本项目旧实例自动结束重启，
+# 其他程序占用才报错退出（可用 PORT=8000 覆盖）
 
 # 检查数据库
 if ! nc -z 127.0.0.1 3307 2>/dev/null; then

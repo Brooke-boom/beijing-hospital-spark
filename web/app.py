@@ -1701,4 +1701,76 @@ def api_nlq_lexicon():
 
 if __name__ == "__main__":
     # macOS 端口 5000 常被 AirPlay Receiver 占用，默认使用 5001
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=False, threaded=True)
+    import signal
+    import subprocess
+    import sys
+    import time
+
+    PORT = int(os.environ.get("PORT", 5001))
+
+    def _listeners(port):
+        """返回监听指定端口的 PID 列表（无则空表）。"""
+        try:
+            out = subprocess.run(
+                ["lsof", "-nP", "-tiTCP:%d" % port, "-sTCP:LISTEN"],
+                capture_output=True, text=True, timeout=5)
+            return [int(x) for x in out.stdout.split() if x.strip().isdigit()]
+        except Exception:
+            return []
+
+    def _cmdline(pid):
+        try:
+            return subprocess.run(["ps", "-p", str(pid), "-o", "command="],
+                                  capture_output=True, text=True,
+                                  timeout=5).stdout.strip()
+        except Exception:
+            return ""
+
+    def _health_is_ours(port):
+        """命令行不可得时的兜底识别：/api/health 返回本项目特征即视为旧实例。"""
+        try:
+            import json as _json
+            import urllib.request
+            with urllib.request.urlopen(
+                    "http://127.0.0.1:%d/api/health" % port, timeout=3) as r:
+                d = _json.loads(r.read().decode("utf-8", "replace"))
+            return d.get("status") == "ok" and "institutions" in d
+        except Exception:
+            return False
+
+    # —— 端口自愈：旧的本项目实例直接结束重启，别的程序占用才报错 ——
+    listeners = _listeners(PORT)
+    if listeners:
+        def _is_stale(pid):
+            cmd = _cmdline(pid)
+            if cmd:
+                return "app.py" in cmd or "start.sh" in cmd
+            # ps 不可用/取不到命令行 → 用健康检查特征兜底
+            return _health_is_ours(PORT)
+
+        stale = [pid for pid in listeners if _is_stale(pid)]
+        if stale and len(stale) == len(listeners):
+            print("⚠️  端口 %d 被本服务旧实例占用，自动结束并重启：" % PORT)
+            for pid in stale:
+                print("    结束旧进程 PID %d（%s）" % (pid, _cmdline(pid)[:90]))
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except Exception:
+                    pass
+            for _ in range(20):            # 最多等 6 秒让端口释放
+                time.sleep(0.3)
+                if not _listeners(PORT):
+                    break
+            if _listeners(PORT):
+                print("❌ 旧进程未能退出，请手动处理后重试。")
+                sys.exit(1)
+            print("✅ 端口已释放，继续启动。\n")
+        else:
+            print("❌ 端口 %d 被其他程序占用（非本项目 Flask），请换端口启动："
+                  % PORT)
+            for pid in listeners:
+                print("    PID %d：%s" % (pid, _cmdline(pid)[:90]))
+            print("    换端口示例：PORT=8000 python web/app.py")
+            sys.exit(1)
+
+    app.run(host="0.0.0.0", port=PORT, debug=False, threaded=True)
