@@ -199,6 +199,8 @@ var NLQ_UI = (function () {
   // --------------------------------------------------------------------------
   function renderReply(res, extra) {
     var box = el('nlq_chips'), msg = el('nlq_msg'), mis = el('nlq_unmatched'), note = el('nlq_notice');
+    var rep = el('nlq_reply');
+    if (rep) rep.style.display = '';      // 有解析结果才亮卡，默认隐藏避免空面板
     var applied = (res && res.applied) || [];
 
     // —— 主提示语 ——

@@ -201,28 +201,31 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
    智能筛选页（自然语言 + 条件双通道）—— 单文件形态内嵌
    命名统一加 nlq- 前缀，与查阅形态既有样式隔离，避免互相污染。
    ============================================================================ */
-.nlqtabs{display:flex;align-items:center;gap:6px;margin-bottom:15px;flex-wrap:wrap}
-.nlqtab{padding:7px 14px;border-radius:9px;border:1px solid var(--line);background:transparent;
-  color:var(--ink-3);font-size:12.5px;font-weight:500;cursor:pointer;font-family:inherit;transition:.15s}
+.nlqtabs{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.nlqtab{display:inline-flex;align-items:center;gap:7px;padding:8px 16px;border-radius:10px;
+  border:1px solid var(--line);background:transparent;color:var(--ink-3);font-size:13px;
+  font-weight:600;cursor:pointer;font-family:inherit;transition:.15s}
+.nlqtab .ic{width:14px;height:14px}
 .nlqtab:hover{color:var(--ink);border-color:var(--line-2)}
-.nlqtab.active{background:rgba(var(--acc-rgb),.14);border-color:rgba(var(--acc-rgb),.34);
-  color:var(--acc);font-weight:650}
+.nlqtab.active{background:var(--acc);border-color:var(--acc);color:#fff}
 .nlqwait{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink-3)}
 .nlqwait::before{content:'';width:11px;height:11px;border-radius:50%;
   border:2px solid var(--line-2);border-top-color:var(--acc);animation:nlqspin .7s linear infinite}
 @keyframes nlqspin{to{transform:rotate(360deg)}}
 .nlqpane{display:none}
+.nlqpane.active{display:block;min-height:264px}
+.nlq-lead{font-size:12px;color:var(--ink-3);margin:0 0 12px;padding-left:10px;
+  border-left:3px solid rgba(var(--acc-rgb),.55);line-height:1.5}
 /* —— AI 问答窗口（通道 C）—— */
 .aichat{display:flex;flex-direction:column;gap:10px}
-.aichat-modes{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.aichat-mode{padding:6px 13px;border-radius:999px;border:1px solid var(--line);
-  background:transparent;color:var(--ink-3);font-size:12px;font-weight:500;cursor:pointer;
-  font-family:inherit;transition:.15s}
+.aichat-modes{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.aichat-mode{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:999px;
+  border:1px solid var(--line);background:transparent;color:var(--ink-3);font-size:12.5px;
+  font-weight:600;cursor:pointer;font-family:inherit;transition:.15s}
 .aichat-mode:hover{color:var(--ink);border-color:var(--line-2)}
-.aichat-mode.active{background:rgba(var(--acc-rgb),.14);border-color:rgba(var(--acc-rgb),.34);
-  color:var(--acc);font-weight:650}
+.aichat-mode.active{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:650}
 .aichat-scope{margin-left:auto;font-size:11px;color:var(--ink-3)}
-.aichat-msgs{display:flex;flex-direction:column;gap:10px;min-height:220px;max-height:420px;
+.aichat-msgs{display:flex;flex-direction:column;gap:10px;height:280px;
   overflow-y:auto;padding:12px;border:1px solid var(--line);border-radius:12px;
   background:var(--bg-soft);scroll-behavior:smooth}
 .aichat-msg{max-width:86%;padding:9px 12px;border-radius:11px;font-size:12.5px;
@@ -252,7 +255,6 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .aichat-send:hover{background:var(--acc-d)}
 .aichat-send:disabled{opacity:.45;cursor:not-allowed}
 .aichat-foot{font-size:10.5px;color:var(--ink-4);line-height:1.6}
-.nlqpane.active{display:block}
 .nlqconds{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 14px;align-items:end}
 .nlqconds .nc{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--ink-3);min-width:0}
 .nlqconds .nc select,.nlqconds .nc input{width:100%;box-sizing:border-box;height:36px;padding:0 10px;
@@ -1392,14 +1394,15 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 
   <div class="panel railcard" style="margin:0 var(--pad-x)">
     <div class="nlqtabs" id="nlq_tabs" role="tablist">
-      <button class="nlqtab active" type="button" data-ntab="nl" role="tab" aria-selected="true">自然语言筛选</button>
-      <button class="nlqtab" type="button" data-ntab="cond" role="tab" aria-selected="false">条件筛选</button>
-      <button class="nlqtab" type="button" data-ntab="ai" role="tab" aria-selected="false">AI 问答</button>
+      <button class="nlqtab active" type="button" data-ntab="nl" role="tab" aria-selected="true"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span>自然语言筛选</span></button>
+      <button class="nlqtab" type="button" data-ntab="cond" role="tab" aria-selected="false"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg><span>条件筛选</span></button>
+      <button class="nlqtab" type="button" data-ntab="ai" role="tab" aria-selected="false"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 15l.9 2.4L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.6z"/></svg><span>AI 问答</span></button>
       <span class="nlqwait" id="nlq_wait" style="display:none">正在检索数据库…</span>
     </div>
 
     <!-- 通道 A：自然语言 -->
     <div class="nlqpane active" id="nlq_pane_nl">
+      <div class="nlq-lead">用一句口语描述筛选需求，系统解析成条件后查数据库</div>
       <div class="nlq-field">
         <button class="nlq-ic" id="btn_voice_ai" type="button"
           title="语音输入：需在本机 http://localhost:5001 下使用" aria-label="语音输入"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11a7 7 0 0014 0M12 18v3M8.5 21h7"/></svg></button>
@@ -1415,6 +1418,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 
     <!-- 通道 B：条件筛选 -->
     <div class="nlqpane" id="nlq_pane_cond">
+      <div class="nlq-lead">按维度精确组合筛选，每个条件与数据仓库字段一一对应</div>
       <div class="nlqconds">
         <label class="nc"><span>行政区</span><select id="q_district" title="限定行政区"></select></label>
         <label class="nc"><span>机构等级</span><select id="q_level" title="限定医院等级"></select></label>
@@ -1433,34 +1437,35 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
         </div>
       </div>
     </div>
+
+    <!-- 通道 C：AI 问答（Agnes · 受约束的就医咨询，医院推荐只限当前筛选结果） -->
+    <div class="nlqpane" id="nlq_pane_ai">
+      <div class="nlq-lead">向 AI 描述问诊、就医流程或选院需求；医院推荐只基于当前筛选出的真实结果</div>
+      <div class="aichat" id="aichat">
+        <div class="aichat-modes" id="aichat_modes">
+          <button class="aichat-mode active" type="button" data-mode="triage">问诊导诊</button>
+          <button class="aichat-mode" type="button" data-mode="visit">就医建议</button>
+          <button class="aichat-mode" type="button" data-mode="hospital">医院选择</button>
+          <span class="aichat-scope">医院推荐仅限当前筛选结果 · 不做诊断与用药建议</span>
+        </div>
+        <div class="aichat-msgs" id="aichat_msgs"></div>
+        <div class="aichat-input">
+          <input id="aichat_input" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="例如：最近头疼低烧，该挂什么科？">
+          <button class="aichat-send" id="aichat_send" type="button" title="发送（也可按回车）">发送</button>
+        </div>
+        <div class="aichat-foot" id="aichat_foot">Agnes 大模型 · 免费额度约 1 次/30 秒（相同问题走缓存秒回）· 信息仅供参考，以医院官方信息与医生面诊为准</div>
+      </div>
+    </div>
   </div>
 
   <!-- 解析结果：条件卡片（可逐项移除）+ 未识别片段 + 边界说明 + 结果说明 -->
-  <div class="panel nlqreply" id="nlq_reply" style="margin:var(--gap) var(--pad-x) 0">
+  <div class="panel nlqreply" id="nlq_reply" style="margin:var(--gap) var(--pad-x) 0;display:none">
     <div id="nlq_msg" class="nlqmsg muted"></div>
     <div class="nlqchips" id="nlq_chips"></div>
     <div class="nlqmiss" id="nlq_unmatched" style="display:none"></div>
     <div class="nlqnote" id="nlq_notice" style="display:none"></div>
     <div class="nlqsum" id="nlq_summary" style="display:none"></div>
-  </div>
-
-  <!-- 通道 C：AI 问答（Agnes · 受约束的就医咨询，医院推荐只限当前筛选结果） -->
-  <div class="nlqpane" id="nlq_pane_ai">
-    <div class="aichat" id="aichat">
-      <div class="aichat-modes" id="aichat_modes">
-        <button class="aichat-mode active" type="button" data-mode="triage">问诊导诊</button>
-        <button class="aichat-mode" type="button" data-mode="visit">就医建议</button>
-        <button class="aichat-mode" type="button" data-mode="hospital">医院选择</button>
-        <span class="aichat-scope">医院推荐仅限当前筛选结果 · 不做诊断与用药建议</span>
-      </div>
-      <div class="aichat-msgs" id="aichat_msgs"></div>
-      <div class="aichat-input">
-        <input id="aichat_input" type="text" autocomplete="off" spellcheck="false"
-               placeholder="例如：最近头疼低烧，该挂什么科？">
-        <button class="aichat-send" id="aichat_send" type="button" title="发送（也可按回车）">发送</button>
-      </div>
-      <div class="aichat-foot" id="aichat_foot">Agnes 大模型 · 免费额度约 1 次/30 秒（相同问题走缓存秒回）· 信息仅供参考，以医院官方信息与医生面诊为准</div>
-    </div>
   </div>
 
   <!-- 维度统计（"按行政区统计…"这类输入）：ECharts 与本次查询结果联动 -->
