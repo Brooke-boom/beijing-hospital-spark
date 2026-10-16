@@ -166,7 +166,7 @@ MEDICAL_WORDS = [
     "乏力", "水肿", "浮肿", "皮疹", "瘙痒", "过敏", "荨麻疹", "长痘",
     "骨折", "扭伤", "外伤", "流血", "出血", "昏迷", "抽搐", "晕倒", "摔伤",
     # 疾病 / 病情描述（只收词组，避免误伤"疾病预防控制中心"这类机构名）
-    "高血压", "糖尿病", "冠心病", "脑梗", "中风", "肿瘤", "癌", "结石", "囊肿",
+    "头疼", "高血压", "糖尿病", "冠心病", "脑梗", "中风", "肿瘤", "癌", "结石", "囊肿",
     "椎间盘", "腰椎", "颈椎", "滑脱", "增生", "风湿", "痛风", "哮喘", "鼻炎",
     "胃病", "胃溃疡", "肝炎", "贫血", "甲亢", "甲状腺", "抑郁", "焦虑", "多动",
     "自闭", "发育迟缓", "营养不良", "近视", "龋齿", "牙疼", "牙痛", "视力下降",
@@ -192,6 +192,29 @@ MEDICAL_REFUSAL = (
     "用药建议或治疗推荐——本项目的数据集里没有患者诊疗数据，也不做医学知识问答。\n"
     "您可以改为描述想查找的机构条件，例如行政区、机构类型、医院等级、所有制、"
     "数据来源或具体科室。"
+)
+
+# 症状词**单独子表**：这类词绝不可能出现在医疗机构名称或地址里。
+# 为什么需要它：输入同时含结构化条件与症状词时（「海淀区 头疼发烧」），
+# 病征拒答不触发（因为有结构化条件），症状词会漏进第 8 步的"机构名关键词"
+# → name LIKE '%头疼发烧%' → 查询恒为 0，而且两端一致地错。
+# 处理方式：在第 8 步把症状词从剩余文本里**安全剥离**并给出明确说明，
+# 让"海淀区"这类有效条件照常生效。
+# 疾病类词汇（肿瘤、骨折……）**不进**这张表：它们常是真实机构名的组成部分
+# （"肿瘤医院"），剥离反而会把能用的关键词丢掉。
+SYMPTOM_WORDS = [
+    "头疼", "发烧", "发热", "咳嗽", "咳痰", "咽痛", "流鼻涕", "鼻塞", "打喷嚏",
+    "头痛", "头晕", "眩晕", "腹痛", "胃痛", "腰痛", "腿痛", "关节痛",
+    "恶心", "呕吐", "腹泻", "便秘", "腹胀", "消化不良", "食欲不振",
+    "失眠", "睡不着", "心慌", "心悸", "胸闷", "气短", "呼吸困难", "憋气",
+    "乏力", "水肿", "浮肿", "皮疹", "瘙痒", "荨麻疹", "长痘",
+    "昏迷", "抽搐", "晕倒", "摔伤", "扭伤", "骨折", "外伤", "过敏",
+]
+SYMPTOM_NOTICE = (
+    "「%s」是症状描述，不是机构名称或机构属性——系统不做症状到科室的医学推断，"
+    "已忽略这部分内容，当前结果为按其余条件的真实查询结果。"
+    "如需缩小范围，可补充机构类型、医院等级或具体科室，"
+    "例如「海淀区的社区卫生服务中心」。"
 )
 
 # 免责 / 口径说明（前端"数据来源说明"区块直接展示，保证 AI 边界对用户可见）
@@ -521,6 +544,14 @@ def parse(text, dept_names=None):
     # ② 纯程度残渣（"大医院"剩下一个"大"）：不是机构名关键词，也不算"没听懂"。
     if rest and len(rest) <= 2 and all(c in DEGREE_ONLY_CHARS for c in rest):
         rest = ""
+    # ③ 症状词剥离（见 SYMPTOM_WORDS 注释）：「海淀区 头疼发烧」若不剥，
+    #    "头疼发烧"会整段变成机构名关键词 → 查询恒为 0。剥掉后行政区等
+    #    有效条件照常生效，并在意图判定后给出明确说明（SYMPTOM_NOTICE）。
+    stripped_symptoms = []
+    for _sw in sorted(SYMPTOM_WORDS, key=len, reverse=True):
+        if _sw in rest:
+            stripped_symptoms.append(_sw)
+            rest = rest.replace(_sw, "")
     if len(rest) >= 2 and not re.fullmatch(r"[0-9]+", rest):
         cond["kw"] = rest
     elif rest and not re.fullmatch(r"[0-9]+", rest):
@@ -529,9 +560,11 @@ def parse(text, dept_names=None):
     # ---------- 8.5 数据年份：本数据集没有机构级年份字段 ----------
     # 与其假装支持，不如明确告知边界（论文 3.x "数据边界"一节引用此处）。
     if re.search(r"(19|20)\d{2}\s*年?", t):
-        out["notice"] = ("当前数据集的机构记录未保留「数据来源年份」字段，"
-                         "因此无法按年份筛选；数据来源与批次时效可在「数据整合」"
-                         "与「数据质量」页查看。")
+        _prev = out.get("notice")
+        out["notice"] = (_prev + "\n" if _prev else "") + (
+            "当前数据集的机构记录未保留「数据来源年份」字段，"
+            "因此无法按年份筛选；数据来源与批次时效可在「数据整合」"
+            "与「数据质量」页查看。")
         if cond.get("kw") and re.fullmatch(r"(19|20)\d{2}年?", cond["kw"]):
             cond.pop("kw")
 
@@ -547,6 +580,12 @@ def parse(text, dept_names=None):
                    medical_hits=(med_hits or ["就诊者叙述"])[:5],
                    message=MEDICAL_REFUSAL)
         return out
+
+    # ---------- 10.5 症状词剥离说明（放在拒答判定之后：纯症状输入走拒答，不重复提示） ----------
+    if stripped_symptoms:
+        _prev = out.get("notice")
+        out["notice"] = (_prev + "\n" if _prev else "") + (
+            SYMPTOM_NOTICE % "、".join(stripped_symptoms))
 
     stats_like = any(w in t for w in STATS_WORDS)
     dimension = None
@@ -905,6 +944,8 @@ def export_lexicon():
         "dim_label": DIM_LABEL,
         "dim_chart": DIM_CHART,
         "medical_words": MEDICAL_WORDS,
+        "symptom_words": SYMPTOM_WORDS,
+        "symptom_notice": SYMPTOM_NOTICE,
         "narrative_crowd": NARRATIVE_CROWD,
         "narrative_course": NARRATIVE_COURSE,
         "stop_phrases": STOP_PHRASES,

@@ -262,12 +262,21 @@ var NLQ = (function () {
       }
       if (allDegree) rest = '';
     }
+    // ③ 症状词剥离（与 nlq.py SYMPTOM_WORDS 同源）：「海淀区 头疼发烧」若不剥，
+    //    "头疼发烧"会整段变成机构名关键词 → 查询恒为 0。剥掉后有效条件照常生效。
+    var strippedSyms = [];
+    (LEX.symptom_words || []).slice().sort(function (a, b) { return b.length - a.length; })
+      .forEach(function (w) {
+        if (rest.indexOf(w) >= 0) { strippedSyms.push(w); rest = rest.split(w).join(''); }
+      });
     if (rest.length >= 2 && !/^[0-9]+$/.test(rest)) cond.kw = rest;
     else if (rest.length && !/^[0-9]+$/.test(rest)) out.unmatched.push(rest);
 
     // ---------- 8.5 数据年份（本数据集没有机构级年份字段，明确告知） ----------
     if (/(19|20)\d{2}\s*年?/.test(t)) {
-      out.notice = '当前数据集的机构记录未保留「数据来源年份」字段，因此无法按年份筛选；'
+      var prevNote = out.notice || '';
+      out.notice = (prevNote ? prevNote + '\n' : '')
+        + '当前数据集的机构记录未保留「数据来源年份」字段，因此无法按年份筛选；'
         + '数据来源与批次时效可在「数据整合」与「数据质量」页查看。';
       if (cond.kw && /^(19|20)\d{2}年?$/.test(cond.kw)) delete cond.kw;
     }
@@ -285,6 +294,14 @@ var NLQ = (function () {
       out.medical_hits = (medHits.length ? medHits : ['就诊者叙述']).slice(0, 5);
       out.message = LEX.medical_refusal;
       return out;
+    }
+
+    // ---------- 10.5 症状词剥离说明（放在拒答判定之后：纯症状输入走拒答，不重复提示） ----------
+    if (strippedSyms.length) {
+      var prevSym = out.notice || '';
+      out.notice = (prevSym ? prevSym + '\n' : '')
+        + (LEX.symptom_notice || '「%s」是症状描述，已忽略这部分内容。')
+          .replace('%s', strippedSyms.join('、'));
     }
 
     var statsLike = LEX.stats_words.some(function (w) { return t.indexOf(w) >= 0; });
