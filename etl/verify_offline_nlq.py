@@ -251,7 +251,7 @@ def py_overview(items):
 
 
 def py_sort(items, sort):
-    """与 JS sortItems 同序（score 用 matchScore，兜底比名称）。"""
+    """与 JS sortItems 同序（score 用 matchScore；并列按 等级→科室量→名称，同 nlq.ORDER_BY）。"""
     key_name = lambda x: x["name"] or ""          # noqa: E731
     if sort == "distance":
         items.sort(key=lambda x: (x["distance_km"] is None,
@@ -264,7 +264,10 @@ def py_sort(items, sort):
     elif sort == "name":
         items.sort(key=key_name)
     else:
-        items.sort(key=lambda x: (-x["score"], key_name(x)))
+        items.sort(key=lambda x: (-x["score"],
+                                  -(nlq.LEVEL_RANK.get(x["level"]) or 0),
+                                  -(x["dept_count"] or 0),
+                                  key_name(x)))
     return items
 
 

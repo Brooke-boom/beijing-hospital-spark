@@ -457,7 +457,15 @@ var NLQ = (function () {
     } else if (s === 'name') {
       items.sort(cmpName);
     } else {
-      items.sort(function (a, b) { return (b.score - a.score) || cmpName(a, b); });
+      // score 的并列裁决（与 nlq.py ORDER_BY['score'] 同源）：
+      // 等级（高→低，未定级垫底）→ 科室收录量（多→少）→ 名称码位序。
+      // 只按名称排会让"世界…门诊部"排在中国中医科学院望京医院前面，反直觉。
+      items.sort(function (a, b) {
+        return (b.score - a.score)
+          || ((LEX.level_rank[b.level] || 0) - (LEX.level_rank[a.level] || 0))
+          || ((b.dept_count || 0) - (a.dept_count || 0))
+          || cmpName(a, b);
+      });
     }
     return items;
   }

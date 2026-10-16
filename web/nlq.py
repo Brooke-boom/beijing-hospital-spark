@@ -755,17 +755,24 @@ def build_where(cond, base=None):
     return " AND ".join(where), params
 
 
-# 严格筛选下所有返回记录均满足全部条件；匹配度恒为 1，并列按名称排序。
+# 严格筛选下所有返回记录均满足全部条件；匹配度恒为 1。
+# 并列裁决不再按名称码位序（那会让"世界…门诊部"排在中国中医科学院望京医院前面，
+# 用户看起来毫无道理），改用数据集真实收录字段的级联：
+#   等级（高→低，未定级垫底）→ 科室收录量（多→少）→ 机构名称。
 # 保留权重导出字段供历史离线页面兼容，不再用于评分。
 MATCH_WEIGHTS = {"district": 0.30, "level": 0.25, "category": 0.20,
                  "ownership": 0.15, "source": 0.10}
-MATCH_FORMULA = "结果须满足全部筛选条件，匹配度统一为 1；并列按机构名称排序，不代表机构实力或好坏。"
+MATCH_FORMULA = ("结果须满足全部筛选条件，匹配度统一为 1；并列按 医院等级（高→低）→ "
+                 "科室收录量（多→少）→ 机构名称 排序，均为数据集真实收录字段，"
+                 "不代表机构实力或好坏。")
+
+_LEVEL_CASE = ("CASE t.level_norm WHEN '三级' THEN 3 WHEN '二级' THEN 2"
+               " WHEN '一级' THEN 1 ELSE 0 END")
 
 ORDER_BY = {
-    "score": "score DESC, t.name ASC",
+    "score": ("score DESC, " + _LEVEL_CASE + " DESC, t.dept_count DESC, t.name ASC"),
     "distance": "distance_km IS NULL, distance_km ASC, t.name ASC",
-    "level": ("CASE t.level_norm WHEN '三级' THEN 3 WHEN '二级' THEN 2"
-              " WHEN '一级' THEN 1 ELSE 0 END DESC, t.name ASC"),
+    "level": _LEVEL_CASE + " DESC, t.name ASC",
     "depts": "t.dept_count DESC, t.name ASC",
     "name": "t.name ASC",
 }

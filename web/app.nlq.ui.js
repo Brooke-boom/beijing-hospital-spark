@@ -542,7 +542,7 @@ function rowHtml(r) {
     var distLabel = '距' + ((BASE_NOW && curBase().name) ? curBase().name : '市中心');
     var ksc = r.key_specialty_count || 0;
     var scoreTxt = (r.score == null) ? '' :
-      '<div class="score" title="条件匹配度：命中条件权重之和 ÷ 本次条件权重之和">' +
+      '<div class="score" title="条件匹配度：结果须满足全部筛选条件，统一为 1；并列按 等级（高→低）→ 科室收录量（多→少）→ 名称 排序">' +
       Number(r.score).toFixed(3) + '</div>';
     return '<div class="row' + (on ? ' sel' : '') + '" data-id="' + esc(r.id) + '">' +
       '<div class="pick" data-pick="' + esc(r.id) + '" title="加入对比（最多 ' + PICK_MAX + ' 家）">' + svgIcon('ok') + '</div>' +
