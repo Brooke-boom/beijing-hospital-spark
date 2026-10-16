@@ -225,7 +225,7 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .aichat-mode:hover{color:var(--ink);border-color:var(--line-2)}
 .aichat-mode.active{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:650}
 .aichat-scope{margin-left:auto;font-size:11px;color:var(--ink-3)}
-.aichat-msgs{display:flex;flex-direction:column;gap:10px;height:280px;
+.aichat-msgs{display:flex;flex-direction:column;gap:10px;height:240px;
   overflow-y:auto;padding:12px;border:1px solid var(--line);border-radius:12px;
   background:var(--bg-soft);scroll-behavior:smooth}
 .aichat-msg{max-width:86%;padding:9px 12px;border-radius:11px;font-size:12.5px;
@@ -244,7 +244,8 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .aichat-typing i:nth-child(2){animation-delay:.18s}
 .aichat-typing i:nth-child(3){animation-delay:.36s}
 @keyframes aichatB{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
-.aichat-input{display:flex;gap:8px}
+.aichat-input{display:flex;gap:8px;align-items:center}
+.aichat-input .nlq-ic{width:36px;height:40px;border-radius:10px;border-color:var(--line)}
 .aichat-input input{flex:1;padding:10px 14px;border-radius:10px;border:1px solid var(--line-2);
   background:var(--panel);color:var(--ink);font-size:13px;font-family:inherit;outline:none;
   transition:border-color .15s}
@@ -1390,72 +1391,30 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
      两条通道（自然语言 / 条件）共用同一个执行链，输出同一套结果视图。 -->
 <section id="view-filter" class="view">
   <div class="sec-title"><span class="bar"></span>医疗机构智能筛选
-    <span class="hint">自然语言 → 结构化筛选条件 → 数据库检索 · 所有数字均来自数据仓库的真实查询结果</span></div>
+    <span class="hint">AI 对话式筛选与就医咨询 → 结构化条件 → 数据库检索 · 所有数字均来自数据仓库的真实查询结果</span></div>
 
   <div class="panel railcard" style="margin:0 var(--pad-x)">
-    <div class="nlqtabs" id="nlq_tabs" role="tablist">
-      <button class="nlqtab active" type="button" data-ntab="nl" role="tab" aria-selected="true"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span>自然语言筛选</span></button>
-      <button class="nlqtab" type="button" data-ntab="cond" role="tab" aria-selected="false"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg><span>条件筛选</span></button>
-      <button class="nlqtab" type="button" data-ntab="ai" role="tab" aria-selected="false"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 15l.9 2.4L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.6z"/></svg><span>AI 问答</span></button>
-      <span class="nlqwait" id="nlq_wait" style="display:none">正在检索数据库…</span>
-    </div>
-
-    <!-- 通道 A：自然语言 -->
-    <div class="nlqpane active" id="nlq_pane_nl">
-      <div class="nlq-lead">用一句口语描述筛选需求，系统解析成条件后查数据库</div>
-      <div class="nlq-field">
+    <!-- 唯一入口：AI 对话式筛选与就医咨询（自然语言/条件筛选与「机构查询」页重合，已并入对话） -->
+    <div class="nlq-lead" style="margin-bottom:10px">一个窗口完成筛选与咨询：选「机构筛选」查真实数据（结果与地图见下方），其余模式获得就医建议；医院推荐只基于当前筛选出的真实结果</div>
+    <div class="aichat" id="aichat">
+      <div class="aichat-modes" id="aichat_modes">
+        <button class="aichat-mode active" type="button" data-mode="filter">机构筛选</button>
+        <button class="aichat-mode" type="button" data-mode="triage">问诊导诊</button>
+        <button class="aichat-mode" type="button" data-mode="visit">就医建议</button>
+        <button class="aichat-mode" type="button" data-mode="hospital">医院选择</button>
+        <span class="aichat-scope" id="nlq_wait" style="display:none">正在检索数据库…</span>
+        <span class="aichat-scope">不做诊断与用药建议 · 所有数字来自数据库</span>
+      </div>
+      <div class="quickbar" id="aichat_ex"></div>
+      <div class="aichat-msgs" id="aichat_msgs"></div>
+      <div class="aichat-input">
         <button class="nlq-ic" id="btn_voice_ai" type="button"
           title="语音输入：需在本机 http://localhost:5001 下使用" aria-label="语音输入"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11a7 7 0 0014 0M12 18v3M8.5 21h7"/></svg></button>
-        <input id="f_ai" type="text" autocomplete="off" spellcheck="false"
-               placeholder="例如：朝阳区和海淀区的三级医院，公立，来自卫健委公示名单"
-               title="支持口语化描述：行政区 / 机构等级 / 机构类型 / 所有制 / 数据来源 / 排序方式">
-        <button class="nlq-x" id="btn_ai_clear" type="button" title="清空输入" aria-label="清空输入" style="display:none">×</button>
-        <button class="nlq-send" id="btn_ai" type="button" title="解析并检索（也可直接按回车）" aria-label="解析并检索"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+        <input id="aichat_input" type="text" autocomplete="off" spellcheck="false"
+               placeholder="例如：朝阳区和海淀区的三级医院，公立">
+        <button class="aichat-send" id="aichat_send" type="button" title="发送（也可按回车）">发送</button>
       </div>
-      <div class="quickbar" id="nlq_examples"></div>
-      <div class="nlqscope" id="nlq_scope"></div>
-    </div>
-
-    <!-- 通道 B：条件筛选 -->
-    <div class="nlqpane" id="nlq_pane_cond">
-      <div class="nlq-lead">按维度精确组合筛选，每个条件与数据仓库字段一一对应</div>
-      <div class="nlqconds">
-        <label class="nc"><span>行政区</span><select id="q_district" title="限定行政区"></select></label>
-        <label class="nc"><span>机构等级</span><select id="q_level" title="限定医院等级"></select></label>
-        <label class="nc"><span>等级与等次</span><select id="q_grade" title="等次缺失不计入"></select></label>
-        <label class="nc"><span>直线半径 km（仅高精度）</span><input id="q_radius" type="number" min="0.01" max="200" step="0.1" placeholder="不限；未定位按天安门"></label>
-        <label class="nc"><span>机构类型</span><select id="q_cat" title="限定机构类型"></select></label>
-        <label class="nc"><span>所有制</span><select id="q_own" title="限定所有制性质"></select></label>
-        <label class="nc"><span>数据来源</span><select id="q_source" title="限定该机构的记录来自哪一类公开数据文件"></select></label>
-        <label class="nc"><span>名称关键词</span><input id="q_kw" type="text" placeholder="如：协和、儿童、妇儿"></label>
-        <label class="nc"><span>科室映射（含推断）</span><select id="q_dept"></select></label>
-        <label class="nc"><span>科室证据</span><select id="q_evidence"><option value="">全部映射（含推断）</option><option value="recorded">仅有来源记录</option></select></label>
-        <label class="nc"><span>结果排序</span><select id="q_sort" title="结果排序方式"></select></label>
-        <div class="nc ncbtn">
-          <button class="btn pri sm" id="q_run" type="button">执行筛选</button>
-          <button class="btn ghost sm" id="q_reset" type="button">重置</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 通道 C：AI 问答（Agnes · 受约束的就医咨询，医院推荐只限当前筛选结果） -->
-    <div class="nlqpane" id="nlq_pane_ai">
-      <div class="nlq-lead">向 AI 描述问诊、就医流程或选院需求；医院推荐只基于当前筛选出的真实结果</div>
-      <div class="aichat" id="aichat">
-        <div class="aichat-modes" id="aichat_modes">
-          <button class="aichat-mode active" type="button" data-mode="triage">问诊导诊</button>
-          <button class="aichat-mode" type="button" data-mode="visit">就医建议</button>
-          <button class="aichat-mode" type="button" data-mode="hospital">医院选择</button>
-          <span class="aichat-scope">医院推荐仅限当前筛选结果 · 不做诊断与用药建议</span>
-        </div>
-        <div class="aichat-msgs" id="aichat_msgs"></div>
-        <div class="aichat-input">
-          <input id="aichat_input" type="text" autocomplete="off" spellcheck="false"
-                 placeholder="例如：最近头疼低烧，该挂什么科？">
-          <button class="aichat-send" id="aichat_send" type="button" title="发送（也可按回车）">发送</button>
-        </div>
-        <div class="aichat-foot" id="aichat_foot">Agnes 大模型 · 免费额度约 1 次/30 秒（相同问题走缓存秒回）· 信息仅供参考，以医院官方信息与医生面诊为准</div>
-      </div>
+      <div class="aichat-foot" id="aichat_foot">筛选由本地规则引擎离线解析、数据库真实查询（不走大模型）；问诊/就医/选院建议由 Agnes 生成（免费额度约 1 次/30 秒，相同问题走缓存秒回）· 信息仅供参考，以医院官方信息与医生面诊为准</div>
     </div>
   </div>
 

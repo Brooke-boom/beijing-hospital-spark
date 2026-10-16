@@ -103,7 +103,7 @@ var NLQ_UI = (function () {
   //      且后端可达时，才回退 /api/nlq/query。医疗边界拒答不走回退——
   //      本地规则已给出结论，再往返一次没有意义。
   function execute(req, opts) {
-    if (BUSY) return;
+    if (BUSY) return Promise.resolve(null);
     setBusy(true);
     var local = null, localErr = null;
     try { local = localExecute(req); } catch (e) { localErr = e; }
@@ -116,14 +116,14 @@ var NLQ_UI = (function () {
     } else {
       p = localErr ? Promise.reject(localErr) : Promise.resolve(local);
     }
-    p.then(function (res) {
+    return p.then(function (res) {
       setBusy(false);
-      if (!res) { toast(svgIcon('warn') + ' 查询失败，请稍后重试'); return; }
+      if (!res) { toast(svgIcon('warn') + ' 查询失败，请稍后重试'); return null; }
       if (res.ok === false) {
         COND = {};
         renderReply(res, null);
         renderResult(null);
-        return;
+        return res;
       }
       COND = res.conditions || {};
       CUR = res;
@@ -134,7 +134,7 @@ var NLQ_UI = (function () {
         renderReply(res, null);
         renderStats(res);
         renderResultForStats(res);
-        return;
+        return res;
       }
       // 筛选：联网形态后端已分页（只回当前页），离线形态本地持有全量
       if (res.all) { ALL = res.all; TOTAL = res.total; }
@@ -143,10 +143,12 @@ var NLQ_UI = (function () {
       renderStats(null);
       renderResult(res);
       if (opts && opts.scroll !== false) scrollTo(el('nlq_reply'));
+      return res;
     }).catch(function (e) {
       setBusy(false);
       console.error('[NLQ_UI.execute]', e);
       toast(svgIcon('err') + ' 查询出错：' + esc(e && e.message ? e.message : e));
+      return null;
     });
   }
 
@@ -843,36 +845,24 @@ function rowHtml(r) {
   // --------------------------------------------------------------------------
   //  标签页
   // --------------------------------------------------------------------------
-  function switchTab(name) {
-    Array.prototype.forEach.call(document.querySelectorAll('#nlq_tabs .nlqtab'), function (b) {
-      var on = b.getAttribute('data-ntab') === name;
-      b.classList.toggle('active', on);
-      b.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
-    var a = el('nlq_pane_nl'), b2 = el('nlq_pane_cond'), c = el('nlq_pane_ai');
-    if (a) a.classList.toggle('active', name === 'nl');
-    if (b2) b2.classList.toggle('active', name === 'cond');
-    if (c) c.classList.toggle('active', name === 'ai');
-    if (name === 'ai') chatWelcome();
-  }
-
   // --------------------------------------------------------------------------
-  //  AI 问答（通道 C · Agnes 受约束就医咨询）
+  //  AI 问答（Agnes 受约束就医咨询 + 对话式筛选，本区唯一入口）
   // --------------------------------------------------------------------------
   //  纪律与后端 /api/ai/chat 对齐：
   //    · 医院推荐只能基于「当前筛选结果」（buildFacts 从 CUR 拼装真实数据）；
   //    · 不做诊断/用药——模式只是问诊导诊、就医流程、结果内选院三种；
   //    · 免费额度约 1 次/30 秒 → 相同问题命中缓存秒回，限流时明确提示。
-  var CHAT_MODE = 'triage';
+  var CHAT_MODE = 'filter';
   var CHAT_HIST = [];          // 最近对话（最多 3 轮，随请求上送做上下文）
   var CHAT_BUSY = false;
   var CHAT_WELCOMED = false;
   var CHAT_PLACEHOLDER = {
+    filter: '例如：朝阳区和海淀区的三级医院，公立（发送「重置」清空条件）',
     triage: '例如：最近头疼低烧，该挂什么科？',
     visit: '例如：带老人看骨科，就医流程上要注意什么？',
     hospital: '例如：从下面的结果里，哪家更适合看膝关节？'
   };
-  var CHAT_MODE_LABEL = { triage: '问诊导诊', visit: '就医建议', hospital: '医院选择' };
+  var CHAT_MODE_LABEL = { filter: '机构筛选', triage: '问诊导诊', visit: '就医建议', hospital: '医院选择' };
 
   function chatOnline() {
     // 与语音输入同一门禁口径：仅联网 + 本机后端形态可用（离线分享页无 /api）
@@ -882,9 +872,9 @@ function rowHtml(r) {
   function chatWelcome() {
     if (CHAT_WELCOMED) return;
     CHAT_WELCOMED = true;
-    chatPush('sys', '选择模式提问；涉及医院时，我只基于你当前筛选出的真实结果给建议。');
+    chatPush('sys', '「机构筛选」走本地规则引擎 + 数据库真实查询（离线可用，不走大模型）；其余模式由 Agnes 生成建议，医院推荐只基于你当前筛选出的真实结果。');
     if (!chatOnline()) {
-      chatPush('sys', '⚠️ AI 问答需要在线服务（本机 http://localhost:5001）；离线分享页不可用。');
+      chatPush('sys', '提示：问诊导诊 / 就医建议 / 医院选择需要在线服务（本机 http://localhost:5001）；「机构筛选」离线也能用。');
     }
   }
 
@@ -911,17 +901,63 @@ function rowHtml(r) {
     return lines.join('\n');
   }
 
+  // —— 机构筛选模式：走 execute 链（本地规则引擎优先/后端兜底），不走大模型 ——
+  function chatFilterSend(q) {
+    // 内置指令：重置筛选
+    if (/^(重置|清空|清除)(筛选|条件|所有条件)?$/.test(q)) {
+      COND = {}; CUR = null; ALL = null; TOTAL = 0; PAGE = 1;
+      var rep = el('nlq_reply');
+      if (rep) rep.style.display = 'none';
+      renderResult(null); renderStats(null);
+      chatPush('bot', '已清空全部筛选条件，下方结果与地图已复位。');
+      return;
+    }
+    var typing = chatPush('bot', '', null);
+    if (typing) typing.innerHTML = '<span class="who">机构筛选 · 解析中</span>' +
+      '<span class="aichat-typing"><i></i><i></i><i></i></span>';
+    var box = el('aichat_msgs');
+    if (box) box.scrollTop = box.scrollHeight;
+    execute({ q: q }, { scroll: false }).then(function (res) {
+      if (typing && typing.parentNode) typing.parentNode.removeChild(typing);
+      if (!res) {
+        chatPush('bot', '查询失败，请稍后重试。');
+        return;
+      }
+      if (res.ok === false) {
+        // 医疗边界拒答 / 无有效条件：完整说明放进气泡
+        chatPush('bot', res.message || '无法按此输入筛选，可补充行政区、等级、类型等条件。');
+        return;
+      }
+      if (res.intent === 'stats') {
+        chatPush('bot', '维度统计图已在下方生成，数字全部来自数据库。');
+        return;
+      }
+      var n = (res.applied || []).length;
+      chatPush('bot', '已解析出 ' + n + ' 个筛选条件，命中 ' + (res.total != null ? res.total : '—') +
+        ' 家——结果与地理分布见下方。点结果上方的条件卡可逐项移除，发送「重置」一键清空。');
+    }).catch(function () {
+      if (typing && typing.parentNode) typing.parentNode.removeChild(typing);
+      chatPush('bot', '查询出错，请稍后重试。');
+    });
+  }
+
   function chatSend() {
     if (CHAT_BUSY) return;
     var input = el('aichat_input');
     var q = (input && input.value || '').trim();
     if (!q) return;
+    if (CHAT_MODE === 'filter') {
+      input.value = '';
+      chatPush('user', q);
+      chatFilterSend(q);
+      return;
+    }
     if (!chatOnline()) {
       chatPush('sys', '⚠️ AI 问答需要在线服务（本机 http://localhost:5001）；筛选与统计功能不受影响。');
       return;
     }
     if (CHAT_MODE === 'hospital' && (!CUR || !CUR.items || !CUR.items.length)) {
-      chatPush('sys', '「医院选择」需要先完成一次筛选——请回到「自然语言筛选」或「条件筛选」查出一批机构，我再基于真实结果给建议。');
+      chatPush('sys', '「医院选择」需要先完成一次筛选——切到「机构筛选」描述条件查出一批机构，我再基于真实结果给建议。');
       return;
     }
     input.value = '';
@@ -958,18 +994,25 @@ function rowHtml(r) {
     });
   }
 
+  function setMode(mode) {
+    CHAT_MODE = CHAT_MODE_LABEL[mode] ? mode : 'filter';
+    var wrap = el('aichat_modes');
+    if (wrap) {
+      Array.prototype.forEach.call(wrap.querySelectorAll('.aichat-mode'), function (x) {
+        x.classList.toggle('active', x.getAttribute('data-mode') === CHAT_MODE);
+      });
+    }
+    var input = el('aichat_input');
+    if (input) input.placeholder = CHAT_PLACEHOLDER[CHAT_MODE] || CHAT_PLACEHOLDER.filter;
+  }
+
   function chatBind() {
     var wrap = el('aichat_modes');
     if (wrap) {
       wrap.addEventListener('click', function (e) {
         var b = e.target && e.target.closest ? e.target.closest('.aichat-mode') : null;
         if (!b) return;
-        CHAT_MODE = b.getAttribute('data-mode') || 'triage';
-        Array.prototype.forEach.call(wrap.querySelectorAll('.aichat-mode'), function (x) {
-          x.classList.toggle('active', x === b);
-        });
-        var input = el('aichat_input');
-        if (input) input.placeholder = CHAT_PLACEHOLDER[CHAT_MODE] || CHAT_PLACEHOLDER.triage;
+        setMode(b.getAttribute('data-mode') || 'filter');
       });
     }
     var input = el('aichat_input'), send = el('aichat_send');
@@ -983,29 +1026,11 @@ function rowHtml(r) {
   //  事件绑定
   // --------------------------------------------------------------------------
   function bind() {
-    Array.prototype.forEach.call(document.querySelectorAll('#nlq_tabs .nlqtab'), function (b) {
-      b.addEventListener('click', function () { switchTab(b.getAttribute('data-ntab')); });
-    });
     chatBind();
-
-    var input = el('f_ai'), run = el('btn_ai'), clr = el('btn_ai_clear');
-    if (run) run.addEventListener('click', submitNL);
-    if (input) {
-      input.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); submitNL(); }
-      });
-      input.addEventListener('input', function () {
-        if (clr) clr.style.display = input.value ? '' : 'none';
-      });
-    }
-    if (clr) clr.addEventListener('click', function () {
-      if (input) input.value = '';
-      clr.style.display = 'none';
-      if (input) input.focus();
-    });
 
     // 语音输入（仅 localhost，Web Speech 在 file:// 与 https 分享页不可用）
     var mic = el('btn_voice_ai');
+    var input = el('aichat_input');
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (mic && SR) {
       mic.addEventListener('click', function () {
@@ -1019,7 +1044,8 @@ function rowHtml(r) {
         rec.onresult = function (ev) {
           var t = ev.results[0][0].transcript || '';
           if (input) input.value = t;
-          submitNL();
+          if (CHAT_MODE === 'filter') chatSend();
+          else if (input) input.focus();
         };
         rec.onerror = function () { toast(svgIcon('warn') + ' 语音识别未成功，请改用键盘输入'); };
         rec.onend = function () { mic.classList.remove('on'); };
@@ -1031,32 +1057,12 @@ function rowHtml(r) {
       });
     }
 
-    var qrun = el('q_run'), qreset = el('q_reset');
-    if (qrun) qrun.addEventListener('click', function () {
-      var c = collectCond();
-      if (!Object.keys(c).length) { toast(svgIcon('warn') + ' 请至少选择 1 个条件'); return; }
-      COND = c;
-      execute({ conditions: c });
-    });
-    if (qreset) qreset.addEventListener('click', function () {
-      resetCondControls(); COND = {}; CUR = null;
-      renderReply({ ok: false, message: '条件已重置，请重新选择。' }, null);
-      renderResult(null); renderStats(null);
-    });
-
     var pv = el('nlq_prev'), nx = el('nlq_next');
     if (pv) pv.addEventListener('click', function () { turnPage(-1); });
     if (nx) nx.addEventListener('click', function () { turnPage(1); });
 
     var go = el('nlq_goto_inst');
     if (go) go.addEventListener('click', handoffToInstitutions);
-  }
-
-  function submitNL() {
-    var input = el('f_ai');
-    var q = input ? (input.value || '').trim() : '';
-    if (!q) { toast(svgIcon('warn') + ' 请先描述您想查找的机构条件'); if (input) input.focus(); return; }
-    execute({ q: q });
   }
 
   function turnPage(d) {
@@ -1126,7 +1132,7 @@ function rowHtml(r) {
   }
 
   function boot() {
-    var qb = el('nlq_examples');
+    var qb = el('aichat_ex');
     if (qb) {
       qb.innerHTML = EXAMPLES.map(function (t) {
         return '<button class="chip acc" type="button" data-ex="' + esc(t) + '">' + esc(t) + '</button>';
@@ -1134,18 +1140,11 @@ function rowHtml(r) {
       qb.addEventListener('click', function (e) {
         var b = e.target && e.target.closest ? e.target.closest('[data-ex]') : null;
         if (!b) return;
-        var input = el('f_ai');
+        setMode('filter');
+        var input = el('aichat_input');
         if (input) input.value = b.getAttribute('data-ex');
-        switchTab('nl');
-        submitNL();
+        chatSend();
       });
-    }
-    var scope = el('nlq_scope');
-    if (scope) {
-      var note = (window.NLQ && NLQ.lex && NLQ.lex.scope_note) ||
-        'AI 只负责理解中文描述并生成结构化筛选条件；所有数字来自数据库真实查询结果。';
-      scope.innerHTML = svgIcon('warn') + ' ' + esc(note) +
-        ' <b>本系统不做疾病诊断与用药建议；AI 问答的就医/选院建议仅基于当前真实筛选结果。</b>';
     }
     renderResult(null);
     renderStats(null);
