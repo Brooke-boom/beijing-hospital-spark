@@ -833,6 +833,10 @@ def run_filter(q, cond, page=1, page_size=20, base=None):
         "SELECT t.id, t.name, t.district, t.category_norm AS category, t.category_sub,"
         " t.level_norm AS level, t.level_sub, t.ownership, t.addr, t.phone, t.lng, t.lat,"
         " t.coord_precision, t.dept_count, t.src_count_int, t.source_files,"
+        # key_specialty_count：结果卡片「N 重点专科」徽标的数据源。
+        # 此前漏查该字段 → 在线 NLQ 结果卡片恒显示「0 重点专科」（301 医院也不幸免）；
+        # /api/institutions（app.py）同名查询一直带着，离线快照也带，只有这条路径坏。
+        " COALESCE(t.key_specialty_count, 0) AS key_specialty_count,"
         " COALESCE(NULLIF(t.key_depts,''), '') AS key_depts,"
         " %s AS distance_km, %s AS score" % (dist_expr, score_sql) +
         " FROM ads_inst_search t WHERE %s ORDER BY %s LIMIT %%s OFFSET %%s"

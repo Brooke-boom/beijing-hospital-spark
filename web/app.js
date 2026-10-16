@@ -1293,6 +1293,12 @@ function renderList() {
     const dist = r._dist == null ? '—' : (r.coord_precision === 'high' ? '' : '约 ') + r._dist.toFixed(1) + ' km（直线）';
     const on = PICKED.has(String(r.id));
     const ksc = r.key_specialty_count || 0;
+    // 与 app.nlq.ui.js 同口径：count=0 显示「未收录」而非「0」——
+    // 军队医院（如 301）不在地方公开的重点专科名单里，全库军队系统零命中，
+    // 「0」会被读成"该医院没有重点专科"，属数据边界而非事实。
+    const kscTxt = ksc > 0
+      ? '<div class="ksc on" title="数据集收录的重点专科数（国家/市级临床重点专科名单）"><b>' + ksc + '</b>重点专科</div>'
+      : '<div class="ksc off" title="数据集未收录该机构的重点专科记录——军队医院（如解放军总医院）不在地方公开的重点专科名单内，其他机构可能确实未入选。这不代表该机构没有重点专科。">重点专科<b>未收录</b></div>';
     return '<div class="row' + (on ? ' sel' : '') + '" data-id="' + esc(r.id) + '">' +
       '<div class="pick" data-pick="' + esc(r.id) + '" title="加入对比（最多 ' + PICK_MAX + ' 家）">' + svgIcon('ok') + '</div>' +
       '<div class="body">' +
@@ -1304,7 +1310,7 @@ function renderList() {
       '<div class="side">' +
         '<div class="dist">' + dist + '<div style="color:' + DIM + ';font-size:10px;font-weight:400">' + distLabel + '</div></div>' +
         '<div class="score">' + (r._score || 0).toFixed(3) + '</div>' +
-        '<div class="ksc ' + (ksc > 0 ? 'on' : 'off') + '"><b>' + ksc + '</b>重点专科</div>' +
+        kscTxt +
       '</div>' +
       '<button class="rowstar' + (isFav(r.id) ? ' on' : '') + '" data-fav="' + esc(r.id) + '" title="' +
         (isFav(r.id) ? '取消收藏' : '加入收藏') + '">' + svgIcon('star') + '</button>' +
@@ -1636,7 +1642,8 @@ function scatterTipFmt(p) {
     '<b style="font-size:13px">' + esc(r.name) + '</b>' +
     '<div style="color:' + SUB + ';margin:3px 0 6px;font-size:12px">' + esc(r.district) + ' · ' + esc(lvl) + '</div>' +
     (r.addr ? '<div style="font-size:12px;color:' + BODY2 + ';line-height:1.4">' + esc(r.addr) + '</div>' : '') +
-    '<div style="font-size:12px;color:' + BODY2 + ';margin-top:3px">' + deptText(r) + ' · 重点专科 ' + num(r.key_specialty_count) + ' 项</div>' +
+    '<div style="font-size:12px;color:' + BODY2 + ';margin-top:3px">' + deptText(r) + ' · ' +
+      ((r.key_specialty_count || 0) > 0 ? ('重点专科 ' + num(r.key_specialty_count) + ' 项') : '重点专科未收录') + '</div>' +
     '<div style="font-size:11px;color:' + ACC + ';margin-top:6px">点击查看机构详情 →</div>' +
     '</div>';
 }

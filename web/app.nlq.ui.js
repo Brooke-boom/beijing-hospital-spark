@@ -541,6 +541,13 @@ function rowHtml(r) {
     var dist = (d == null) ? '—' : (Math.round(d * 10) / 10).toFixed(1) + ' km';
     var distLabel = '距' + ((BASE_NOW && curBase().name) ? curBase().name : '市中心');
     var ksc = r.key_specialty_count || 0;
+    // 「0 重点专科」会被读成"这家医院没有重点专科"。实际上 count=0 有两种成因：
+    // ① 真实参评但未入选；② 数据源未覆盖（军队医院如 301 不在地方公开的
+    //    国家/市级临床重点专科名单里，全库军队系统零命中）。统一按项目纪律
+    //    如实标注为「未收录」，不编数字，悬浮说明讲清边界。
+    var kscTxt = ksc > 0
+      ? '<div class="ksc on" title="数据集收录的重点专科数（国家/市级临床重点专科名单）"><b>' + ksc + '</b>重点专科</div>'
+      : '<div class="ksc off" title="数据集未收录该机构的重点专科记录——军队医院（如解放军总医院）不在地方公开的重点专科名单内，其他机构可能确实未入选。这不代表该机构没有重点专科。">重点专科<b>未收录</b></div>';
     var scoreTxt = (r.score == null) ? '' :
       '<div class="score" title="条件匹配度：结果须满足全部筛选条件，统一为 1；并列按 等级（高→低）→ 科室收录量（多→少）→ 名称 排序">' +
       Number(r.score).toFixed(3) + '</div>';
@@ -558,7 +565,7 @@ function rowHtml(r) {
       '<div class="side">' +
         '<div class="dist">' + dist + '<div style="color:' + DIM + ';font-size:10px;font-weight:400">' + esc(distLabel) + '</div></div>' +
         scoreTxt +
-        '<div class="ksc ' + (ksc > 0 ? 'on' : 'off') + '"><b>' + ksc + '</b>重点专科</div>' +
+        kscTxt +
       '</div>' +
       '<button class="rowstar' + (isFav(r.id) ? ' on' : '') + '" data-fav="' + esc(r.id) + '" title="' +
         (isFav(r.id) ? '取消收藏' : '加入收藏') + '">' + svgIcon('star') + '</button>' +
