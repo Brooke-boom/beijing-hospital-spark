@@ -1213,6 +1213,97 @@ def api_ai_advice():
         return jsonify({"ok": False, "reason": "llm_error", "detail": str(e)[:160]})
 
 
+# -------- AI 问答（智能筛选页 · 问诊导诊 / 就医建议 / 医院选择） --------
+# 定位（2026-10-16 与用户确认后的扩展口径）：在"机构数据筛选助手"基础上，
+# 新增一个**受约束的就医咨询窗口**——所有医院相关推荐**只能从用户当前
+# 筛选结果（facts）里选**，模型不产生任何新机构名、数字、医生与号源；
+# 绝不做疾病诊断、用药或治疗建议；急症一律提示就近急诊/120。
+AI_CHAT_RULES = (
+    "你是「北京市医疗机构数据智能分析与筛选平台」的就医咨询助手。硬性要求：\n"
+    "① 绝不做疾病诊断、不开药、不给治疗方案，也不判断病情严重程度；"
+    "出现胸痛、呼吸困难、大出血、意识障碍等急症描述时，第一句就提示"
+    "「请立即前往就近医院急诊或拨打120」；\n"
+    "② 涉及具体医院时，**只能从【当前筛选结果】列出的机构中选择并说明理由"
+    "（等级、区域、类型、重点专科等字段）**，严禁引入清单外的任何机构名；\n"
+    "③ 严禁编造医生姓名、出诊时间、号源、价格、成功率等任何未给出的信息与数字；\n"
+    "④ 问诊导诊只给「科室方向 + 就诊前准备」；就医建议只给「就医路径与流程提示」；\n"
+    "⑤ 回答简洁分点，控制在 220 字以内；结尾提醒：以上为信息参考，"
+    "具体以医院官方信息与医生面诊为准；\n"
+    "⑥ 只输出回答正文，不要标题、不要 Markdown、不要 JSON。\n"
+)
+AI_CHAT_MODE_PROMPTS = {
+    # 模式 → 追加指令（与前端三个模式一一对应）
+    "triage": "本次任务【问诊导诊】：根据用户描述的不适，建议可能对应的科室方向"
+              "（可给 1~2 个备选科室），并提示就诊前需要准备的事项（如既往病历、"
+              "用药清单）。facts 里若无合适机构可不提医院。\n",
+    "visit": "本次任务【就医建议】：给出就医路径与流程提示（挂号方式、检查准备、"
+             "医保与材料等一般性建议），不涉及具体疾病判断。\n",
+    "hospital": "本次任务【医院选择】：必须从【当前筛选结果】的机构清单中给出建议"
+                "（可按等级/区域/重点专科字段说明理由，最多推荐 3 家）；"
+                "清单为空时直接说明「请先完成一次筛选」，不要凭空推荐。\n",
+}
+
+
+@app.route("/api/ai/chat", methods=["POST"])
+def api_ai_chat():
+    """智能筛选页 AI 问答窗口：问诊导诊 / 就医建议 / 医院选择（受约束的接地问答）。
+
+    POST { mode, question, facts, history? }
+    - facts 由前端拼装自**当前筛选结果**（真实查询返回），医院推荐只能从中选；
+    - history 取最近 6 条做上下文；缓存键不含 history（完全相同的提问秒回）；
+    - 三级防护与既有链路一致：限流明确提示 / 未启用明确提示 / 异常不打断页面。
+    """
+    d = request.get_json(silent=True) or {}
+    mode = (d.get("mode") or "triage").strip()
+    question = (d.get("question") or "").strip()[:500]
+    facts = (d.get("facts") or "").strip()[:4000]
+    history = d.get("history") or []
+    if not question:
+        return jsonify({"ok": False, "reason": "empty"})
+    if not (AI_LLM_ENABLED and AI_API_KEY):
+        return jsonify({"ok": False, "reason": "llm_disabled",
+                        "hint": "大模型未启用（离线分享页不支持 AI 问答）"})
+    mode_prompt = AI_CHAT_MODE_PROMPTS.get(mode) or AI_CHAT_MODE_PROMPTS["triage"]
+    # 缓存键：mode + facts + question（不含 history，保证同题命中）
+    ck = AI_MODEL + "|chat|" + hashlib.sha1(
+        (mode + "\x00" + facts + "\x00" + question).encode("utf-8")).hexdigest()[:24]
+    if ck in _LLM_CACHE:
+        return jsonify({"ok": True, "engine": "llm", "model": AI_MODEL,
+                        "reply": _LLM_CACHE[ck], "cached": True})
+    cached = _ai_cache_get(ck)
+    if cached is not None:
+        _LLM_CACHE[ck] = cached
+        return jsonify({"ok": True, "engine": "llm", "model": AI_MODEL,
+                        "reply": cached, "cached": True})
+    msgs = []
+    for h in history[-6:]:
+        if not isinstance(h, dict):
+            continue
+        role = "assistant" if h.get("role") == "assistant" else "user"
+        txt = (h.get("content") or "").strip()[:300]
+        if txt:
+            msgs.append({"role": role, "content": txt})
+    content = (AI_CHAT_RULES + mode_prompt +
+               "【当前筛选结果】" + (facts or "（无——用户尚未执行筛选）") +
+               "\n【用户提问】" + question)
+    msgs.append({"role": "user", "content": content})
+    try:
+        txt = (_llm_chat(msgs, timeout=AI_TIMEOUT, temperature=0.3) or "").strip()
+        if not txt:
+            raise ValueError("模型返回空")
+        if len(_LLM_CACHE) >= _LLM_CACHE_MAX:
+            _LLM_CACHE.clear()
+        _LLM_CACHE[ck] = txt
+        _ai_cache_put(ck, "chat", txt)
+        return jsonify({"ok": True, "engine": "llm", "model": AI_MODEL, "reply": txt})
+    except LLMRateLimited:
+        return jsonify({"ok": False, "reason": "llm_rate_limited",
+                        "hint": "Agnes 免费额度限流（约 1 次/30 秒），稍等片刻再试；"
+                                "相同问题命中缓存后秒回"})
+    except Exception as e:
+        return jsonify({"ok": False, "reason": "llm_error", "detail": str(e)[:160]})
+
+
 # -------- 数据来源 / 更新日志（关于页） --------
 @app.route("/api/about")
 def api_about():

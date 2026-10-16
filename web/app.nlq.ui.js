@@ -847,9 +847,134 @@ function rowHtml(r) {
       b.classList.toggle('active', on);
       b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
-    var a = el('nlq_pane_nl'), b2 = el('nlq_pane_cond');
+    var a = el('nlq_pane_nl'), b2 = el('nlq_pane_cond'), c = el('nlq_pane_ai');
     if (a) a.classList.toggle('active', name === 'nl');
     if (b2) b2.classList.toggle('active', name === 'cond');
+    if (c) c.classList.toggle('active', name === 'ai');
+    if (name === 'ai') chatWelcome();
+  }
+
+  // --------------------------------------------------------------------------
+  //  AI 问答（通道 C · Agnes 受约束就医咨询）
+  // --------------------------------------------------------------------------
+  //  纪律与后端 /api/ai/chat 对齐：
+  //    · 医院推荐只能基于「当前筛选结果」（buildFacts 从 CUR 拼装真实数据）；
+  //    · 不做诊断/用药——模式只是问诊导诊、就医流程、结果内选院三种；
+  //    · 免费额度约 1 次/30 秒 → 相同问题命中缓存秒回，限流时明确提示。
+  var CHAT_MODE = 'triage';
+  var CHAT_HIST = [];          // 最近对话（最多 3 轮，随请求上送做上下文）
+  var CHAT_BUSY = false;
+  var CHAT_WELCOMED = false;
+  var CHAT_PLACEHOLDER = {
+    triage: '例如：最近头疼低烧，该挂什么科？',
+    visit: '例如：带老人看骨科，就医流程上要注意什么？',
+    hospital: '例如：从下面的结果里，哪家更适合看膝关节？'
+  };
+  var CHAT_MODE_LABEL = { triage: '问诊导诊', visit: '就医建议', hospital: '医院选择' };
+
+  function chatOnline() {
+    // 与语音输入同一门禁口径：仅联网 + 本机后端形态可用（离线分享页无 /api）
+    return !!(window.ENV && ENV.http && ENV.backend);
+  }
+
+  function chatWelcome() {
+    if (CHAT_WELCOMED) return;
+    CHAT_WELCOMED = true;
+    chatPush('sys', '选择模式提问；涉及医院时，我只基于你当前筛选出的真实结果给建议。');
+    if (!chatOnline()) {
+      chatPush('sys', '⚠️ AI 问答需要在线服务（本机 http://localhost:5001）；离线分享页不可用。');
+    }
+  }
+
+  function chatPush(kind, text, who) {
+    var box = el('aichat_msgs');
+    if (!box) return null;
+    var div = document.createElement('div');
+    div.className = 'aichat-msg ' + kind;
+    div.innerHTML = (who ? '<span class="who">' + esc(who) + '</span>' : '') + esc(text);
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+    return div;
+  }
+
+  function chatFacts() {
+    // 从当前查询结果拼装「真实机构清单」给模型做接地——绝不发全库
+    if (!CUR || !CUR.items || !CUR.items.length) return '';
+    var lines = ['共命中 ' + (CUR.total != null ? CUR.total : CUR.items.length) + ' 家，清单如下（最多前 10 家）：'];
+    CUR.items.slice(0, 10).forEach(function (r, i) {
+      lines.push((i + 1) + '. ' + (r.name || '—') + '｜' + (r.district || '—') +
+        '｜' + (r.level || '未定级') + '｜' + (r.category || '—') +
+        '｜重点专科 ' + (r.key_specialty_count || 0) + ' 项');
+    });
+    return lines.join('\n');
+  }
+
+  function chatSend() {
+    if (CHAT_BUSY) return;
+    var input = el('aichat_input');
+    var q = (input && input.value || '').trim();
+    if (!q) return;
+    if (!chatOnline()) {
+      chatPush('sys', '⚠️ AI 问答需要在线服务（本机 http://localhost:5001）；筛选与统计功能不受影响。');
+      return;
+    }
+    if (CHAT_MODE === 'hospital' && (!CUR || !CUR.items || !CUR.items.length)) {
+      chatPush('sys', '「医院选择」需要先完成一次筛选——请回到「自然语言筛选」或「条件筛选」查出一批机构，我再基于真实结果给建议。');
+      return;
+    }
+    input.value = '';
+    chatPush('user', q);
+    CHAT_BUSY = true;
+    var send = el('aichat_send');
+    if (send) send.disabled = true;
+    var box = el('aichat_msgs');
+    var typing = chatPush('bot', '', null);
+    if (typing) typing.innerHTML = '<span class="who">' + CHAT_MODE_LABEL[CHAT_MODE] + ' · Agnes 生成中</span>' +
+      '<span class="aichat-typing"><i></i><i></i><i></i></span>';
+    if (box) box.scrollTop = box.scrollHeight;
+    var facts = chatFacts();
+    fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: CHAT_MODE, question: q, facts: facts, history: CHAT_HIST })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (typing && typing.parentNode) typing.parentNode.removeChild(typing);
+      if (j && j.ok && j.reply) {
+        chatPush('bot', j.reply, (j.cached ? '缓存秒回' : 'Agnes 生成'));
+        CHAT_HIST.push({ role: 'user', content: q }, { role: 'assistant', content: j.reply });
+        if (CHAT_HIST.length > 6) CHAT_HIST = CHAT_HIST.slice(-6);
+      } else {
+        chatPush('bot', (j && (j.hint || j.detail)) || '生成失败，请稍后重试。');
+      }
+    }).catch(function () {
+      if (typing && typing.parentNode) typing.parentNode.removeChild(typing);
+      chatPush('bot', '网络异常，未能连上 AI 服务；筛选与统计功能不受影响。');
+    }).then(function () {
+      CHAT_BUSY = false;
+      if (send) send.disabled = false;
+      if (input) input.focus();
+    });
+  }
+
+  function chatBind() {
+    var wrap = el('aichat_modes');
+    if (wrap) {
+      wrap.addEventListener('click', function (e) {
+        var b = e.target && e.target.closest ? e.target.closest('.aichat-mode') : null;
+        if (!b) return;
+        CHAT_MODE = b.getAttribute('data-mode') || 'triage';
+        Array.prototype.forEach.call(wrap.querySelectorAll('.aichat-mode'), function (x) {
+          x.classList.toggle('active', x === b);
+        });
+        var input = el('aichat_input');
+        if (input) input.placeholder = CHAT_PLACEHOLDER[CHAT_MODE] || CHAT_PLACEHOLDER.triage;
+      });
+    }
+    var input = el('aichat_input'), send = el('aichat_send');
+    if (send) send.addEventListener('click', chatSend);
+    if (input) input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); chatSend(); }
+    });
   }
 
   // --------------------------------------------------------------------------
@@ -859,6 +984,7 @@ function rowHtml(r) {
     Array.prototype.forEach.call(document.querySelectorAll('#nlq_tabs .nlqtab'), function (b) {
       b.addEventListener('click', function () { switchTab(b.getAttribute('data-ntab')); });
     });
+    chatBind();
 
     var input = el('f_ai'), run = el('btn_ai'), clr = el('btn_ai_clear');
     if (run) run.addEventListener('click', submitNL);
@@ -1017,7 +1143,7 @@ function rowHtml(r) {
       var note = (window.NLQ && NLQ.lex && NLQ.lex.scope_note) ||
         'AI 只负责理解中文描述并生成结构化筛选条件；所有数字来自数据库真实查询结果。';
       scope.innerHTML = svgIcon('warn') + ' ' + esc(note) +
-        ' <b>本系统不提供疾病诊断、用药建议或就诊推荐。</b>';
+        ' <b>本系统不做疾病诊断与用药建议；AI 问答的就医/选院建议仅基于当前真实筛选结果。</b>';
     }
     renderResult(null);
     renderStats(null);
