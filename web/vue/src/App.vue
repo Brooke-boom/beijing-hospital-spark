@@ -14,6 +14,7 @@
 
     <DetailDrawer />
     <CompareDialog />
+    <SmartFilterDock />
     <div v-if="store.toast" class="toast">{{ store.toast }}</div>
   </div>
 </template>
@@ -25,6 +26,7 @@ import SideNav from './components/SideNav.vue'
 import TopBar from './components/TopBar.vue'
 import DetailDrawer from './components/DetailDrawer.vue'
 import CompareDialog from './components/CompareDialog.vue'
+import SmartFilterDock from './components/SmartFilterDock.vue'
 
 const store = useDataStore()
 onMounted(() => {

@@ -188,13 +188,17 @@ def token_capture_static(js_path):
     return bad
 
 
-# 运行时探针：在**真 ECharts 页**（不是空桩）上量这 15 张图
+# 运行时探针：在**真 ECharts 页**（不是空桩）上量这 12 张图
+# 2026-10-17 删掉 3 张重复图后同步：ch_ov_own（与 ch_own 同源同色）、ch_distsp（被 ch_distmx 覆盖，
+# 独有的国家级/市级拆分已并入 ch_distmx 的 tooltip）、ch_net（被 ch_netlv 的堆叠段覆盖）。
+# ⚠️ 这张表必须与 dashboard.html 的实际容器逐一对账 —— 只按清单读，覆盖范围就由清单自己说了算，
+#    删了图忘了改这里会静默漏检，改了 HTML 忘了改这里则直接报 missing。
 RUNTIME = r"""
 () => {
   const chartById = {
     ch_own: CH_OWN, ch_lvown: CH_LVOWN, ch_catown: CH_CATOWN, ch_feat: CH_FEAT,
     ch_topsp: CH_TOPSP, ch_spdist: CH_SPDIST, ch_splv: CH_SPLV, ch_deptop: CH_DEPTOP,
-    ch_distlv: CH_DISTLV, ch_distsp: CH_DISTSP, ch_distmx: CH_DISTMX, ch_net: CH_NET,
+    ch_distlv: CH_DISTLV, ch_distmx: CH_DISTMX,
     ch_netlv: CH_NETLV, ch_srcmap: CH_SRCMAP, ch_coord: CH_COORD,
   };
   // 逐图钉死形态（这张表是硬约束：谁被换成了不合适的图形，这里就红）
@@ -204,7 +208,7 @@ RUNTIME = r"""
     ch_own: ['pie'], ch_lvown: ['bar'], ch_catown: ['bar'],
     ch_feat: ['bar'], ch_topsp: ['bar'], ch_spdist: ['bar', 'line'],
     ch_splv: ['bar'], ch_deptop: ['bar'], ch_distlv: ['heatmap'],
-    ch_distsp: ['bar'], ch_distmx: ['heatmap'], ch_net: ['bar'],
+    ch_distmx: ['heatmap'],
     ch_netlv: ['bar'], ch_srcmap: ['bar'], ch_coord: ['gauge'],
   };
   const colors = ch => {
@@ -481,12 +485,18 @@ def main():
         br.close()
 
     if real and 'err' not in real:
+        # ⚠️ 图数一律现算，绝不写死。2026-10-17 删掉 3 张重复图后，这里原本仍打印
+        #    「15/15 canvas > 0」—— 名字和分子分母都是常量，实际只剩 13 张，
+        #    删图 / 加图都不会让这一行变红，是一处典型的假绿。
+        n_charts = len(real['charts'])
         bad_size = ['%s:%s' % (k, v) for k, v in real['sizes'].items() if v != 'ok']
-        checks.append(('真库页 15 张图均已绘制', not bad_size,
-                       bad_size if bad_size else '15/15 canvas > 0'))
+        checks.append(('真库页 %d 张图均已绘制' % n_charts, not bad_size,
+                       bad_size if bad_size else '%d/%d canvas > 0'
+                       % (n_charts - len(bad_size), n_charts)))
         bad_type = ['%s:%s' % (k, ','.join(real['types'].get(k, [])))
                     for k, ok in real['charts'].items() if not ok]
-        checks.append(('真库页 图形类型符合预期', not bad_type, bad_type if bad_type else '15/15'))
+        checks.append(('真库页 图形类型符合预期', not bad_type,
+                       bad_type if bad_type else '%d/%d' % (n_charts - len(bad_type), n_charts)))
         got_types = set()
         for ts in real['types'].values():
             got_types |= set(ts)
@@ -500,7 +510,7 @@ def main():
         checks.append(('办别三色与主题令牌一致', not mism,
                        mism if mism else '饼图 / 等级×办别 / 类型×办别 三处一致'))
     else:
-        checks.append(('真库页 15 张图均已绘制', False, (real or {}).get('err', '未取到')))
+        checks.append(('真库页 图表均已绘制', False, (real or {}).get('err', '未取到')))
 
     # ⑤ 静态部分：容器 id 是否登记了高度来源（不看渲染，读源码就能判）
     st = chart_container_static(args.src, args.js)

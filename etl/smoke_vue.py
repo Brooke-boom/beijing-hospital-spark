@@ -47,16 +47,16 @@ def main():
         pg.goto(BASE, wait_until="networkidle", timeout=45000)
         time.sleep(3.0)
 
-        # ---- 1. 首屏 = 任务主线（智能筛选），不再是大屏首页 ----
+        # ---- 1. 首屏 = 机构查询；悬浮球常驻右下角（智能筛选新入口） ----
         try:
-            tabs = pg.evaluate("() => document.querySelectorAll('.nlqtabs button').length")
-            has_ask = pg.evaluate("() => !!document.querySelector('.nlqask textarea')")
-            scope = pg.evaluate("() => (document.querySelector('.nlqscope')||{}).innerText||''")
+            navs = pg.evaluate("() => [...document.querySelectorAll('.sidebar .navtab .lbl')].map(x => x.innerText.trim())")
+            fab = pg.evaluate("() => !!document.querySelector('.fab')")
+            panel_closed = pg.evaluate("() => !document.querySelector('.dockpanel')")
         except Exception:
-            tabs, has_ask, scope = 0, False, ''
-        checks.append(("首屏为智能筛选（双通道输入 + 边界声明）",
-                       tabs == 2 and has_ask and "不提供" in scope,
-                       "tabs=%d textarea=%s 边界=%s" % (tabs, has_ask, bool(scope))))
+            navs, fab, panel_closed = [], False, False
+        checks.append(("首屏为机构查询 + 悬浮球常驻（侧栏无智能筛选项）",
+                       navs == ["找机构", "资源画像", "数据治理", "系统说明"] and fab and panel_closed,
+                       "nav=%s fab=%s 面板默认收起=%s" % (navs, fab, panel_closed)))
 
         # ---- 2. 逐路由可达 ----
         results = []
@@ -82,25 +82,31 @@ def main():
                                info["len"], info["canvas"], info["rows"], info["navActive"])))
 
         # ---- 2.5 主线能力：一句话 → 条件卡 → 结果（真实数据） ----
-        def ask(text):
-            """模拟真实用户动作：在输入框里敲一句话 → 点「开始筛选」→ 等结果。"""
-            pg.goto("%s#/filter" % BASE, wait_until="networkidle", timeout=45000)
+        def open_dock():
+            """智能筛选悬浮球：任何页都能呼出。回到首页 → 点球 → 等面板就绪。"""
+            pg.goto(BASE, wait_until="networkidle", timeout=45000)
             time.sleep(2.0)
-            pg.fill(".nlqask textarea", text)
+            pg.click(".fab")
+            time.sleep(1.2)
+
+        def ask(text):
+            """模拟真实用户动作：呼出悬浮球 → 敲一句话 → 点「开始筛选」→ 等结果。"""
+            open_dock()
+            pg.fill(".dockpanel .nlqask textarea", text)
             pg.evaluate("""() => {
-              const bs = [...document.querySelectorAll('.btn')];
+              const bs = [...document.querySelectorAll('.dockpanel .btn')];
               const b = bs.find(x => /开始筛选/.test(x.innerText));
               if (b) b.click();
             }""")
             time.sleep(3.2)
             return pg.evaluate("""() => ({
-              chips: [...document.querySelectorAll('.chip')].map(x => x.innerText.trim()),
-              summary: (document.querySelector('.nlqmsg.info')||{}).innerText||'',
-              refuse: (document.querySelector('.nlqmsg.refuse')||{}).innerText||'',
-              rows: document.querySelectorAll('.tbl tbody tr').length,
-              kv: [...document.querySelectorAll('.card .v')].map(x => x.innerText.trim()),
-              canvas: document.querySelectorAll('canvas').length,
-              src: (document.querySelector('.nlqsrc')||{}).innerText||''
+              chips: [...document.querySelectorAll('.dockpanel .chip')].map(x => x.innerText.trim()),
+              summary: (document.querySelector('.dockpanel .nlqmsg.info')||{}).innerText||'',
+              refuse: (document.querySelector('.dockpanel .nlqmsg.refuse')||{}).innerText||'',
+              rows: document.querySelectorAll('.dockpanel .tbl tbody tr').length,
+              kv: [...document.querySelectorAll('.dockpanel .card .v')].map(x => x.innerText.trim()),
+              canvas: document.querySelectorAll('.dockpanel canvas').length,
+              src: (document.querySelector('.dockpanel .nlqsrc')||{}).innerText||''
             })""")
 
         try:
@@ -145,27 +151,26 @@ def main():
 
         # 条件通道：逐项填条件也能查出结果
         try:
-            pg.goto("%s#/filter" % BASE, wait_until="networkidle", timeout=45000)
-            time.sleep(2.0)
+            open_dock()
             pg.evaluate("""() => {
-              const b = [...document.querySelectorAll('.nlqtabs button')].find(x => /逐项设置条件/.test(x.innerText));
+              const b = [...document.querySelectorAll('.dockpanel .nlqtabs button')].find(x => /手动条件/.test(x.innerText));
               if (b) b.click();
             }""")
             time.sleep(1.0)
             pg.evaluate("""() => {
-              const sels = [...document.querySelectorAll('select.ctl')];
+              const sels = [...document.querySelectorAll('.dockpanel select.ctl')];
               const one = sels[0];
               if (one && one.options.length > 1) {
                 one.value = one.options[1].value;
                 one.dispatchEvent(new Event('change', { bubbles: true }));
               }
-              const b = [...document.querySelectorAll('.btn')].find(x => /按条件查询/.test(x.innerText));
+              const b = [...document.querySelectorAll('.dockpanel .btn')].find(x => /按条件查询/.test(x.innerText));
               if (b) b.click();
             }""")
             time.sleep(3.0)
             c = pg.evaluate("""() => ({
-              rows: document.querySelectorAll('.tbl tbody tr').length,
-              chips: document.querySelectorAll('.chip').length
+              rows: document.querySelectorAll('.dockpanel .tbl tbody tr').length,
+              chips: document.querySelectorAll('.dockpanel .chip').length
             })""")
             checks.append(("主线·条件通道可用", c["rows"] > 0 and c["chips"] >= 1,
                            "行=%d 条件卡=%d" % (c["rows"], c["chips"])))
@@ -288,11 +293,14 @@ def main():
         try:
             pg.goto("%s#/profile?t=overview" % BASE, wait_until="networkidle", timeout=45000)
             time.sleep(2.8)
+            # 锚关系不锚值：点击后主题必须相对点击前**翻转**，且图表 canvas 仍在
+            th0 = pg.evaluate("() => document.documentElement.getAttribute('data-theme')")
             pg.evaluate("() => document.querySelector('.themebtn').click()")
             time.sleep(2.5)
             th = pg.evaluate("() => document.documentElement.getAttribute('data-theme')")
             canv = pg.evaluate("() => document.querySelectorAll('canvas').length")
-            checks.append(("主题切换并重绘", th == "light" and canv >= 4, "theme=%s canvas=%d" % (th, canv)))
+            checks.append(("主题切换并重绘", th != th0 and canv >= 4,
+                           "%s→%s canvas=%d" % (th0, th, canv)))
         except Exception as e:
             checks.append(("主题切换并重绘", False, str(e)[:120]))
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -31,31 +31,78 @@
 </script>
 <style>
 /* ============================================================================
-   设计令牌（Design Tokens）— 极简数据产品风
-   中性近黑底 · 单一克制主蓝 · 低饱和语义色 · 实色面板 · 细线分隔
-   去：背景光晕 / 满屏渐变 / 毛玻璃 / 霓虹 / 图表发光
+   设计令牌（Design Tokens）— 扁平 / 干净 / 留白的数据产品风
+   默认**浅色**：极浅蓝灰底 #F7F9FC + 白色内容面板 + 主色蓝 #2563EB；
+   深色作为可切换外观保留（顶栏月亮 / 太阳按钮，选择记 localStorage）。
+   去：背景光晕 / 满屏渐变 / 毛玻璃 / 霓虹 / 图表发光 / 重阴影。
    ========================================================================== */
 :root{
-  /* —— 中性 —— */
+  /* —— 中性（浅色默认）—— */
+  --bg:#F7F9FC; --bg-soft:#EEF2F8; --panel:#FFFFFF; --panel-2:#F4F7FB;
+  --panel-3:#E9EEF6; --line:rgba(15,23,42,.08); --line-2:rgba(15,23,42,.13);
+  --ink:#1E293B; --ink-2:#475569; --ink-3:#64748B; --ink-4:#94A3B8;
+  --ink-strong:#0F172A; --hair-rgb:15,23,42;
+  /* —— 主色 / 语义色 —— */
+  --acc:#2563EB; --acc-d:#1D4ED8; --acc-rgb:37,99,235;
+  /* 科室覆盖图「名称/规则推导」段：主色的淡化版。固定 rgba(acc,.2) 在深色底上会糊成一片，
+     所以两个主题各给一个实色，由 cssVar 在渲染时读取。 */
+  --cov-inf:#C9D7F2;
+  --teal:#0F8A58; --teal-rgb:15,138,88;
+  --warn:#A9701A; --warn-rgb:169,112,26;
+  --crit:#C93B57; --crit-rgb:201,59,87;
+  --vio:#6350CF; --vio-d:#4F3CB8; --vio-2:#A855C8; --vio-rgb:99,80,207;
+  --pink:#C0517A; --lime:#5D9A33;
+  --info-rgb:90,110,150; --gray-rgb:140,146,158;
+  /* —— 实色底上的文字 —— */
+  --on-accent:#FFFFFF; --tint-fg:#1E2431;
+  /* —— 浅底 tint 上的前景字 —— */
+  --t-acc-fg:#1D4ED8; --t-acc-fg2:#3A4FA8; --t-crit-fg:#B52E49; --t-vio-fg:#5340BD;
+  --t-teal-fg:#0B6E46; --t-warn-fg:#8D5C12; --t-warn-fg2:#8D5C12;
+  --t-info-fg:#4D6A94; --t-info-fg2:#55637D;
+  /* —— 渐变 / 阴影 / 浮层（扁平化：阴影克制，不使用发光）—— */
+  --grad-brand:linear-gradient(90deg,#2563EB,#1D4ED8);
+  --grad-vio:linear-gradient(90deg,#6350CF,#4F3CB8);
+  --sh-1:0 1px 2px rgba(15,23,42,.05); --sh-2:0 4px 14px -8px rgba(15,23,42,.14);
+  --sh-3:0 14px 40px -18px rgba(15,23,42,.20);
+  --lift:inset 0 1px 0 rgba(255,255,255,0);   /* 浅色下无需高亮，保持 no-op */
+  --veil:rgba(255,255,255,.94); --veil-2:rgba(255,255,255,.97); --veil-crit:rgba(255,240,243,.96);
+  --scrim:rgba(15,23,42,.32); --scrim-2:rgba(15,23,42,.40);
+  --drawer-sh:-24px 0 60px -28px rgba(15,23,42,.18);
+  /* —— 图表 / 地图（JS 运行期读取）—— */
+  --chart-axis:#94A3B8; --chart-split:rgba(15,23,42,.07);
+  --tip-bg:rgba(255,255,255,.98); --tip-bd:rgba(15,23,42,.14); --tip-sh:rgba(15,23,42,.18);
+  --body-2:#475569;
+  --map-label:#5B6170; --map-area:#EDF1F7; --map-hi:#C2D2F6;
+  --map-bd:rgba(15,23,42,.18);
+  --map-r1:#EDF1F7; --map-r2:#CBD8EC; --map-r3:#8FA6DA; --map-r4:#5D7FC8; --map-r5:#6350CF;
+  --r-s:6px; --r-m:8px; --r-l:10px; --r-xl:14px;
+  /* 模块间距统一 24px：信息组之间留出呼吸感（原 16px 偏挤） */
+  --gap:24px; --pad-x:28px;
+  /* 侧栏宽度：唯一真源。侧栏是 fixed 定位（脱离文档流），主列靠 margin-left 让位，
+     所以窄屏换宽度必须改这里，不能只改 .sidebar 的 width，否则主列会被侧栏压住。 */
+  --sb-w:188px;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
+}
+/* ============================================================================
+   深色外观：同一套语义令牌，只换取值 —— 组件层不需要任何额外分支
+   ========================================================================== */
+:root[data-theme="dark"]{
   --bg:#0a0b0d; --bg-soft:#0e0f12; --panel:#131419; --panel-2:#171922;
   --panel-3:#1d2029; --line:rgba(var(--hair-rgb),.07); --line-2:rgba(var(--hair-rgb),.13);
   --ink:#e2e4ea; --ink-2:#a0a2aa; --ink-3:#73757e; --ink-4:#4c4e57;
   --ink-strong:#ffffff; --hair-rgb:255,255,255;
-  /* —— 主色 / 语义色 —— */
   --acc:#6b8cff; --acc-d:#5573e6; --acc-rgb:107,140,255;
+  --cov-inf:#3A4E78;
   --teal:#46c08a; --teal-rgb:70,192,138;
   --warn:#e0a23b; --warn-rgb:224,162,59;
   --crit:#e0697e; --crit-rgb:224,105,126;
   --vio:#9a8cf0; --vio-d:#8678e0; --vio-2:#6d5bd0; --vio-rgb:154,140,240;
   --pink:#e69ab5; --lime:#9bd17a;
   --info-rgb:122,140,255; --gray-rgb:160,162,170;
-  /* —— 实色底上的文字 —— */
   --on-accent:#0a0b0d; --tint-fg:#ffffff;
-  /* —— 浅底 tint 上的前景字 —— */
   --t-acc-fg:#a6bcff; --t-acc-fg2:#a9b8f0; --t-crit-fg:#ee9aa9; --t-vio-fg:#bdb2f6;
   --t-teal-fg:#9fe0c6; --t-warn-fg:#f0c987; --t-warn-fg2:#e8c08a;
   --t-info-fg:#9fb2d4; --t-info-fg2:#b9c6e0;
-  /* —— 渐变 / 阴影 / 浮层 —— */
   --grad-brand:linear-gradient(90deg,#6b8cff,#5573e6);
   --grad-vio:linear-gradient(90deg,#9a8cf0,#7c6fe0);
   --sh-1:0 1px 2px rgba(0,0,0,.42); --sh-2:0 6px 20px -12px rgba(0,0,0,.7);
@@ -64,7 +111,6 @@
   --veil:rgba(14,15,18,.92); --veil-2:rgba(14,15,18,.96); --veil-crit:rgba(24,12,16,.92);
   --scrim:rgba(0,0,0,.55); --scrim-2:rgba(0,0,0,.62);
   --drawer-sh:-24px 0 60px -24px rgba(0,0,0,.8);
-  /* —— 图表 / 地图（JS 运行期读取） —— */
   --chart-axis:#8b8d96; --chart-split:rgba(255,255,255,.06);
   --tip-bg:rgba(19,20,25,.96); --tip-bd:rgba(255,255,255,.14); --tip-sh:rgba(0,0,0,.8);
   --body-2:#c9cbd2;
@@ -72,51 +118,15 @@
   --map-bd:rgba(255,255,255,.09);
   --map-r1:#171922; --map-r2:#3a4150; --map-r3:#4f639f; --map-r4:#5d74bb; --map-r5:#6f64b8;
   --r-s:6px; --r-m:8px; --r-l:10px; --r-xl:14px;
-  --gap:16px; --pad-x:28px;
-  /* 侧栏宽度：唯一真源。侧栏是 fixed 定位（脱离文档流），主列靠 margin-left 让位，
-     所以窄屏换宽度必须改这里，不能只改 .sidebar 的 width，否则主列会被侧栏压住。 */
+  --gap:24px; --pad-x:28px;
   --sb-w:188px;
   --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
-}
-/* ============================================================================
-   白天外观：同一套语义令牌，只换取值 —— 组件层不需要任何额外分支
-   ========================================================================== */
-:root[data-theme="light"]{
-  --bg:#f4f5f8; --bg-soft:#eceef3; --panel:#ffffff; --panel-2:#f7f8fb;
-  --panel-3:#eaeef5; --line:rgba(var(--hair-rgb),.09); --line-2:rgba(var(--hair-rgb),.17);
-  --ink:#16181d; --ink-2:#4d525c; --ink-3:#6f7480; --ink-4:#7a8090;
-  --ink-strong:#000000; --hair-rgb:15,20,35;
-  --acc:#3a5bd9; --acc-d:#2f4bc4; --acc-rgb:58,91,217;
-  --teal:#0f8a58; --teal-rgb:15,138,88;
-  --warn:#a9701a; --warn-rgb:169,112,26;
-  --crit:#c93b57; --crit-rgb:201,59,87;
-  --vio:#6350cf; --vio-d:#4f3cb8; --vio-2:#a855c8; --vio-rgb:99,80,207;
-  --pink:#c0517a; --lime:#5d9a33;
-  --info-rgb:90,110,150; --gray-rgb:140,146,158;
-  --on-accent:#ffffff; --tint-fg:#1e2431;
-  --t-acc-fg:#2f4bc4; --t-acc-fg2:#3a4fa8; --t-crit-fg:#b52e49; --t-vio-fg:#5340bd;
-  --t-teal-fg:#0b6e46; --t-warn-fg:#8d5c12; --t-warn-fg2:#8d5c12;
-  --t-info-fg:#4d6a94; --t-info-fg2:#55637d;
-  --grad-brand:linear-gradient(90deg,#4a6ae8,#3a5bd9);
-  --grad-vio:linear-gradient(90deg,#7a68e0,#6350cf);
-  --sh-1:0 1px 2px rgba(15,23,42,.06),0 3px 10px -4px rgba(15,23,42,.08); --sh-2:0 6px 20px -14px rgba(15,23,42,.22);
-  --sh-3:0 18px 50px -22px rgba(15,23,42,.3);
-  --lift:inset 0 1px 0 rgba(255,255,255,0);     /* 亮色下无需高光，保持 no-op */
-  --veil:rgba(255,255,255,.94); --veil-2:rgba(255,255,255,.97); --veil-crit:rgba(255,240,243,.96);
-  --scrim:rgba(15,23,42,.32); --scrim-2:rgba(15,23,42,.4);
-  --drawer-sh:-24px 0 60px -28px rgba(15,23,42,.22);
-  --chart-axis:#8a8f99; --chart-split:rgba(15,20,35,.07);
-  --tip-bg:rgba(255,255,255,.98); --tip-bd:rgba(15,20,35,.14); --tip-sh:rgba(15,23,42,.18);
-  --body-2:#3f434c;
-  --map-label:#5b6170; --map-area:#e8ecf4; --map-hi:#c2d2f6;
-  --map-bd:rgba(15,23,42,.20);
-  --map-r1:#e8ecf4; --map-r2:#c9d5ea; --map-r3:#8fa6da; --map-r4:#6f87c8; --map-r5:#7f6fce;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html.theming,html.theming *,html.theming *::before,html.theming *::after{transition:background-color .3s ease,color .3s ease,border-color .3s ease,fill .3s ease,stroke .3s ease,box-shadow .3s ease !important}
 html{-webkit-text-size-adjust:100%}
 body{
-  background:var(--bg); color:var(--ink); min-height:100vh; font-size:13px; line-height:1.55;
+  background:var(--bg); color:var(--ink); min-height:100vh; font-size:14px; line-height:1.6;
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
   font-feature-settings:"tnum" 1,"cv01" 1; -webkit-font-smoothing:antialiased;
 }
@@ -216,53 +226,6 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .nlqpane.active{display:block;min-height:264px}
 .nlq-lead{font-size:12px;color:var(--ink-3);margin:0 0 12px;padding-left:10px;
   border-left:3px solid rgba(var(--acc-rgb),.55);line-height:1.5}
-/* —— AI 问答窗口（通道 C）—— */
-.aichat{display:flex;flex-direction:column;gap:10px}
-.aichat-modes{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.aichat-mode{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:999px;
-  border:1px solid var(--line);background:transparent;color:var(--ink-3);font-size:12.5px;
-  font-weight:600;cursor:pointer;font-family:inherit;transition:.15s}
-.aichat-mode:hover{color:var(--ink);border-color:var(--line-2)}
-.aichat-mode.active{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:650}
-.aichat-scope{margin-left:auto;font-size:11px;color:var(--ink-3)}
-.aichat-msgs{display:flex;flex-direction:column;gap:10px;height:240px;
-  overflow-y:auto;padding:12px;border:1px solid var(--line);border-radius:12px;
-  background:var(--bg-soft);scroll-behavior:smooth}
-.aichat-msg{max-width:86%;padding:9px 12px;border-radius:11px;font-size:12.5px;
-  line-height:1.7;white-space:pre-wrap;word-break:break-word}
-.aichat-msg.user{align-self:flex-end;background:rgba(var(--acc-rgb),.16);
-  border:1px solid rgba(var(--acc-rgb),.3);color:var(--ink)}
-.aichat-msg.bot{align-self:flex-start;background:var(--panel-2);
-  border:1px solid var(--line-2);color:var(--ink-2)}
-.aichat-msg.sys{align-self:center;background:transparent;color:var(--ink-3);
-  font-size:11.5px;padding:2px 6px}
-.aichat-msg .who{display:block;font-size:10.5px;color:var(--ink-4);margin-bottom:4px;
-  letter-spacing:.4px}
-.aichat-typing{display:inline-flex;gap:4px;align-items:center}
-.aichat-typing i{width:6px;height:6px;border-radius:50%;background:var(--acc);
-  opacity:.4;animation:aichatB 1.1s infinite}
-.aichat-typing i:nth-child(2){animation-delay:.18s}
-.aichat-typing i:nth-child(3){animation-delay:.36s}
-@keyframes aichatB{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
-.aichat-input{display:flex;gap:8px;align-items:center}
-.aichat-input .nlq-ic{width:36px;height:40px;border-radius:10px;border-color:var(--line)}
-.aichat-input input{flex:1;padding:10px 14px;border-radius:10px;border:1px solid var(--line-2);
-  background:var(--panel);color:var(--ink);font-size:13px;font-family:inherit;outline:none;
-  transition:border-color .15s}
-.aichat-input input:focus{border-color:rgba(var(--acc-rgb),.45)}
-.aichat-send{padding:10px 18px;border-radius:10px;border:none;cursor:pointer;
-  background:var(--acc);color:#fff;font-size:12.5px;font-weight:650;font-family:inherit;
-  transition:.15s}
-.aichat-send:hover{background:var(--acc-d)}
-.aichat-send:disabled{opacity:.45;cursor:not-allowed}
-.aichat-foot{font-size:10.5px;color:var(--ink-4);line-height:1.6}
-.nlqconds{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 14px;align-items:end}
-.nlqconds .nc{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--ink-3);min-width:0}
-.nlqconds .nc select,.nlqconds .nc input{width:100%;box-sizing:border-box;height:36px;padding:0 10px;
-  border-radius:9px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);
-  font-size:12.5px;font-family:inherit;outline:none}
-.nlqconds .nc select:focus,.nlqconds .nc input:focus{border-color:rgba(var(--acc-rgb),.5)}
-.nlqconds .ncbtn{flex-direction:row;align-items:center;gap:8px}
 .nlqscope{margin-top:11px;display:flex;gap:7px;align-items:flex-start;font-size:11.5px;
   line-height:1.7;color:var(--ink-3)}
 .nlqscope .ic{flex:none;margin-top:2px}
@@ -311,18 +274,118 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .nlqsrc-note .ic{flex:none;margin-top:2px}
 @media (max-width:1260px){
   .nlqsplit{grid-template-columns:minmax(0,1fr) minmax(330px,380px)}
-  .nlqconds{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 @media (max-width:1080px){.nlqkpis,.nlqkpis.k4{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:900px){
   .nlqsplit{grid-template-columns:1fr}
   .nlqmapcard{position:static;height:460px;min-height:0}
-  .nlqconds{grid-template-columns:repeat(2,minmax(0,1fr))}
   .nlqsource .nlqsrc-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+/* ============================================================================
+   2026-10-17 界面重组新增样式：折叠分组 / 紧凑查询入口 / 排序条 / 距离分组
+   ========================================================================== */
+/* —— 通用小件 —— */
+.muted{color:var(--ink-4);font-size:11.5px}
+.tag{display:inline-flex;align-items:center;color:var(--ink-4);font-size:10px;font-weight:600;
+  letter-spacing:.06em;background:var(--panel-2);border:1px solid var(--line);
+  padding:2px 8px;border-radius:999px;white-space:nowrap}
+.preset-sp{flex:1 1 auto;min-width:6px}
+.ctl{width:100%;height:40px;box-sizing:border-box;background:var(--bg-soft);border:1px solid var(--line-2);
+  color:var(--ink);padding:0 11px;border-radius:8px;font-size:13px;font-family:inherit;outline:none;transition:.15s}
+.ctl:hover{border-color:var(--ink-4)}
+.ctl:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(var(--acc-rgb),.14);background:var(--panel)}
+/* 6 列基准栅格：常规字段占 2 列（一行 3 个），关键词占 4 列（一行 2 个）。
+   所有行共用同一组列锚点（0 / 1/3 / 2/3），上下字段左边缘严格对齐——
+   此前 3 列栅格里关键词跨 2 列，第二行只剩 2 个字段，右下角空出 1/3 行宽，看着就是"散"。*/
+.railcard .field.wide2{grid-column:span 4}
+
+/* —— 折叠分组：结果概览 / 更多筛选 / 查询历史 —— */
+.ovfold,.morefold{margin:var(--gap) var(--pad-x) 0}
+.ovfold > summary,.morefold > summary{
+  display:flex;align-items:center;gap:9px;cursor:pointer;list-style:none;width:100%;
+  padding:11px 15px;border:1px solid var(--line);border-radius:var(--r-m);
+  background:var(--panel);color:var(--ink-2);font-size:12.5px;font-weight:600;
+  transition:.15s;user-select:none}
+.ovfold > summary::-webkit-details-marker,.morefold > summary::-webkit-details-marker{display:none}
+.ovfold > summary:hover,.morefold > summary:hover{border-color:var(--line-2);color:var(--ink)}
+.ovfold > summary .ic,.morefold > summary .ic{width:15px;height:15px;color:var(--ink-4);flex:none}
+.ovfold-hint,.morefold-hint{color:var(--ink-4);font-size:11px;font-weight:400}
+/* 窄屏放不下「更多筛选 + 三组说明」，说明先让位，否则标题被挤成"更多筛"还被说明压住 */
+@media (max-width:560px){.morefold-hint{display:none}}
+.ovfold > summary::after,.morefold > summary::after{content:'';width:6px;height:6px;flex:none;margin-left:auto;
+  border-right:1.5px solid var(--ink-4);border-bottom:1.5px solid var(--ink-4);
+  transform:rotate(45deg);transition:transform .18s}
+.ovfold[open] > summary::after,.morefold[open] > summary::after{transform:rotate(-135deg)}
+.ovfold[open] > summary,.morefold[open] > summary{border-color:rgba(var(--acc-rgb),.34);color:var(--ink)}
+.ovfold .kpis{padding:14px 0 0}       /* 已在 details 内，不需要再缩进 */
+.morefold .filters{padding-top:13px}
+.morefold .filters + .filters{margin-top:0}
+/* 「更多筛选」在筛选卡内部时不能沿用 `margin:var(--gap) var(--pad-x)`：
+   那会让它比上下字段各内缩 28px（实测左边缘 262 vs 字段 234），
+   一条横杠比字段窄一截，看着就像贴歪了。卡内一律与字段同宽、同样左对齐。 */
+.railcard .morefold{margin:12px 0 0}
+/* 折叠条本身压成"控件"而不是"卡片"：浅底 + 8px 圆角 + 32px 高，
+   与 40px 的输入框区分层级，但它只是一行开关，不该抢走一整个横向色块。 */
+.railcard .morefold > summary{padding:8px 12px;border-radius:8px;background:var(--panel-2);
+  font-size:12px;border-color:var(--line)}
+
+/* —— 距离区：参考点 + 半径，与上面两行共用同一套 6 列栅格 —— */
+/* 旧写法把距离区做成"浅底卡片 + 2.1fr/1fr 两列"，但它与 `.filters` 同权重、
+   `.filters` 的定义在后面，级联输掉 → 实际渲染成 3 等列：参考点只有 369px，
+   塞了 input + 2 个按钮，右侧还空着 1/3 行宽。现在改为：
+   参考点占 4 列（763px，按钮排得开），半径占 2 列，正好与上一行的列锚点对齐。
+   分组只留一条发丝线，不再套一层色块——少一层盒子就少一层错位。 */
+.distgroup{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);align-items:end}
+.distgroup .field.distfield{grid-column:span 4}
+@media (max-width:900px){.distgroup .field.distfield{grid-column:span 6}}
+
+/* —— 结果标题栏：排序维度 / 方向 / 分页 / 每页条数 —— */
+.sortwrap{display:inline-flex;gap:6px;align-items:center}
+.pager .sortsel{width:auto;height:32px;padding:0 26px 0 10px;font-size:11.5px;
+  border-radius:7px;background-color:var(--panel-2);border-color:var(--line)}
+.pager .dirtog{width:32px;height:32px;font-size:13px}
+.railacts{margin-left:auto;display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
+
+/* —— 智能筛选：紧凑查询入口 —— */
+.nlqtabs .nlqscope{margin-top:0;margin-left:auto;font-size:11px;color:var(--ink-4);font-weight:400;
+  border:1px dashed var(--line-2);border-radius:999px;padding:5px 11px;white-space:nowrap}
+.nlqpane.active{display:block;min-height:0}
+.nlqask{display:flex;align-items:flex-end;gap:10px}
+.nlqask .field{flex:1;min-width:0}
+.nlqask textarea{width:100%;min-height:78px;resize:vertical;padding:11px 13px;border-radius:var(--r-m);
+  border:1px solid var(--line-2);background:var(--bg-soft);color:var(--ink);font-size:13.5px;
+  line-height:1.65;font-family:inherit;outline:none;transition:.15s;box-sizing:border-box}
+.nlqask textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(var(--acc-rgb),.14);background:var(--panel)}
+.nlqask .btn{height:40px;padding:0 22px;font-size:13px;font-weight:650}
+.nlqex{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:11px}
+.nlqex .ex{background:var(--panel-2);border:1px solid var(--line);color:var(--ink-2);font-size:11.5px;
+  padding:5px 11px;border-radius:999px;cursor:pointer;font-family:inherit;transition:.15s}
+.nlqex .ex:hover{border-color:rgba(var(--acc-rgb),.4);color:var(--acc);background:rgba(var(--acc-rgb),.08)}
+/* —— 详情抽屉：同区同类对标默认折叠（不抢占基本信息与地址的注意力）—— */
+.dwdock{margin-top:16px;border:1px solid var(--line);border-radius:var(--r-m);background:var(--panel-2);padding:11px 14px 13px}
+.dwdock > summary{display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;
+  color:var(--ink-2);font-size:12.5px;font-weight:600;user-select:none}
+.dwdock > summary::-webkit-details-marker{display:none}
+.dwdock-hint{margin-left:auto;color:var(--ink-4);font-size:10.5px;font-weight:400}
+.dwdock[open] > summary{margin-bottom:9px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+/* 查询历史（折叠） */
+.histfold{margin:0}
+.histfold > summary{display:flex;align-items:center;gap:9px;cursor:pointer;list-style:none;
+  padding:2px 0 11px;color:var(--ink-2);font-size:12.5px;font-weight:600;user-select:none}
+.histfold > summary::-webkit-details-marker{display:none}
+.histfold > summary .muted{font-weight:400}
+.nlqhist{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto}
+.nlqhist .qh{display:flex;align-items:baseline;gap:8px;padding:7px 10px;border-radius:var(--r-s);
+  background:var(--panel-2);border:1px solid var(--line);cursor:pointer;transition:.15s}
+.nlqhist .qh:hover{border-color:rgba(var(--acc-rgb),.4)}
+.nlqhist .qh .qt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:12px;color:var(--ink)}
+.nlqhist .qh .qn{color:var(--ink-4);font-size:10.5px;white-space:nowrap;font-variant-numeric:tabular-nums}
 @media (max-width:560px){
   .nlqkpis,.nlqkpis.k4{grid-template-columns:1fr 1fr}
-  .nlqconds{grid-template-columns:1fr}
+  /* .filters 的窄屏列数已改由「列跨度」统一控制（见 .filters > .field 的媒体查询），
+     这里不再单独改列数——两处各改一次列数就会互相打架。 */
 }
 .sidefoot{margin-top:10px;padding:0 6px}
 .sidebar .navnote{white-space:normal;line-height:1.75;padding:0;text-align:left;font-size:10.5px}
@@ -359,12 +422,12 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .card .s{color:var(--ink-4);font-size:10.5px;line-height:1.45}
 .card.hero .v{font-size:34px;color:var(--acc)}
 .card.hero .l{color:var(--acc)}
-.card.hero{border-color:rgba(var(--acc-rgb),.38);background:linear-gradient(135deg,rgba(var(--acc-rgb),.10),transparent 62%),var(--panel)}
+.card.hero{border-color:rgba(var(--acc-rgb),.38);background:var(--panel)}
 .card.k2 .v{color:var(--crit)}.card.k3 .v{color:var(--teal)}.card.k4 .v{color:var(--vio)}
 .card.k5 .v{color:var(--warn)}.card.k6 .v{color:var(--acc)}
 /* KPI 竖线统一为中性色（避免彩虹感），仅“筛选结果”hero 卡保留主色渐变高亮 */
 .card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:rgba(var(--hair-rgb),.16)}
-.card.hero::before{width:4px;background:linear-gradient(180deg,var(--acc),var(--vio))}
+.card.hero::before{width:4px;background:var(--acc)}
 
 /* ============================ 面板 ============================ */
 .panel{
@@ -381,8 +444,7 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 .sec-title{position:relative;display:flex;align-items:center;gap:10px;
   margin:0 var(--pad-x);padding:26px 0 11px;border-bottom:1px solid var(--line);
   font-size:15.5px;font-weight:700;letter-spacing:-.01em;color:var(--ink-strong)}
-.sec-title .bar{width:4px;height:17px;border-radius:2px;flex:0 0 auto;
-  background:linear-gradient(180deg,var(--acc),var(--vio))}
+.sec-title .bar{width:4px;height:17px;border-radius:2px;flex:0 0 auto;background:var(--acc)}
 .sec-title .n{font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--acc);
   letter-spacing:.08em;opacity:.9}
 .sec-title .hint{color:var(--ink-4);font-size:11.5px;font-weight:400;margin-left:auto;
@@ -398,8 +460,8 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 }
 .btn:hover{background:var(--panel-3);color:var(--ink);border-color:var(--ink-4)}
 .btn:active{transform:scale(.98)}
-.btn.pri{background:var(--acc);color:var(--on-accent);border-color:transparent}
-.btn.pri:hover{background:var(--acc-d);color:var(--on-accent)}
+.btn.pri,.btn.primary{background:var(--acc);color:var(--on-accent);border-color:transparent}
+.btn.pri:hover,.btn.primary:hover{background:var(--acc-d);color:var(--on-accent)}
 .btn.vio{background:var(--vio);color:var(--on-accent);border-color:transparent}
 .btn.vio:hover{background:var(--vio-d);color:var(--on-accent)}
 .btn.ghost{background:transparent;border-color:var(--line-2);color:var(--ink-2)}
@@ -411,9 +473,9 @@ h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em}
 /* ============================ 表单 ============================ */
 .field{display:flex;flex-direction:column;gap:6px;min-width:0}
 .field > label{color:var(--ink-3);font-size:11px;font-weight:550;letter-spacing:.02em;line-height:1.2}
-input[type=text],input[type=search],select{
-  width:100%;height:36px;box-sizing:border-box;background:var(--bg-soft);border:1px solid var(--line-2);color:var(--ink);
-  padding:0 11px;border-radius:8px;font-size:12.5px;font-family:inherit;outline:none;transition:.15s
+input[type=text],input[type=search],select,input[type=number]{
+  width:100%;height:40px;box-sizing:border-box;background:var(--bg-soft);border:1px solid var(--line-2);color:var(--ink);
+  padding:0 11px;border-radius:8px;font-size:13px;font-family:inherit;outline:none;transition:.15s
 }
 input::placeholder{color:var(--ink-4)}
 input:hover,select:hover{border-color:var(--ink-4)}
@@ -439,10 +501,19 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 /* 技术参数退到次要层级，细节收进 tooltip */
 .railcard .fh .r{margin-left:auto;color:var(--ink-4);font-size:10.5px;opacity:.6;cursor:help}
 .railcard .fh .r:hover{opacity:1;color:var(--ink-3)}
-.filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px 10px;align-items:end}
+.filters{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;align-items:end}
+.filters > .field{grid-column:span 2}
+.filters > .field.wide2{grid-column:span 4}
+/* 窄屏：≤900 关键词独占一行，其余两两并排（5 个字段正好 2+2，不会剩下孤零零一个）；
+   手机一律单列。列锚点始终一致，不会出现半截空行。 */
+@media (max-width:900px){
+  .filters > .field.wide2{grid-column:span 6}
+  .filters > .field{grid-column:span 3}
+}
+@media (max-width:560px){.filters > .field,.filters > .field.wide2{grid-column:span 6}}
 .rangebox{display:flex;gap:6px;align-items:stretch;flex-wrap:nowrap}
 .rangebox input,.rangebox select{flex:1;min-width:0}
-.rangebox .btn{height:36px}
+.rangebox .btn{height:40px}
 .railcard .fh .r b{color:var(--ink-2);font-weight:600;font-variant-numeric:tabular-nums}
 
 /* ============================ 列表 / 地图 ============================ */
@@ -456,7 +527,9 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 .railcard .field.wide{grid-column:span 2}
 .split{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(340px,1fr);gap:var(--gap);padding:var(--gap) var(--pad-x);align-items:start}
 .listhead{display:flex;justify-content:space-between;align-items:center;padding:0 0 9px;color:var(--ink-3);font-size:11px;border-bottom:1px solid var(--line);margin-bottom:7px;gap:10px;flex-wrap:wrap}
-.pager{display:flex;gap:6px;align-items:center}
+/* 手机窄屏：排序 + 方向 + 分页 + 每页条数一行放不下，允许换行，
+   否则整条 pager 会把页面撑出横向滚动（390px 下实测 scrollWidth 431）。 */
+.pager{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .pager button{background:var(--panel-2);color:var(--ink-2);border:1px solid var(--line);padding:4px 9px;border-radius:7px;cursor:pointer;font-size:11px;transition:.15s}
 .pager button:hover:not(:disabled){background:var(--panel-3);color:var(--ink)}
 .pager button:disabled{opacity:.32;cursor:not-allowed}
@@ -540,11 +613,14 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 /* ============================ 图表网格 ============================ */
 .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:var(--gap);padding:0 var(--pad-x) 22px}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--gap);padding:0 var(--pad-x) 22px}
+.grid2.solo{grid-template-columns:minmax(0,1fr)}
 .panel.sm{height:262px}
 /* 分析页 / 质量页的图表网格：6 列制（每个面板默认占 2 列 = 一行 3 个），
    这样末行剩 1~2 个时可以用 grid-column 把它们撑满，不会再出现「3 + 1」右半边大片留白。
-   项数决定排法：3 项 → 3 列；4 项 → 2×2；5 项 → 3 + 2（末行两格各半宽）。
-   auto-fit 做不到这一点 —— 它只会老实换行，末行缺几格就空几格。 */
+   项数决定排法：3 项 → 3 列；2 项 → 2×1（ag-n4）；4 项 → 2×2；5 项 → 3 + 2（末行两格各半宽）。
+   auto-fit 做不到这一点 —— 它只会老实换行，末行缺几格就空几格。
+   ⚠️ 不要给单个面板开「独占整行 6 列」：etl/verify_layout.py 的「分析·每行至少 2 格」
+      正是为抓这种塌格而立的，独占行会让该段第一行只剩 1 格而报红。 */
 .agrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--gap);padding:var(--gap) var(--pad-x) 22px}
 .agrid > *{grid-column:span 2;min-width:0}
 .agrid.ag-n4 > *{grid-column:span 3}
@@ -572,8 +648,8 @@ select{cursor:pointer;appearance:none;padding-right:28px;
    ECharts 照样 init、照样 setOption、series 里数据齐全（探针能查到 3 个点），
    但 canvas 高度 0 —— 页面上只看到标题和一块空白。
    etl/verify_layout.py 里有静态断言（init 的 id 必须 ⊆ 本清单）+ 运行时断言（clientHeight>0）钉住。 */
-#ch1,#ch2,#ch3,#ch_ov_own,#ch_own,#ch_feat,#ch_net,#ch_lvown,#ch_topsp,#ch_deptop,#ch_distlv,#ch_coord,
-#ch_catown,#ch_spdist,#ch_splv,#ch_distsp,#ch_distmx,#ch_netlv,#ch_srcmap,
+#ch1,#ch2,#ch3,#ch_own,#ch_feat,#ch_lvown,#ch_topsp,#ch_deptop,#ch_distlv,#ch_coord,
+#ch_catown,#ch_spdist,#ch_splv,#ch_distmx,#ch_netlv,#ch_srcmap,
 #a_kw,#a_dist,#a_triage,#a_daily,#a_density,#a_level,#a_spec,#a_net,#a_own{width:100%;height:100%}
 
 /* ============== 多维分析页：分析工具条 ============== */
@@ -690,6 +766,53 @@ select{cursor:pointer;appearance:none;padding-right:28px;
 .aiadv.show{display:block;animation:vf .25s}
 .aiadv .who{color:var(--vio);font-weight:600;font-size:11px;display:flex;align-items:center;gap:6px;margin-bottom:6px}
 .deptchips{display:flex;flex-wrap:wrap;gap:6px}
+/* ===== 命中解释 / 放宽建议（app.nlq.ui.js）===== */
+#nlq_explain{margin:0 0 9px;padding:10px 12px;border-radius:var(--r-m);
+  background:var(--panel);border:1px solid var(--line)}
+#nlq_explain.folded .exbody{display:none}
+.exhead{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:650}
+.exh-note{color:var(--ink-4);font-size:10.5px;font-weight:400;flex:1;min-width:0}
+.exfold{background:none;border:1px solid var(--line);border-radius:6px;color:var(--ink-3);
+  font-size:10.5px;padding:2px 8px;cursor:pointer;font-family:inherit;flex:none}
+.exfold:hover{border-color:var(--line-2);color:var(--ink-2)}
+.extable{width:100%;border-collapse:collapse;margin-top:8px;font-size:11.5px}
+.extable th,.extable td{padding:5px 7px;text-align:left;border-bottom:1px solid var(--line)}
+.extable thead th{color:var(--ink-4);font-size:10.5px;font-weight:600}
+.extable th{font-weight:600;color:var(--ink-2)}
+.extable th .mini{color:var(--ink-4);font-size:10px;font-weight:400;margin-top:2px}
+.extable td.num{text-align:right;font-variant-numeric:tabular-nums;width:82px}
+.extable td.dlt{width:104px}
+.extable tr:last-child th,.extable tr:last-child td{border-bottom:none}
+.extable tr.inert th,.extable tr.inert td{opacity:.55}
+.exd{color:var(--acc);font-size:10.5px}
+.exd-none{color:var(--ink-4);font-size:10.5px}
+.exfoot{color:var(--ink-4);font-size:10px;line-height:1.6;margin-top:7px}
+.exrelax{margin-left:6px;background:rgba(var(--acc-rgb),.12);border:1px solid rgba(var(--acc-rgb),.34);
+  color:var(--acc);font-size:11px;font-weight:600;padding:3px 10px;border-radius:6px;cursor:pointer;font-family:inherit}
+.exrelax:hover{background:rgba(var(--acc-rgb),.2)}
+/* ===== 机构证据增强（app.evidence.js）：院区/挂牌 · 预约入口 · 出发点与导航 =====
+   .linkbtn 是既有的外链卡样式，.evcard 复用它但允许换行（预约入口的描述更长，
+   挤在一行会把 URL 折成三行反而更难读）。 */
+.evcard{display:block;padding:11px 13px;border-radius:var(--r-m);background:var(--panel);
+  border:1px solid var(--line);color:var(--ink);transition:.15s;min-width:0;text-decoration:none}
+.evcard:hover{background:var(--panel-2);border-color:var(--line-2)}
+.evcard .lt{font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:6px}
+.evcard .lt::after{content:'↗';margin-left:auto;color:var(--ink-4);font-size:11px;flex:none}
+.evcard .ld{color:var(--ink-3);font-size:11px;line-height:1.6;margin-top:4px}
+.evcard .lu{color:var(--acc);font-size:10px;margin-top:5px;word-break:break-all;opacity:.85}
+/* 出发点下拉：沿用筛选控件的观感，控件高度同样 40px */
+.evorigin{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.evorigin .eok{font-size:12px;color:var(--ink-3);flex:none}
+.evorigin .esel{height:40px;min-width:190px;flex:1;min-width:0;padding:0 11px;border-radius:var(--r-m);
+  border:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:12.5px;font-family:inherit;cursor:pointer}
+.evorigin .esel:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+/* 挂牌名逐条依据：默认收起，点开才看得到 source / evidence 原文 */
+.evdet{border-top:1px dashed var(--line);padding:7px 0 2px}
+.evdet:first-of-type{border-top:none}
+.evdet>summary{cursor:pointer;font-size:11.5px;color:var(--ink-2);list-style:none;display:flex;align-items:center;gap:6px}
+.evdet>summary::-webkit-details-marker{display:none}
+.evdet>summary::before{content:'▸';color:var(--ink-4);font-size:10px;transition:.15s;flex:none}
+.evdet[open]>summary::before{transform:rotate(90deg)}
 /* 协作网络页 / 运营后台数据治理区块 */
 .kpis.k4{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media (max-width:1360px){.kpis.k4{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -828,11 +951,14 @@ body.has-pick{padding-bottom:84px}
 .fglabel i{width:3px;border-radius:2px;background:var(--line-2);display:block;flex:0 0 auto;align-self:stretch;min-height:12px}
 
 .rangebox .btn{padding:6px 10px!important;flex:none}
-.presetbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px}
+.presetbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px}
 #btn_reset{margin-left:auto;flex:none}
-.presetbar .plabel{color:var(--ink-4);font-size:11px;white-space:nowrap;flex:none}
-.preset{background:var(--panel-2);border:1px solid var(--line);color:var(--ink-2);font-size:11px;
-  padding:3px 9px;border-radius:20px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:5px}
+.presetbar .plabel{color:var(--ink-4);font-size:10.5px;font-weight:600;letter-spacing:.04em;white-space:nowrap;flex:none;margin-right:2px}
+/* 快捷入口与输入框同高（30px）、同圆角（8px）：此前是小药丸（约 24px 高、20px 圆角），
+   与 40px 的控件并列时像一排碎片。统一后这一行读起来才是"一组按钮"。 */
+.preset{background:var(--panel-2);border:1px solid var(--line);color:var(--ink-2);font-size:11.5px;
+  height:30px;padding:0 11px;border-radius:8px;cursor:pointer;transition:.15s;
+  display:inline-flex;align-items:center;gap:5px;font-family:inherit}
 .preset:hover{background:var(--panel-3);color:var(--ink);border-color:rgba(var(--acc-rgb),.34)}
 .preset.on{background:rgba(var(--acc-rgb),.14);border-color:rgba(var(--acc-rgb),.44);color:var(--acc)}
 /* 预设生效后，被改动的控件脉冲高亮一次，让用户看清系统做了什么 */
@@ -916,7 +1042,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   .split{grid-template-columns:minmax(0,1fr) minmax(300px,340px)}
 }
 @media (max-width:560px){
-  .filters{grid-template-columns:minmax(0,1fr)}
+  /* .filters 列数见 `.filters > .field` 的媒体查询（span 6 = 单列） */
 }
 
 
@@ -927,8 +1053,10 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 .themebtn:hover{background:var(--panel-3);color:var(--ink);border-color:var(--line-2)}
 .themebtn .ic{width:15px;height:15px}
 .themebtn .ic-moon{display:none}
-:root[data-theme="light"] .themebtn .ic-sun{display:none}
-:root[data-theme="light"] .themebtn .ic-moon{display:inline-block}
+:root .themebtn .ic-sun{display:none}
+:root .themebtn .ic-moon{display:inline-block}
+:root[data-theme="dark"] .themebtn .ic-sun{display:inline-block}
+:root[data-theme="dark"] .themebtn .ic-moon{display:none}
 
 /* ============================ 筛选区：左侧字段矩阵 + 右侧 AI 栏 ============================ */
 /* 命中数作为核心反馈：放大加粗 */
@@ -1017,15 +1145,18 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   padding:3px 9px;border-radius:20px;cursor:pointer;transition:.15s;font-family:inherit}
 .quickbar .qb:hover{color:var(--acc);border-color:rgba(var(--acc-rgb),.42);border-style:solid}
 
-@media (max-width:900px){.filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:900px){
+  /* 旧写法在这里把 .filters 改成 2 列，但字段用的是列跨度（span），
+     改列数会让跨 4 列的关键词被截断、跨 2 列的字段占满整行。
+     窄屏适配统一由 `.filters > .field` 的媒体查询负责。 */
+}
 @media (max-width:700px){
   .split{grid-template-columns:minmax(0,1fr)}
   .mapwrap{position:static;height:auto;min-height:480px}
   .list{max-height:520px}
-  .filters{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width:560px){
-  .filters{grid-template-columns:minmax(0,1fr)}
+  /* 列数见 `.filters > .field` 的媒体查询（span 6 = 单列） */
 }
 
 /* 筛选结果变化时，命中数做一次轻微反馈 */
@@ -1132,8 +1263,88 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 .qbar b{font-variant-numeric:tabular-nums;color:var(--ink-2);font-size:11.5px;min-width:48px;text-align:right}
 
 @media (max-width:1180px){.integ-grid{grid-template-columns:1fr}}
+
+/* ============================================================================
+   智能筛选悬浮球（2026-10-17）：查询是动作不是地点，任何查阅页可呼出
+   ========================================================================== */
+.fab{
+  position:fixed; right:26px; bottom:26px; z-index:90;
+  width:56px; height:56px; border-radius:50%;
+  border:none; cursor:pointer; padding:0;
+  background:var(--acc); color:var(--on-accent);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 6px 20px -6px rgba(var(--acc-rgb),.55), var(--sh-1);
+  transition:transform .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.fab:hover{ transform:translateY(-2px); background:var(--acc-d);
+  box-shadow:0 10px 26px -6px rgba(var(--acc-rgb),.6), var(--sh-1); }
+.fab.on{ background:var(--ink-2); box-shadow:var(--sh-2); }
+.fab.on .ic-fab{ display:none; }
+.fab.on .ic-fabx{ display:block !important; }
+.fabbadge{
+  position:absolute; top:-4px; right:-4px; min-width:20px; height:20px;
+  padding:0 5px; border-radius:10px; background:var(--crit); color:#fff;
+  font-size:11px; font-weight:600; line-height:20px; text-align:center;
+  box-shadow:var(--sh-1);
+}
+/* 首次访问给球一点呼吸动画，提示这是可点击入口 */
+@keyframes fabPulse{0%,100%{box-shadow:0 6px 20px -6px rgba(var(--acc-rgb),.55),var(--sh-1)}50%{box-shadow:0 8px 28px -4px rgba(var(--acc-rgb),.75),0 0 0 6px rgba(var(--acc-rgb),.15)}}
+.fab.pulse{ animation:fabPulse 2s ease-in-out 3; }
+/* 浮层面板：复用 #view-filter 全部内容，只改呈现容器 */
+#view-filter.active{
+  display:block; position:fixed; right:26px; bottom:94px; z-index:89;
+  width:min(680px, calc(100vw - 48px)); max-height:min(80vh, 920px);
+  overflow:auto; background:var(--panel);
+  border:1px solid var(--line); border-radius:16px;
+  box-shadow:0 24px 60px -18px rgba(15,23,42,.35);
+  padding-bottom:8px;
+}
+#view-filter .sec-title{
+  position:sticky; top:0; z-index:2;
+  margin:0; padding:13px 18px; background:var(--panel-2);
+  border-bottom:1px solid var(--line);
+}
+/* 整页布局压成单列流，适配 680px 面板宽 */
+#view-filter .railcard{ margin:14px 16px !important; }
+/* —— AI 问答窗口（2026-10-18：悬浮球内只做聊天，不再有列表 / 地图） —— */
+.chathead{display:flex;align-items:center;gap:9px;flex-wrap:wrap;color:var(--acc)}
+.chathead .chatttl{font-weight:600;color:var(--ink)}
+.chatdotwrap{margin-left:auto;display:inline-flex;align-items:center;gap:6px;color:var(--ink-4);font-size:11px}
+.chatdot{width:8px;height:8px;border-radius:50%;background:var(--ink-4);display:inline-block}
+.chatdot.on{background:#16a34a}.chatdot.off{background:#94a3b8}
+.chatlog{height:290px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;
+  padding:8px 2px;margin-top:12px}
+.chatmsg{max-width:84%;padding:9px 12px;border-radius:12px;font-size:12.8px;line-height:1.7}
+.chatmsg .chatwho{font-size:10.5px;color:var(--ink-4);margin-bottom:3px}
+.chatmsg.user{align-self:flex-end;background:var(--acc);color:#fff;border-bottom-right-radius:4px}
+.chatmsg.user .chatwho{color:rgba(255,255,255,.78);text-align:right}
+.chatmsg.ai{align-self:flex-start;background:var(--panel-2);border:1px solid var(--line);
+  border-bottom-left-radius:4px}
+.chatmsg.refuse{align-self:flex-start;background:rgba(220,38,38,.06);
+  border:1px solid rgba(220,38,38,.25);color:var(--ink-2);border-bottom-left-radius:4px}
+.chatmsg.sys{align-self:center;background:transparent;color:var(--ink-4);
+  font-size:11.5px;max-width:92%;text-align:center}
+.chatmsg.wait{color:var(--ink-4)}
+.chatdots i{display:inline-block;width:5px;height:5px;border-radius:50%;
+  background:currentColor;margin-right:3px;animation:chatblink 1.2s infinite}
+.chatdots i:nth-child(2){animation-delay:.2s}.chatdots i:nth-child(3){animation-delay:.4s}
+@keyframes chatblink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+.chatask{display:flex;gap:10px;align-items:flex-end;margin-top:12px}
+.chatask textarea{flex:1;min-height:58px;max-height:140px;padding:10px 12px;
+  border:1px solid var(--line);border-radius:10px;background:var(--panel);
+  color:var(--ink);font:inherit;font-size:12.8px;line-height:1.6;resize:none}
+.chatask textarea:focus{outline:none;border-color:rgba(var(--acc-rgb),.55)}
+.chatbound{margin-top:12px;font-size:12px;line-height:1.75;color:var(--ink-4);
+  padding:10px 13px;border-radius:var(--r-m);background:var(--panel-2);
+  border:1px dashed var(--line)}
+@media (max-width:640px){
+  .fab{ right:14px; bottom:14px; width:50px; height:50px; }
+  #view-filter.active{ right:10px; left:10px; bottom:74px; width:auto; max-height:82vh; }
+  .chatlog{ height:42vh; }
+  .chatmsg{ max-width:92%; }
+}
 </style>
-<script>/* 首帧前落定主题，避免明暗闪烁 */(function(){try{var t=localStorage.getItem("bjyy_theme");if(t==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
+<script>/* 首帧前落定主题，避免明暗闪烁 */(function(){try{var t=localStorage.getItem("bjyy_theme");if(t==="dark")document.documentElement.setAttribute("data-theme","dark");}catch(e){}})();</script>
 </head>
 <body>
 <div class="loading" id="loading"><span class="pulse"></span>正在加载数据快照…</div>
@@ -1141,13 +1352,8 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 <div class="layout">
 <aside class="sidebar">
   <nav class="navbar" id="navbar">
-  <!-- 主入口：智能筛选（自然语言 / 条件双通道）。
-       本页内即可走完「描述条件 → 解析 → 查真实数据 → 看分布与列表 → 加入对比」，
-       不跳 /spa/、不依赖后端，因此分享链接与断网场景都可用。 -->
-  <button class="navtab navcta" id="nav_smartfilter" data-view="filter"
-     title="智能筛选：用一句话描述条件，或手动组合条件，直接检索真实机构数据">
-    <span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4zM18 15.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg></span><span class="lbl">智能筛选</span>
-  </button>
+  <!-- 智能筛选已改为右下角悬浮球（#fab_nlq），不再占侧边栏导航位。
+       查询是动作不是地点：任何查阅页都能一键呼出浮层面板。 -->
   <div class="navcap">数据查阅</div>
   <button class="navtab active" data-view="overview"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg></span><span class="lbl">数据总览</span></button>
   <button class="navtab" data-view="analytics"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-12"/></svg></span><span class="lbl">医疗资源分析</span></button>
@@ -1209,10 +1415,9 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     </div>
   </div>
 
-  <div class="grid2">
+  <div class="grid2 solo">
     <div class="panel sm"><h3>医院等级分布 <span class="tag">LEVELS</span></h3>
       <div class="scope" id="scope_ch1"></div><div id="ch1"></div></div>
-    <div class="panel sm"><h3>办别构成 <span class="tag">OWNERSHIP</span></h3><div id="ch_ov_own"></div></div>
   </div>
 
   <div class="panel" style="margin:var(--gap) var(--pad-x) 0">
@@ -1264,20 +1469,18 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     <div class="apanel"><h3>专科能力 TOP<span id="an_topn_lbl">10</span> <span class="tag">KEY SPECIALTY</span></h3><div class="achart" id="ch_topsp"></div></div>
     <div class="apanel"><h3>专科能力分档（仅挂牌重点专科） <span class="tag">PARETO · 累计占比</span></h3><div class="achart" id="ch_spdist"></div></div>
     <div class="apanel"><h3>重点专科级别的等级分布 <span class="tag">100% STACKED · 等级 × 级别</span></h3><div class="achart" id="ch_splv"></div></div>
-    <div class="apanel"><h3>科室覆盖 TOP15 <span class="tag">DEPT COVERAGE</span></h3><div class="achart" id="ch_deptop"></div></div>
+    <div class="apanel"><h3>科室覆盖 TOP15 <span class="tag">44 类标准科室 · 含推导值</span></h3><div class="achart" id="ch_deptop"></div></div>
   </div>
 
-  <div class="sec-title"><span class="bar"></span><span class="n">03</span>空间格局<span class="hint" id="hint_space">16 区资源密度、专科实力与资源禀赋横向对比</span></div>
-  <div class="agrid ag-n3">
+  <div class="sec-title"><span class="bar"></span><span class="n">03</span>空间格局<span class="hint" id="hint_space">16 区资源密度与资源禀赋横向对比</span></div>
+  <div class="agrid ag-n4">
     <div class="apanel"><h3>区域 × 等级 机构数矩阵 <span class="tag">HEATMAP · 色深 = 机构数 · 按三级机构数排序</span></h3><div class="achart" id="ch_distlv"></div></div>
-    <div class="apanel"><h3>区域专科实力 <span class="tag">BAR · 挂牌数 + 每百家强度</span></h3><div class="achart" id="ch_distsp"></div></div>
     <div class="apanel"><h3>区域资源禀赋矩阵 <span class="tag">MATRIX · 按三级机构数排序 · 列内归一 · 格内为原值</span></h3><div class="achart" id="ch_distmx"></div></div>
   </div>
 
   <div class="sec-title"><span class="bar"></span><span class="n">04</span>协作与数据整合<span class="hint">跨机构协同网络 · 合并来源深度 · 数据质量</span></div>
-  <div class="agrid ag-n4">
-    <div class="apanel"><h3>协作网络覆盖（按网络席位） <span class="tag">NETWORKS</span></h3><div class="achart" id="ch_net"></div></div>
-    <div class="apanel"><h3>协作网络 × 等级 <span class="tag">NETWORK × LEVEL</span></h3><div class="achart" id="ch_netlv"></div></div>
+  <div class="agrid">
+    <div class="apanel"><h3>协作网络 × 等级 <span class="tag">NETWORK × LEVEL · 100% 构成</span></h3><div class="achart" id="ch_netlv"></div></div>
     <div class="apanel"><h3>数据整合深度构成 <span class="tag">BAR · 来源越多机构越少</span></h3><div class="achart" id="ch_srcmap"></div></div>
     <div class="apanel"><h3>坐标精度覆盖率 <span class="tag">GAUGE · HIGH PRECISION</span></h3><div class="achart" id="ch_coord"></div></div>
   </div>
@@ -1285,23 +1488,29 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 
 <!-- ============================ 机构查询 ============================ -->
 <section id="view-institutions" class="view">
-  <div class="kpis" id="cards">
-    <div class="card hero"><div class="l">筛选结果</div><div class="v" id="v_match">0</div><div class="s">符合当前条件的机构</div></div>
-    <div class="card k2"><div class="l">三级医院</div><div class="v" id="v_l3">0</div><div class="s">筛选结果中的三级机构</div></div>
-    <div class="card k3"><div class="l">含坐标</div><div class="v" id="v_coord">0</div><div class="s">可参与距离排序与地图散点</div></div>
-    <div class="card k4"><div class="l">科室数已核实</div><div class="v" id="v_dept">0</div><div class="s">官网 / 百科在线核实到的机构数</div></div>
-    <div class="card k5"><div class="l">重点专科机构</div><div class="v" id="v_feat">0</div><div class="s">含国家 / 市级 / 院级重点专科</div></div>
-    <div class="card k6"><div class="l">协作网络覆盖</div><div class="v" id="v_net">0</div><div class="s">纳入任一市级协作网络</div></div>
-  </div>
+  <!-- 结果概览：默认折叠。它只回答"这次筛出了什么"，完整资源分布看「医疗资源分析」页，
+       两处都摆统计卡既是重复、也把结果列表挤到首屏以下。 -->
+  <details class="ovfold" id="inst_ovfold">
+    <summary><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V6l8-3 8 3v15M9 21v-4h6v4"/></svg>结果概览<span class="ovfold-hint">当前筛选口径下的统计 · 点击展开</span></summary>
+    <div class="kpis" id="inst-cards">
+      <div class="card hero"><div class="l">筛选结果</div><div class="v" id="v_match">0</div><div class="s">符合当前条件的机构</div></div>
+      <div class="card k2"><div class="l">三级医院</div><div class="v" id="v_l3">0</div><div class="s">筛选结果中的三级机构</div></div>
+      <div class="card k3"><div class="l">含坐标</div><div class="v" id="v_coord">0</div><div class="s">可参与距离排序与地图散点</div></div>
+      <div class="card k4"><div class="l">科室数已核实</div><div class="v" id="v_dept">0</div><div class="s">官网 / 百科在线核实到的机构数</div></div>
+      <div class="card k5"><div class="l">重点专科机构</div><div class="v" id="v_feat">0</div><div class="s">含国家 / 市级 / 院级重点专科</div></div>
+      <div class="card k6"><div class="l">协作网络覆盖</div><div class="v" id="v_net">0</div><div class="s">纳入任一市级协作网络</div></div>
+    </div>
+  </details>
 
   <div class="panel railcard" style="margin:var(--gap) var(--pad-x) 0">
       <div class="fh railfh">
       <span class="bar"></span><span class="t">多维筛选</span>
       <span class="ftag" id="flt_count">—</span>
-      <span class="r" id="flt_meta" title="7 个筛选维度 · 6 种排序方式 · 加权评分（等级 0.5 / 距离 0.3 / 科室 0.2）· Haversine 球面距离公式 · 快照为数据截止日（非实时）">快照 <b id="m_time2">—</b></span></div>
+      <span class="r" id="flt_meta" title="多维筛选 · 5 种排序 · 严格匹配（结果均满足全部条件，匹配度恒为 1）· Haversine 球面直线距离 · 快照为数据截止日（非实时）">快照 <b id="m_time2">—</b></span></div>
 
+      <!-- 常用筛选：默认展示，覆盖最高频的五个维度（关键词 / 行政区 / 类型 / 等级 / 科室） -->
       <div class="filters">
-        <div class="field"><label for="f_kw">关键词</label>
+        <div class="field wide2"><label for="f_kw">关键词</label>
           <div class="kwbox">
             <svg class="kwi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.4 16.4L21 21"/></svg>
             <input id="f_kw" type="text" autocomplete="off" spellcheck="false" placeholder="机构名 / 地址，如 协和"
@@ -1310,30 +1519,83 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
             <div class="acbox" id="kw_ac" role="listbox" aria-label="关键词联想"></div>
           </div>
         </div>
+        <div class="field"><label for="f_district">行政区</label><select id="f_district"><option value="">全部 16 区</option></select></div>
+        <div class="field"><label for="f_cat">机构类型</label><select id="f_cat"><option value="">全部类型</option></select></div>
+        <div class="field"><label for="f_level">医院等级</label><select id="f_level"><option value="">全部等级</option></select></div>
+        <!-- 科室提到常用行：它是本系统的核心筛选维度（科室证据 / 科室收录量），
+             藏在二级折叠里要两次点击才能用。提上来后第二行正好三个字段填满整行，
+             不再在右下角空出 1/3 行宽。 -->
         <div class="field"><label for="f_dept">科室</label><select id="f_dept" title="按科室名称筛选（含擅长 / 诊疗方向）"><option value="">全部科室</option></select></div>
-        <div class="field"><label for="f_district">区域</label><select id="f_district"><option value="">全部 16 区</option></select></div>
-        <div class="field"><label for="f_level">等级</label><select id="f_level"><option value="">全部等级</option></select></div>
-        <div class="field"><label for="f_cat">类型</label><select id="f_cat"><option value="">全部类型</option></select></div>
-        <div class="field"><label for="f_net">协作网络</label><select id="f_net" title="市级协作网络">
-          <option value="">全部网络</option>
-          <option value="ped_core">儿科医联体 · 核心医院</option>
-          <option value="ped_member">儿科医联体 · 成员机构</option>
-          <option value="stroke">卒中中心</option>
-          <option value="neonatal">危重新生儿救治 · 市级</option>
-          <option value="maternal">危重孕产妇救治 · 市级</option>
-        </select></div>
-        <div class="field wide"><label for="f_base">距离基准</label>
+      </div>
+
+      <!-- 更多筛选：默认折叠，只留低频三项（等级等次 / 来源证据 / 协作网络），
+           正好三个字段填满一行，展开后不再出现半截空行。 -->
+      <details class="morefold" id="flt_more">
+        <summary><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M6 12h12M10 18h4"/></svg>更多筛选<span class="morefold-hint">等级等次 · 来源证据 · 协作网络</span></summary>
+        <div class="filters">
+          <div class="field"><label for="f_level_sub">等级等次</label>
+            <select id="f_level_sub" title="医院等级等次（甲等 / 乙等 / 丙等）。三甲 = 三级且甲等的组合条件">
+              <option value="">不限等次</option>
+              <option value="甲等">甲等</option>
+              <option value="乙等">乙等</option>
+              <option value="丙等">丙等</option>
+            </select></div>
+          <div class="field"><label for="f_evidence">科室来源证据</label>
+            <select id="f_evidence" title="名称与规则推断的科室映射不计入证据；本项只保留有来源记录（官方名单 / 在线核实 / 重点专科）的机构">
+              <option value="">全部映射（含推断）</option>
+              <option value="recorded">仅有来源记录</option>
+            </select></div>
+          <div class="field"><label for="f_net">协作网络</label><select id="f_net" title="市级协作网络">
+            <option value="">全部网络</option>
+            <option value="ped_core">儿科医联体 · 核心医院</option>
+            <option value="ped_member">儿科医联体 · 成员机构</option>
+            <option value="stroke">卒中中心</option>
+            <option value="neonatal">危重新生儿救治 · 市级</option>
+            <option value="maternal">危重孕产妇救治 · 市级</option>
+          </select></div>
+        </div>
+      </details>
+
+      <!-- 距离区：参考点、半径与定位操作集中在一处 -->
+      <div class="filters distgroup">
+        <div class="field distfield"><label for="f_base">距离参考点</label>
           <div class="rangebox">
             <input id="f_base" type="text" autocomplete="off" spellcheck="false" value=""
-                   placeholder="输入起始地址，如：中关村大街27号 · 回龙观"
-                   title="距离按此起点计算：进页自动定位；或输入任意地址回车解析（也支持 地标 / 区名 / 机构名）">
-            <button class="btn sm" id="btn_locate" type="button" onclick="locateMe()" title="自动定位我的位置作为起点（需浏览器授权，http://localhost 下可用）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.5 7-12a7 7 0 10-14 0c0 5.5 7 12 7 12zM12 9a3 3 0 100 6 3 3 0 000-6z"/></svg> 定位</button>
+                   placeholder="输入地址并设为参考点，如：中关村大街27号 · 回龙观"
+                   title="距离按此起点计算：默认按天安门（市中心）估算；输入任意地址后点「设置参考点」或回车解析（支持 地址 / 区名 / 机构名）">
+            <button class="btn sm" id="btn_base_set" type="button" title="解析输入的地址并设为距离参考点">设置参考点</button>
+            <button class="btn sm ghost" id="btn_locate" type="button" title="调用浏览器定位，把「我的位置」作为参考点（需浏览器授权，http://localhost 下可用）">使用我的位置</button>
+            <button class="btn sm ghost" id="btn_base_clear" type="button" title="清除参考点，距离恢复按天安门（市中心）计算" style="display:none">恢复天安门</button>
           </div>
         </div>
-        <div class="field"><label for="f_sort">排序方式</label>
-          <div class="rangebox">
-            <select id="f_sort" title="排序维度">
-              <option value="score">条件匹配度</option>
+        <div class="field"><label for="f_radius">直线半径（km）</label>
+          <input class="ctl" id="f_radius" type="number" min="0.01" max="200" step="0.1" placeholder="不限"
+                 title="距参考点的球面直线距离半径（0 – 200 km）。仅使用 high 精度坐标的机构，粗精度坐标不参与半径筛选">
+        </div>
+      </div>
+      <div class="fltchips" id="flt_chips"></div>
+      <div class="presetbar" id="presetbar">
+        <span class="plabel">快捷入口</span>
+        <button class="preset" data-preset="l3" title="筛选医院等级 = 三级">三级医院</button>
+        <button class="preset" data-preset="l2" title="筛选医院等级 = 二级">二级医院</button>
+        <!-- 「基层」不能直接等同于「一级医院」：一级是医院层级，基层还包括诊所 /
+             村卫生室 / 社区卫生服务站等类型（按机构类型筛）。这里只写准确的那个。 -->
+        <button class="preset" data-preset="l1" title="一级医院（医院层级）；诊所 / 村卫生室 / 社区卫生服务站等基层机构请按「机构类型」筛选">一级医院</button>
+        <button class="preset" data-preset="near3" title="三级医院 + 按距参考点由近到远排序">离参考点最近的三级</button>
+        <button class="preset" data-preset="net" title="纳入卒中中心协作网络">卒中中心</button>
+        <button class="preset" data-preset="depttop" title="按科室收录量排序：数值是数据集收录到的科室明细条数，不代表医疗能力或真实科室完整程度">科室收录量排序</button>
+        <span class="preset-sp"></span>
+        <button class="btn ghost sm" id="btn_reset"
+          title="恢复默认视图：清空全部筛选条件、距离参考点回到天安门、排序回到默认">↺ 恢复默认视图</button>
+      </div>
+
+      <div class="raildiv"></div>
+      <div class="railhead">
+        <h3>机构列表 <span class="tag" id="listTag">共 0 家</span></h3>
+        <div class="pager">
+          <span class="sortwrap">
+            <select id="f_sort" class="sortsel" title="排序方式只改变结果顺序，不改变筛选条件">
+              <option value="score">默认排序</option>
               <option value="distance">距离（近 → 远）</option>
               <option value="level">医院等级</option>
               <option value="depts">科室收录量</option>
@@ -1341,30 +1603,11 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
             </select>
             <button class="dirtog" id="f_dir" type="button" data-dir="desc"
                     title="切换升序 / 降序（距离维度固定为近 → 远）" aria-label="切换排序方向">↓</button>
-          </div>
-        </div>
-      </div>
-      <div class="fltchips" id="flt_chips"></div>
-      <div class="presetbar" id="presetbar">
-        <span class="plabel">常用筛选</span>
-        <button class="preset" data-preset="l3">三级医院</button>
-        <button class="preset" data-preset="l2">二级医院</button>
-        <button class="preset" data-preset="l1">基层（一级）</button>
-        <button class="preset" data-preset="near3">离我最近的三级</button>
-        <button class="preset" data-preset="net">卒中中心</button>
-        <button class="preset" data-preset="depttop">科室覆盖最全</button>
-        <button class="btn ghost sm" id="btn_reset"
-          title="恢复默认视图：清空全部筛选条件、距离基准回到市中心、排序回到条件匹配度">↺ 恢复默认</button>
-      </div>
-
-      <div class="raildiv"></div>
-      <div class="railhead">
-        <h3>机构列表 <span class="tag" id="listTag">LIST · 共 0 家</span></h3>
-        <div class="pager">
+          </span>
           <button id="pg_prev">‹ 上一页</button>
           <span class="pg" id="pg_info">— / —</span>
           <button id="pg_next">下一页 ›</button>
-          <select id="pg_size">
+          <select id="pg_size" title="每页条数">
             <option value="10">10/页</option>
             <option value="20" selected>20/页</option>
             <option value="50">50/页</option>
@@ -1384,88 +1627,44 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   </div>
 </section>
 
-<!-- ============================ 智能筛选（自然语言 + 条件双通道） ============================ -->
-<!-- 这是本系统的**主入口**，也是定位最需要说清楚的一页：
-     它做的是"把中文说法翻译成结构化筛选条件，再去查真实的机构数据"，
-     **不做**疾病诊断、用药建议、就诊推荐——系统数据里根本没有患者诊疗数据。
-     两条通道（自然语言 / 条件）共用同一个执行链，输出同一套结果视图。 -->
+<!-- ============================ 智能问答（悬浮球 · Agnes AI） ============================ -->
+<!-- 2026-10-18 重构：智能筛选窗口不再显示条件卡片 / 结果列表 / 地图 —— 只做 AI 问答。
+     用户提问 → 本地引擎（app.nlq.js，与 nlq.py 同源）对真实数据查一遍 → facts 交给
+     Agnes（/api/ai/chat）组织语言回答；后端不可达 / 未配密钥 / 限流时降级为本地模板，
+     气泡明确标注。机构名与数字永远来自查询结果，模型不产出事实。 -->
 <section id="view-filter" class="view">
-  <div class="sec-title"><span class="bar"></span>医疗机构智能筛选
-    <span class="hint">AI 对话式筛选与就医咨询 → 结构化条件 → 数据库检索 · 所有数字均来自数据仓库的真实查询结果</span></div>
+  <div class="sec-title"><span class="bar"></span>智能问答
+    <span class="hint">Agnes AI · 只基于真实查询结果回答 · 不做疾病诊断与用药建议</span>
+    <button class="btn ghost sm" id="nlq_dock_close" type="button" title="收起面板（Esc）" style="margin-left:auto">收起 ×</button></div>
 
-  <div class="panel railcard" style="margin:0 var(--pad-x)">
-    <!-- 唯一入口：AI 对话式筛选与就医咨询（自然语言/条件筛选与「机构查询」页重合，已并入对话） -->
-    <div class="nlq-lead" style="margin-bottom:10px">一个窗口完成筛选与咨询：选「机构筛选」查真实数据（结果与地图见下方），其余模式获得就医建议；医院推荐只基于当前筛选出的真实结果</div>
-    <div class="aichat" id="aichat">
-      <div class="aichat-modes" id="aichat_modes">
-        <button class="aichat-mode active" type="button" data-mode="filter">机构筛选</button>
-        <button class="aichat-mode" type="button" data-mode="triage">问诊导诊</button>
-        <button class="aichat-mode" type="button" data-mode="visit">就医建议</button>
-        <button class="aichat-mode" type="button" data-mode="hospital">医院选择</button>
-        <span class="aichat-scope" id="nlq_wait" style="display:none">正在检索数据库…</span>
-        <span class="aichat-scope">不做诊断与用药建议 · 所有数字来自数据库</span>
-      </div>
-      <div class="quickbar" id="aichat_ex"></div>
-      <div class="aichat-msgs" id="aichat_msgs"></div>
-      <div class="aichat-input">
-        <button class="nlq-ic" id="btn_voice_ai" type="button"
-          title="语音输入：需在本机 http://localhost:5001 下使用" aria-label="语音输入"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11a7 7 0 0014 0M12 18v3M8.5 21h7"/></svg></button>
-        <input id="aichat_input" type="text" autocomplete="off" spellcheck="false"
-               placeholder="例如：朝阳区和海淀区的三级医院，公立">
-        <button class="aichat-send" id="aichat_send" type="button" title="发送（也可按回车）">发送</button>
-      </div>
-      <div class="aichat-foot" id="aichat_foot">筛选由本地规则引擎离线解析、数据库真实查询（不走大模型）；问诊/就医/选院建议由 Agnes 生成（免费额度约 1 次/30 秒，相同问题走缓存秒回）· 信息仅供参考，以医院官方信息与医生面诊为准</div>
-    </div>
-  </div>
-
-  <!-- 解析结果：条件卡片（可逐项移除）+ 未识别片段 + 边界说明 + 结果说明 -->
-  <div class="panel nlqreply" id="nlq_reply" style="margin:var(--gap) var(--pad-x) 0;display:none">
-    <div id="nlq_msg" class="nlqmsg muted"></div>
-    <div class="nlqchips" id="nlq_chips"></div>
-    <div class="nlqmiss" id="nlq_unmatched" style="display:none"></div>
-    <div class="nlqnote" id="nlq_notice" style="display:none"></div>
-    <div class="nlqsum" id="nlq_summary" style="display:none"></div>
-  </div>
-
-  <!-- 维度统计（"按行政区统计…"这类输入）：ECharts 与本次查询结果联动 -->
-  <div class="panel" id="nlq_statsbox" style="margin:var(--gap) var(--pad-x) 0;display:none">
-    <h3><span id="nlq_stats_title">维度统计</span>
-      <span class="tag">STATS · 数字全部来自数据库</span></h3>
-    <div class="nlqchart" id="nlq_chart"></div>
-  </div>
-
-  <!-- 统计概览：六张 KPI 卡，全部由本次查询结果填充 -->
-  <div class="nlqkpis" id="nlq_kpis"></div>
-
-  <!-- 结果：机构列表 + 地理分布 -->
-  <div class="nlqsplit">
-    <div class="panel railcard">
-      <div class="railhead">
-        <h3>筛选结果 <span class="tag" id="nlq_count">— 家</span></h3>
-        <span class="railacts">
-          <button class="btn sm" id="nlq_goto_inst" type="button">在「机构查询」继续 →</button>
-        </span>
-      </div>
-      <div class="listhead"><div class="lh-l"><span id="nlq_sortnote"></span></div></div>
-      <div class="list" id="nlq_list" style="max-height:640px"></div>
-      <div class="nlqpager">
-        <button class="btn ghost sm" id="nlq_prev" type="button">‹ 上一页</button>
-        <span class="nlqpg" id="nlq_pg">— / —</span>
-        <button class="btn ghost sm" id="nlq_next" type="button">下一页 ›</button>
-      </div>
+  <div class="panel railcard chatcard" style="margin:0 var(--pad-x)">
+    <div class="chathead">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="8" width="14" height="11" rx="2.5"/><path d="M12 8V5M9.5 5h5M9 13h.01M15 13h.01M9.5 16.5h5"/></svg>
+      <div class="chatttl">AI 问答助手 <span class="tag">AGNES</span></div>
+      <span class="chatdotwrap"><i class="chatdot" id="ai_dot"></i><span id="ai_status">连接检测中…</span></span>
+      <button class="btn ghost sm" id="ai_clear" type="button">清空对话</button>
     </div>
 
-    <div class="panel mapwrap nlqmapcard">
-      <h3>结果地理分布 <span class="tag">MAP · 色深 = 命中数量</span></h3>
-      <div class="mapstage">
-        <div id="nlq_map"></div>
-        <div id="nlq_map_diag">⏳ 等待地图初始化…</div>
-      </div>
+    <div class="chatlog" id="ai_log"></div>
+
+    <div class="nlqex" id="ai_ex">
+      <button class="ex" type="button" data-q="海淀区的三级医院有哪些？">海淀区的三级医院有哪些？</button>
+      <button class="ex" type="button" data-q="开设有骨科的机构，按距离从近到远">开设有骨科的机构，按距离从近到远</button>
+      <button class="ex" type="button" data-q="按行政区统计三级医院的数量">按行政区统计三级医院的数量</button>
+      <button class="ex" type="button" data-q="朝阳区的社区卫生服务中心">朝阳区的社区卫生服务中心</button>
+      <button class="ex" type="button" data-q="北京航空航天大学附近有医学影像科的机构">北航附近想拍核磁</button>
+    </div>
+
+    <div class="chatask">
+      <textarea id="ai_in" rows="2" placeholder="用一句话提问，例如：海淀区的三级医院有哪些？（Enter 发送，Shift+Enter 换行）"></textarea>
+      <button class="btn primary" id="ai_send" type="button">发送</button>
+    </div>
+
+    <div class="chatbound">
+      <strong>边界：</strong>AI 只回答<b>机构资源数据</b>相关的问题，症状、疾病、用药一律拒答；
+      回答中出现的机构名称与统计数字全部来自数据仓库的真实查询，AI 不生成、不补造。
     </div>
   </div>
-
-  <!-- 数据来源说明：让用户随时能看到"这些数字是哪来的" -->
-  <div class="panel nlqsource" id="nlq_source" style="margin:var(--gap) var(--pad-x) var(--gap)"></div>
 </section>
 
 <!-- ============================ 数据整合 ============================ -->
@@ -1652,7 +1851,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     <button class="dw-tab active" data-pane="ov">概览</button>
     <button class="dw-tab" data-pane="contact">联系方式与导航</button>
     <button class="dw-tab" data-pane="spec">重点专科</button>
-    <button class="dw-tab" data-pane="near">周边配套</button>
+    <button class="dw-tab" data-pane="near" title="周边配套（地铁站 / 停车场 / 公交站）需要本地 Flask 服务与高德开放平台 Key；离线单文件形态不可用">周边配套 · 当前离线不可用</button>
   </div>
   <div class="dw-body">
     <div class="dw-pane active" id="pane-ov"></div>
@@ -1671,15 +1870,41 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 
 <div class="toast" id="toast"></div>
 <script src="app.js"></script>
-<!-- 智能筛选页的离线引擎与界面层（单文件形态不依赖任何服务）：
-     ① app.nlq.js    —— 与 web/nlq.py 同源的解析 / 筛选 / 统计引擎；
-                        词表不在这里写死，来自 window.__NLQ_LEX__（构建时由
-                        etl/export_nlq_lexicon.py 从 nlq.py 导出后内联）。
-     ② app.nlq.ui.js —— 界面层：双通道输入、条件卡片、统计概览、结果地图与列表、数据来源说明。 -->
+<!-- 智能问答窗口的离线引擎与界面层（单文件形态不依赖任何服务）：
+     ① app.nlq.js   —— 与 web/nlq.py 同源的解析 / 筛选 / 统计引擎；
+                       词表不在这里写死，来自 window.__NLQ_LEX__（构建时由
+                       etl/export_nlq_lexicon.py 从 nlq.py 导出后内联）。
+                       2026-10-18 起它不再直接渲染结果列表，而是给聊天窗口
+                       在本地真实查一遍、产出 facts（防幻觉的根基）。
+     ② app.chat.js  —— 聊天界面层：拒答判定 → 本地查询 → Agnes(/api/ai/chat)
+                       或离线模板气泡。 -->
 <script src="app.nlq.js"></script>
 <script>/* 词表装载：构建产物里 __NLQ_LEX__ 已内联（外层 {meta, lex}，真正的词表在 .lex）；
-       开发形态下 app.nlq.ui.js 会自动回退去读同目录的 nlq_lexicon.json */
+       开发形态下 app.chat.js 所在页面的词表由 NLQ.init 注入，无词表时聊天走拒答兜底 */
 if (window.__NLQ_LEX__ && window.NLQ) { var _nlqLex = window.__NLQ_LEX__; NLQ.init(_nlqLex.lex || _nlqLex); }</script>
-<script src="app.nlq.ui.js"></script>
+<script src="app.chat.js"></script>
+
+<!-- 机构证据增强（院区/挂牌证据 · 官方预约入口 · 出发点与地图导航）：
+     数据真源 data/processed/{master_institutions,alias_map}.csv，
+     由 etl/export_campus_evidence.py 导出 web/campus_evidence.json，
+     构建时内联为 window.__CAMPUS__；开发形态回退读同目录 campus_evidence.json。
+     该模块只渲染「有据可查」的链接与证据，绝不生成号源、排班或院专属挂号链接。 -->
+<script src="app.evidence.js"></script>
+
+<!-- ===================== 智能筛选悬浮球：机器人图标 ===================== -->
+<button class="fab pulse" id="fab_nlq" type="button" title="智能筛选：用一句话找机构" aria-label="智能筛选">
+  <svg class="ic-fab" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+       stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M8 7h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"/>
+    <path d="M12 7V4"/>
+    <circle cx="12" cy="4" r="1"/>
+    <circle cx="10" cy="11" r="1.1"/>
+    <circle cx="14" cy="11" r="1.1"/>
+    <path d="M10 15h4"/>
+  </svg>
+  <svg class="ic-fabx" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+       stroke-width="2" stroke-linecap="round" aria-hidden="true" style="display:none"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  <span class="fabbadge" id="fab_badge" style="display:none"></span>
+</button>
 </body>
 </html>

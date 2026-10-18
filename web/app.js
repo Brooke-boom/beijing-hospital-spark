@@ -110,10 +110,12 @@ const SID = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 
 
 // 图表实例
 let MAP_CHART, CH1, CH2, CH3;
-let ROW_EL_BY_ID = {}, SCATTER_IDX = {}, HOVER_ID = null;   // 地图 ↔ 列表 悬停互指
-let CH_OWN, CH_FEAT, CH_NET, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD;
-// 分析页第二批维度（2026-09-21）：类型×办别 / 专科分档 / 国市级对比 / 区域专科 / 区域禀赋矩阵 / 网络×等级 / 整合深度
-let CH_CATOWN, CH_SPDIST, CH_SPLV, CH_DISTSP, CH_DISTMX, CH_NETLV, CH_SRCMAP;
+let MAP_ROWS = null;              // 地图当前口径的分区统计；drawMap/updateCharts 都会刷新
+function refreshMapRows() { MAP_ROWS = mapDistrictRows(); return MAP_ROWS; }
+let ROW_EL_BY_ID = {}, SCATTER_IDX = {}, HOVER_ID = null, DIST_LEVEL_F = null;   // 地图 ↔ 列表 悬停互指（DIST_LEVEL_F = 筛选口径的区县等级构成）
+let CH_OWN, CH_FEAT, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD;
+// 分析页第二批维度（2026-09-21）：类型×办别 / 专科分档 / 国市级对比 / 区域禀赋矩阵 / 网络×等级 / 整合深度
+let CH_CATOWN, CH_SPDIST, CH_SPLV, CH_DISTMX, CH_NETLV, CH_SRCMAP;
 let AN_TOP_N = 10;      // 专科能力 TOP 档位（10 / 15 / 20，工具条可切）
 // 区域×等级热力图的轴标签（点击热力格时要靠索引反查区名/等级，ECharts 的 click 回调只给 [x,y,v]）
 let AN_LVHEAT_ROWS = [], AN_LVHEAT_LEVELS = [];
@@ -123,7 +125,7 @@ let AN_DISTMX_ROWS = [];
 // 所以把每张图轴上的顺序存下来，下钻时按 dataIndex 反查对应的维度值。
 let AN_LVOWN_ROWS = [], AN_CATOWN_ROWS = [], AN_SPLV_ROWS = [];
 let A_KW, A_DIST, A_TRIAGE, A_DAILY, A_DENSITY, A_LEVEL, A_SPEC, A_NET, A_OWN, A_CAT, A_FEAT;
-let OV_OWN_CHART, QCOORD_CHART;   // 数据总览·办别构成 / 数据质量·坐标精度（七视图改版新增）
+let QCOORD_CHART;   // 数据质量·坐标精度（数据总览的办别构成已删：与 01 段「办别分布」同源同色，属重复图）
 
 // ============================================================================
 //  0. 基础工具
@@ -296,11 +298,15 @@ function initFavs() {
 // ============================================================================
 const FLT_FIELDS = [
   ['f_kw', '关键词'], ['f_dept', '科室'], ['f_district', '区域'], ['f_level', '等级'],
-  ['f_cat', '类型'], ['f_net', '协作网络'], ['f_base', '距离基准点'], ['f_sort', '排序'],
+  ['f_cat', '类型'], ['f_net', '协作网络'],
+  ['f_level_sub', '等次'], ['f_evidence', '科室证据'], ['f_radius', '直线半径'],
+  ['f_base', '距离基准点'], ['f_sort', '排序'],
 ];
 const FLT_DEFAULT = { f_base: '', f_sort: 'score' };   // 距离基准默认空：进页自动定位，或输入任意地址
-// 排序 = 维度 × 方向；距离维度的语义就是「近 → 远」，固定为升序
-const SORT_LABEL = { score: '条件匹配度', distance: '距离', level: '医院等级', depts: '科室收录量', name: '机构名称' };
+// 排序 = 维度 × 方向；距离维度的语义就是「近 → 远」，固定为升序。
+// score 改名「默认排序」：严格 AND 组合下结果恒满足全部条件、匹配度恒为 1，
+// 再拿「条件匹配度」当维度名会让人以为分数有高低（旧版加权评分已废弃）。
+const SORT_LABEL = { score: '默认排序', distance: '距离', level: '医院等级', depts: '科室收录量', name: '机构名称' };
 const SORT_DIR_DEFAULT = { score: 'desc', distance: 'asc', level: 'desc', depts: 'desc', name: 'asc' };
 const SORT_FIXED_ASC = { distance: true };
 let SORT_DIR = 'desc';
@@ -363,7 +369,7 @@ function renderFilterChips() {
   });
   box.innerHTML = chips.length
     ? '<span class="fl">已选条件 ' + chips.length + ' 项</span>' + chips.join('') +
-      '<button class="freset" type="button" data-freset="1" title="恢复默认：清空全部条件，距离基准回到市中心，排序回到条件匹配度">\u21ba 恢复默认</button>' +
+      '<button class="freset" type="button" data-freset="1" title="恢复默认视图：清空全部条件，距离基准回到天安门，排序回到默认排序">\u21ba 恢复默认</button>' +
       '<button class="fclear" type="button" data-fclear="__all__" title="只清空上方筛选条件，保留距离基准与排序设置">\u2715 清除条件</button>'
     : '';
   Array.prototype.forEach.call(box.querySelectorAll('[data-fclear]'), b =>
@@ -404,7 +410,8 @@ function applyPreset(key) {
   const spec = PRESETS[key]; if (!spec) return;
   if (key === 'near3' && BASE_NOW === BASE_POINTS.geo &&
       (BASE_POINTS.geo.lng == null || BASE_POINTS.geo.lat == null)) locateMe();
-  ['f_level', 'f_cat', 'f_dept', 'f_district', 'f_net'].forEach(k => { const e = $(k); if (e) e.value = ''; });
+  ['f_level', 'f_cat', 'f_dept', 'f_district', 'f_net', 'f_level_sub', 'f_evidence', 'f_radius']
+    .forEach(k => { const e = $(k); if (e) e.value = ''; });
   setSort('score', 'desc', true);
   Object.keys(spec).forEach(k => { const e = $(k); if (e) e.value = spec[k]; });
   if (spec.f_sort) SORT_DIR = SORT_DIR_DEFAULT[spec.f_sort] || SORT_DIR;
@@ -426,6 +433,7 @@ function initSortCtl() {
   if (sel) sel.addEventListener('change', () => {
     SORT_DIR = SORT_DIR_DEFAULT[sel.value] || 'desc';
     syncDirUI();
+    PAGE = 1; applyFilter();          // 换了维度要立刻重排，不能只换方向图标
   });
   if (btn) btn.addEventListener('click', () => {
     if (SORT_FIXED_ASC[curSort()]) return;   // 距离固定近 → 远
@@ -444,8 +452,14 @@ function refreshBaseSummary() {
     ? (b.lng.toFixed(4) + ', ' + b.lat.toFixed(4)) : '尚未确定坐标';
   inp.title = (BASE_NOW
       ? '当前距离基准：' + b.name + '（' + pos + '）'
-      : '距离基准未设置 —— 默认按市中心（天安门）估算；点「定位」自动获取，或直接输入地址')
+      : '距离基准未设置 —— 默认按天安门（市中心）估算；点「使用我的位置」自动获取，或直接输入地址')
     + '\n支持任意地址（如：海淀区中关村大街27号 / 回龙观 / 潘家园）回车解析';
+  // 设过自定义基准才出现「恢复天安门」；默认态隐藏，避免无谓的否定性操作
+  const bclr = $('btn_base_clear');
+  if (bclr) bclr.style.display = BASE_NOW ? '' : 'none';
+  // 智能筛选页的条件通道同步显示当前参考点（与主筛选区同一份状态）
+  const qn = $('q_base_note');
+  if (qn) qn.textContent = '参考点：' + (BASE_NOW ? (b.name + '（自定义）') : '天安门（距市中心直线距离）');
 }
 
 // ============================================================================
@@ -598,8 +612,10 @@ function localSummary(rows, meta) {
   const p = [];
   p.push('在<b>' + esc(scope) + '</b>条件下共匹配到 <b>' + meta.total + '</b> 家机构，' +
          '当前页等级构成为 ' + esc(lvTxt) + '。');
-  if (top) p.push('条件匹配度最高的是<b>' + esc(top.name) + '</b>（' + esc(top.district || '—') +
-    ' · ' + (top._score || 0).toFixed(3) + ' 分）' +
+  // 不再报「条件匹配度」：严格 AND 下所有结果都满足全部条件，分数恒为 1，
+  // 说谁"最高"没有意义；改成如实说明当前排序下谁排在首位。
+  if (top) p.push('按当前排序（' + esc(meta.sort) + '）排在首位的是<b>' + esc(top.name) + '</b>（' +
+    esc(top.district || '—') + ' · ' + esc(top.level || '未定级') + '）' +
     (top.key_specialty_count ? '，含 ' + top.key_specialty_count + ' 项重点专科' : '') + '。');
   if (near && near._dist != null) p.push('距' + esc(meta.baseName || '基准点') + '最近的是<b>' +
     esc(near.name) + '</b>（' + near._dist.toFixed(1) + ' km）。');
@@ -612,8 +628,8 @@ function currentScopeMeta() {
     district: $('f_district').value || '', level: $('f_level').value || '',
     depts: $('f_dept').value ? [$('f_dept').value] : [],
     kw: ($('f_kw').value || '').trim(),
-    sort: (SORT_LABEL[curSort()] || '条件匹配度') + (curDir() === 'asc' ? ' 升序' : ' 降序'),
-    baseName: BASE_NOW ? base.name : '市中心', total: FILTERED.length,
+    sort: (SORT_LABEL[curSort()] || '默认排序') + (curDir() === 'asc' ? ' 升序' : ' 降序'),
+    baseName: BASE_NOW ? base.name : '天安门（市中心）', total: FILTERED.length,
   };
 }
 function ovFacts(rows, meta) {
@@ -626,8 +642,7 @@ function ovFacts(rows, meta) {
     '筛选条件': { 关键词: meta.kw || null, 科室: meta.depts, 区域: meta.district || '全部',
                  等级: meta.level || '全部', 排序: meta.sort },
     '命中机构数': meta.total, '参与总结的样本数': rows.length, '等级构成': lv,
-    '评分最高': top ? { 名称: top.name, 区域: top.district,
-                       评分: +(top._score || 0).toFixed(3),
+    '排序首位': top ? { 名称: top.name, 区域: top.district, 医院等级: top.level || '未定级',
                        重点专科数: top.key_specialty_count || 0 } : null,
     '距离最近': near ? { 名称: near.name, 距离km: +near._dist.toFixed(1), 基准点: meta.baseName } : null,
     '含重点专科机构数': rows.filter(r => (r.key_specialty_count || 0) > 0).length,
@@ -742,6 +757,7 @@ function init() {
     initAnalyticsCharts();
     initAdminCharts();
     initNav();
+    initSmartDock();
     initTheme();
     initDrawer();
     initCompare();
@@ -752,16 +768,25 @@ function init() {
     initOverSummary();
     initAIState();
     initBase();
-    if (window.__NLQ_UI__) window.__NLQ_UI__.init();   // 智能筛选页（自然语言 + 条件双通道）
+    // 院区/挂牌证据：先装载再渲染抽屉。开发形态是 fetch（异步），所以这里
+    // 不 await —— EV.data() 在未装载时返回空对象，campusBlock 会返回空串，
+    // 即「还没有证据」而不是「没有院区」。装好后已打开的抽屉会被补画一次。
+    if (window.EV) {
+      EV.load().then(() => { if (DW_CUR) paintDrawerEvidenceCampus(DW_CUR); });
+    }
+    // 智能问答窗口（__CHAT__）懒初始化：进入悬浮球窗口时才绑事件与探活，见 initSmartDock
     // URL 状态还原（deep link）：hash 携带的筛选 / 排序 / 基准优先于 localStorage
     const st = readState();
-    _STATE_RESTORED = !!(st.kw || st.district || st.level || st.cat || st.dept || st.net || st.base || st.sort);
+    _STATE_RESTORED = !!(st.kw || st.district || st.level || st.cat || st.dept || st.net || st.level_sub || st.evidence || st.radius || st.base || st.sort);
     if (st.kw) $('f_kw').value = st.kw;
     if (st.district) $('f_district').value = st.district;
     if (st.level) $('f_level').value = st.level;
     if (st.cat) $('f_cat').value = st.cat;
     if (st.dept) $('f_dept').value = st.dept;
     if (st.net) $('f_net').value = st.net;
+    if (st.level_sub && $('f_level_sub')) $('f_level_sub').value = st.level_sub;
+    if (st.evidence && $('f_evidence')) $('f_evidence').value = st.evidence;
+    if (st.radius && $('f_radius')) $('f_radius').value = st.radius;
     if (st.sort) setSort(st.sort, st.dir || 'asc', true);
     if (st.base) {
       const m = /^([^|]+)\|(-?[\d.]+),(-?[\d.]+)$/.exec(st.base);
@@ -771,7 +796,14 @@ function init() {
     autoLocate();          // 进页默认自动定位（静默降级到市中心估算；deep link 携带状态时跳过）
     applyFilter();
     renderOverviewKPI();   // 数据总览 4 张 KPI + 办别构成图（全量口径，不随筛选变化）
-    if (st.v && st.v !== 'overview' && document.querySelector('.navtab[data-view="' + st.v + '"]')) switchView(st.v);
+    if (st.v === 'filter') {
+      // 旧深链接 #v=filter → 打开悬浮面板。此时 FAB（DOM 末尾）可能还没解析，
+      // 与 initSmartDock 一样等 DOM ready 再执行。
+      const openDock = () => smartDockSet(true);
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', openDock);
+      else openDock();
+    }
+    else if (st.v && st.v !== 'overview' && document.querySelector('.navtab[data-view="' + st.v + '"]')) switchView(st.v);
     loadAbout();
   } catch (e) {
     console.error('[init] 失败:', e);
@@ -813,7 +845,8 @@ function fillSelect(id, opts, firstLabel) {
 // ============================================================================
 let _kwT;
 function bindEvents() {
-  ['f_district', 'f_level', 'f_cat', 'f_dept', 'f_net', 'f_sort'].forEach(id => {
+  ['f_district', 'f_level', 'f_cat', 'f_dept', 'f_net', 'f_sort',
+   'f_level_sub', 'f_evidence', 'f_radius'].forEach(id => {
     const el = $(id); if (!el) return;
     el.addEventListener('input', () => { PAGE = 1; applyFilter(); });
     el.addEventListener('change', () => {
@@ -821,6 +854,8 @@ function bindEvents() {
       if (id === 'f_district') { const v = el.value; if (v) track('filter_district', v); }
       if (id === 'f_dept') { const v = el.value; if (v) track('filter_dept', v); }
       if (id === 'f_level') { const v = el.value; if (v) track('filter_level', v); }
+      if (id === 'f_level_sub') { const v = el.value; if (v) track('filter_level_sub', v); }
+      if (id === 'f_evidence') { const v = el.value; if (v) track('filter_evidence', v); }
       if (id === 'f_net') { const v = el.value; if (v) track('filter_net', v); }
       applyFilter();
     });
@@ -845,12 +880,30 @@ function bindEvents() {
   $('pg_next').addEventListener('click', () => { if (PAGE * PAGE_SIZE < FILTERED.length) { PAGE++; renderList(); } });
   $('pg_size').addEventListener('change', e => { PAGE_SIZE = +e.target.value; PAGE = 1; renderList(); });
 
-  // 距离基准输入框：回车 / 失焦 / 选下拉项时解析为坐标
+  // 距离基准输入框：回车 / 失焦 / 选下拉项时解析为坐标；「设置参考点」按钮同路径
   const fb = $('f_base');
   if (fb) {
     fb.addEventListener('change', () => resolveBase(fb.value));
     fb.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); resolveBase(fb.value); } });
   }
+  const bset = $('btn_base_set');
+  if (bset) bset.addEventListener('click', () => {
+    const v = ($('f_base') && $('f_base').value || '').trim();
+    if (!v) { toast(svgIcon('warn') + '先输入地址 / 区名 / 机构名，再点「设置参考点」', 4200); $('f_base').focus(); return; }
+    resolveBase(v);
+  });
+  // 「恢复天安门」：清掉自定义基准，距离回到市中心口径
+  const bclr = $('btn_base_clear');
+  if (bclr) bclr.addEventListener('click', () => {
+    BASE_NOW = null;
+    try { localStorage.removeItem(BASE_STORE_KEY); } catch (e) { }
+    const inp = $('f_base'); if (inp) inp.value = '';
+    refreshBaseSummary();
+    PAGE = 1; applyFilter();
+    toast(svgIcon('location') + ' 距离基准已恢复为天安门（市中心）', 3600);
+  });
+  const bloc = $('btn_locate');
+  if (bloc) bloc.addEventListener('click', locateMe);
 
 
   document.addEventListener('keydown', e => {
@@ -863,7 +916,8 @@ function bindEvents() {
 
 // 只清空筛选条件，保留距离基准与排序设置
 function clearConditionsSilent() {
-  ['f_kw', 'f_district', 'f_level', 'f_cat', 'f_dept', 'f_net']
+  ['f_kw', 'f_district', 'f_level', 'f_cat', 'f_dept', 'f_net',
+   'f_level_sub', 'f_evidence', 'f_radius']
     .forEach(k => { const e = $(k); if (e) e.value = ''; });
   syncKwClear();
 }
@@ -1142,6 +1196,12 @@ function applyFilter() {
   const kw = ($('f_kw').value || '').trim().toLowerCase();
   const district = $('f_district').value, level = $('f_level').value, cat = $('f_cat').value;
   const dept = $('f_dept').value, net = $('f_net').value;
+  // 等次（甲/乙/丙）与科室来源证据：与 NLQ 引擎 app.nlq.js 同口径
+  const levelSub = $('f_level_sub') ? $('f_level_sub').value : '';
+  const evidence = $('f_evidence') ? $('f_evidence').value : '';
+  // 半径：只认 high 精度坐标（与 app.nlq.js runFilter 的 cond.radius 语义一致）
+  const radiusRaw = $('f_radius') ? ($('f_radius').value || '') : '';
+  const radius = radiusRaw === '' ? null : Number(radiusRaw);
   let base = curBase();
   // 防御：选了「我的位置」但尚未定位成功（lng 为空）时回退到天安门，
   // 否则 haversine 会算出 NaN，导致距离列与排序全部失效。
@@ -1152,6 +1212,10 @@ function applyFilter() {
     if (district && r.district !== district) return false;
     if (level && r.level !== level) return false;
     if (cat && r.category !== cat) return false;
+    // 等次是等级的细分：三级 + 甲等 才是「三甲」（与 NLQ 的 grades 组合条件同义）
+    if (levelSub && r.level_sub !== levelSub) return false;
+    // 科室来源证据：名称 / 规则推断的映射不计入，只留有来源记录（官方名单 / 在线核实 / 重点专科）的
+    if (evidence === 'recorded' && !String(r.recorded_depts || '').trim()) return false;
     if (net) {
       if (net === 'ped_core' && r.net_pediatric !== '核心') return false;
       if (net === 'ped_member' && r.net_pediatric !== '成员') return false;
@@ -1164,6 +1228,11 @@ function applyFilter() {
       if (pool.indexOf(';' + dept + ';') < 0) return false;
     }
     r._dist = (r.lng != null && r.lat != null) ? haversine(base.lng, base.lat, r.lng, r.lat) : null;
+    // 半径筛选：粗精度坐标不参与（位置可能漂移上百米到数公里），宁缺毋滥
+    if (radius != null && Number.isFinite(radius) && radius > 0) {
+      if (r.coord_precision !== 'high' || r._dist == null) return false;
+      if (Math.round(r._dist * 100) / 100 > radius) return false;
+    }
     return true;
   });
 
@@ -1201,7 +1270,7 @@ function renderKPI() {
   setText('v_feat', FILTERED.filter(r => (r.key_specialty_count || 0) > 0).length.toLocaleString());
   const netN = FILTERED.filter(r => r.net_pediatric || r.net_stroke === '1' || r.net_neonatal === '市级' || r.net_maternal === '市级').length;
   setText('v_net', netN.toLocaleString());
-  setText('listTag', 'LIST · 共 ' + FILTERED.length.toLocaleString() + ' 家');
+  setText('listTag', '共 ' + FILTERED.length.toLocaleString() + ' 家');
 }
 
 // ============================================================================
@@ -1270,7 +1339,8 @@ function renderList() {
   $('pg_next').disabled = PAGE >= totalPg;
   const box = $('list');
   if (!page.length) {
-    const hasCond = ['f_kw', 'f_district', 'f_level', 'f_cat', 'f_dept', 'f_net']
+    const hasCond = ['f_kw', 'f_district', 'f_level', 'f_cat', 'f_dept', 'f_net',
+                     'f_level_sub', 'f_evidence', 'f_radius']
       .some(k => { const e = $(k); return e && e.value; });
     box.innerHTML = '<div class="empty">' +
       '<svg class="eic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"'
@@ -1287,18 +1357,20 @@ function renderList() {
     return;
   }
   const baseNow = curBase();
-  const distLabel = '距' + (BASE_NOW ? baseNow.name : '市中心');
+  // 默认基准点名「天安门」而不是含糊的「市中心」：用户会拿这个距离做判断，
+  // 必须说清它相对于谁（Part II-⑦）。
+  const distLabel = '距' + (BASE_NOW ? baseNow.name : '天安门');
 
   box.innerHTML = page.map(r => {
     const dist = r._dist == null ? '—' : (r.coord_precision === 'high' ? '' : '约 ') + r._dist.toFixed(1) + ' km（直线）';
     const on = PICKED.has(String(r.id));
     const ksc = r.key_specialty_count || 0;
-    // 与 app.nlq.ui.js 同口径：count=0 显示「未收录」而非「0」——
-    // 军队医院（如 301）不在地方公开的重点专科名单里，全库军队系统零命中，
-    // 「0」会被读成"该医院没有重点专科"，属数据边界而非事实。
+    // 重点专科徽标只在**有收录**时出现：count=0 的成因既有"真实未入选"也有
+    // "军队医院不在地方公开名单"（如解放军总医院全库零命中），逐行挂「未收录」
+    // 既噪音又像在说这家医院不行。未收录的说明放详情抽屉里讲清楚。
     const kscTxt = ksc > 0
       ? '<div class="ksc on" title="数据集收录的重点专科数（国家/市级临床重点专科名单）"><b>' + ksc + '</b>重点专科</div>'
-      : '<div class="ksc off" title="数据集未收录该机构的重点专科记录——军队医院（如解放军总医院）不在地方公开的重点专科名单内，其他机构可能确实未入选。这不代表该机构没有重点专科。">重点专科<b>未收录</b></div>';
+      : '';
     return '<div class="row' + (on ? ' sel' : '') + '" data-id="' + esc(r.id) + '">' +
       '<div class="pick" data-pick="' + esc(r.id) + '" title="加入对比（最多 ' + PICK_MAX + ' 家）">' + svgIcon('ok') + '</div>' +
       '<div class="body">' +
@@ -1309,7 +1381,6 @@ function renderList() {
       '</div>' +
       '<div class="side">' +
         '<div class="dist">' + dist + '<div style="color:' + DIM + ';font-size:10px;font-weight:400">' + distLabel + '</div></div>' +
-        '<div class="score">' + (r._score || 0).toFixed(3) + '</div>' +
         kscTxt +
       '</div>' +
       '<button class="rowstar' + (isFav(r.id) ? ' on' : '') + '" data-fav="' + esc(r.id) + '" title="' +
@@ -1340,24 +1411,86 @@ function renderList() {
 //  8. 概览图表
 // ============================================================================
 // 地图底图：独立成函数，便于切换主题时按新配色重绘
+// ---- 区域分布地图（总览页）----
+// 2026-10-17 两项改动：
+// ① roam 卡顿主因 = effectScatter 的波纹动画（showEffectOn:'render'）：每次缩放/平移
+//    都要全量重画 3,000 个动画点。改为普通散点 + 等步长抽稀到 1,500 点 + progressive 分块绘制。
+// ② 区县底色原来固定画全量口径，筛选后地图对结果毫无表达。改为跟随当前筛选，
+//    无命中行政区走 visualMap outOfRange 不着色，tooltip 同时给全量对照。
+function isMapFiltering() {
+  // FILTERED 为空说明首次渲染还没跑过筛选，此时按全量口径处理，
+  // 否则初始化那一帧会把所有行政区算成 0 命中，底色与标签一并失真。
+  if (!DATA || !FILTERED.length) return false;
+  return FILTERED.length !== (DATA.total || 0);
+}
+function mapDistrictRows() {
+  if (!isMapFiltering()) return DATA.overviews.districts;
+  const agg = {};
+  FILTERED.forEach(r => { if (r.district) agg[r.district] = (agg[r.district] || 0) + 1; });
+  return DATA.overviews.districts.map(d => ({ district: d.district, inst_count: agg[d.district] || 0 }));
+}
+// 区域标签：geoIndex 模式下标签由 geo.label 渲染，series.label 不参与。
+// 单独抽出来是因为 geo 只在 setOption 时重算标签文本——筛选后必须带着它再设一次，
+// 否则标签会一直停在首帧（那时分区统计还没算出来）。
+function mapLabelOption() {
+  return {
+    show: true, color: MAP_LBL, fontSize: 10, lineHeight: 13,
+    // 大的行政区标签带数量；小的只留区名，硬塞两行会互相压字
+    formatter: (p) => {
+      const row = (MAP_ROWS || []).find(r => r.district === p.name);
+      const v = row ? +row.inst_count : 0;
+      return v >= 400 ? p.name + '\n' + Number(v).toLocaleString() : p.name;
+    },
+  };
+}
+function mapSeriesOption(rows) {
+  return {
+    name: '机构数', type: 'map', geoIndex: 0,
+    // 区域标签必须挂在 series 上：geoIndex 模式下 geo.label 不参与渲染，
+    // 写在 geo.label 里的 formatter 永远不会被调用（曾导致数量一直显示不出来）。
+    label: {
+      show: true, color: MAP_LBL, fontSize: 10, lineHeight: 13,
+      // 大的行政区标签带数量；小的只留区名，硬塞两行会互相压字
+      formatter: (p) => {
+        const v = (p.value == null ? 0 : +p.value);
+        return v >= 400 ? p.name + '\n' + Number(v).toLocaleString() : p.name;
+      },
+    },
+    emphasis: { label: { show: true, color: INK_STRONG, fontSize: 11 }, itemStyle: { areaColor: MAP_HI } },
+    data: rows.map(d => ({ name: d.district, value: d.inst_count })),
+  };
+}
+function mapVismapOption(rows) {
+  const vals = rows.map(r => r.inst_count).filter(v => v > 0);
+  return {
+    // seriesIndex: 0 —— 色带只作用于区县底色。不指定时 visualMap 会绑定所有系列，
+    // 散点的「按等级着色」会被色带（乃至 outOfRange 空底色）覆盖。
+    seriesIndex: 0,
+    min: (isMapFiltering() && vals.length) ? Math.min.apply(null, vals) : 0,
+    max: vals.length ? Math.max.apply(null, vals) : 1,
+    show: false,
+    // 筛选中 0 命中的行政区 → 空底色，与「有机构但少」区分开
+    outOfRange: { color: [MAP_AREA] },
+    inRange: { color: MAP_RAMP },
+  };
+}
 function drawMap() {
   if (!MAP_CHART || !DATA || !DATA.overviews) return;
+  const rows = refreshMapRows();
   MAP_CHART.setOption({
       backgroundColor: 'transparent', textStyle: { color: INK },
       tooltip: Object.assign({ trigger: 'item', formatter: mapTipFmt }, TIP),
       geo: {
-        map: 'beijing', roam: true, zoom: 1, layoutCenter: ['50%', '50%'], layoutSize: '96%', aspectScale: 0.9,
-        label: { show: true, color: MAP_LBL, fontSize: 10 },
+        map: 'beijing', roam: true,
+        scaleLimit: { min: 0.85, max: 8 },   // 限位：防止缩到极端值后每帧绘制代价失控
+        zoom: 1, layoutCenter: ['50%', '50%'], layoutSize: '96%', aspectScale: 0.9,
+        label: mapLabelOption(),
         itemStyle: { borderColor: MAP_BD, borderWidth: 1, areaColor: MAP_AREA },
-        emphasis: { label: { color: INK_STRONG }, itemStyle: { areaColor: MAP_HI } },
+        emphasis: { label: { color: INK_STRONG, fontSize: 11 }, itemStyle: { areaColor: MAP_HI } },
         select: { itemStyle: { areaColor: MAP_HI }, label: { color: INK_STRONG } },
       },
-      visualMap: { min: 0, max: 1300, show: false,
-        inRange: { color: MAP_RAMP } },
-      series: [{
-        name: '机构数', type: 'map', geoIndex: 0,
-        data: DATA.overviews.districts.map(d => ({ name: d.district, value: d.inst_count })),
-      }],
+      visualMap: mapVismapOption(rows),
+      series: [mapSeriesOption(rows)],
     });
 }
 
@@ -1376,20 +1509,22 @@ function initCharts() {
 
     drawMap();
     MAP_CHART.resize();
+    // 2026-10-17：散点由 effectScatter 改为普通 scatter（去波纹动画提性能），
+    // 此处的 seriesType 判断必须同步，否则点机构散点会被误当成「点区县」，
+    // 把机构名写进 f_district（下拉里没有该项 → value 变空 → 筛选被清空）。
     MAP_CHART.on('click', p => {
-      if (p.seriesType === 'effectScatter' && p.data && p.data.instId != null) { openDrawer(p.data.instId); return; }
+      if ((p.seriesType === 'scatter' || p.seriesType === 'effectScatter') && p.data && p.data.instId != null) { openDrawer(p.data.instId); return; }
       if (p.name) { $('f_district').value = p.name; PAGE = 1; track('filter_district', p.name, 'map'); applyFilter(); }
     });
     // 悬停散点 -> 高亮列表对应行（点击仍然是打开详情 / 筛选区县）
     MAP_CHART.on('mouseover', p => {
-      if (p.seriesType === 'effectScatter' && p.data && p.data.instId != null) hoverMapToList(p.data.instId, true);
+      if ((p.seriesType === 'scatter' || p.seriesType === 'effectScatter') && p.data && p.data.instId != null) hoverMapToList(p.data.instId, true);
     });
     MAP_CHART.on('mouseout', p => {
-      if (p.seriesType === 'effectScatter' && p.data && p.data.instId != null) hoverMapToList(p.data.instId, false);
+      if ((p.seriesType === 'scatter' || p.seriesType === 'effectScatter') && p.data && p.data.instId != null) hoverMapToList(p.data.instId, false);
     });
 
     CH1 = echarts.init($('ch1')); CH2 = echarts.init($('ch2')); CH3 = echarts.init($('ch3'));
-    if ($('ch_ov_own')) OV_OWN_CHART = echarts.init($('ch_ov_own'));
     window.addEventListener('resize', () => resizeAll());
 
     setMapDiag('', svgIcon('ok') + ' 地图就绪 · ' + (DATA.geojson.features || []).length + ' 个行政区 · 点击区名可直接筛选');
@@ -1401,10 +1536,10 @@ function initCharts() {
 }
 
 function resizeAll() {
-  [MAP_CHART, CH1, CH2, CH3, CH_OWN, CH_FEAT, CH_NET, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD,
-   CH_CATOWN, CH_SPDIST, CH_SPLV, CH_DISTSP, CH_DISTMX, CH_NETLV, CH_SRCMAP,
+  [MAP_CHART, CH1, CH2, CH3, CH_OWN, CH_FEAT, CH_LVOWN, CH_TOPSP, CH_DEPTOP, CH_DISTLV, CH_COORD,
+   CH_CATOWN, CH_SPDIST, CH_SPLV, CH_DISTMX, CH_NETLV, CH_SRCMAP,
    A_KW, A_DIST, A_TRIAGE, A_DAILY, A_DENSITY, A_LEVEL, A_SPEC, A_NET, A_OWN, A_CAT, DW_CHART,
-   OV_OWN_CHART, QCOORD_CHART
+   QCOORD_CHART
   ].forEach(c => { if (c) { try { c.resize(); } catch (e) { } } });
   // 智能筛选页有自己的结果地图与维度统计图（app.nlq.ui.js），一并跟随窗口变化
   if (window.__NLQ_RESIZE__) { try { window.__NLQ_RESIZE__(); } catch (e) { } }
@@ -1439,12 +1574,11 @@ function applyTheme(name) {
     const va = $('view-admin');
     if (va && va.classList.contains('active')) renderAdmin();
   } catch (e) { }
-  try { drawOverviewOwn(); } catch (e) { }
   try {
     const vq = $('view-quality');
     if (vq && vq.classList.contains('active')) renderQuality(true);
   } catch (e) { }
-  try { if (window.__NLQ_UI__) window.__NLQ_UI__.redraw(); } catch (e) { }
+  // 智能问答窗口无图表，主题切换无需重绘（聊天气泡全部走 CSS 令牌）
   setTimeout(resizeAll, 40);
 }
 function toggleTheme() {
@@ -1531,10 +1665,11 @@ function paintScopes() {
   paintScope('scope_ch3', '按行政区');
   const m = $('map_scope');
   if (m) {
-    const s = scopeText(DATA.total, '');
-    m.className = 'scope' + (s.on ? ' on' : '');
-    m.innerHTML = '底色 = 全量 <b>' + num(DATA.total) + ' 家</b>分区统计（不随筛选变化）· ' +
-      '散点 = 当前筛选结果 <b>' + num(FILTERED.length) + ' 家</b>';
+    const filtering = FILTERED.length !== (DATA.total || 0);
+    m.className = 'scope' + (filtering ? ' on' : '');
+    m.innerHTML = filtering
+      ? '底色 = 当前筛选 <b>' + num(FILTERED.length) + ' 家</b>分区统计 · 无命中行政区不着色 · 散点同口径 · 悬停散点可定位列表'
+      : '底色 = 全量 <b>' + num(DATA.total) + ' 家</b>分区统计 · 散点同口径抽稀显示 · 悬停散点可定位列表';
   }
 }
 
@@ -1588,19 +1723,45 @@ function updateCharts() {
 
   try {
     const inB = r => r.lng != null && r.lat != null && +r.lng > 115.35 && +r.lng < 117.50 && +r.lat > 39.40 && +r.lat < 41.10;
-    const points = FILTERED.filter(inB).slice(0, 3000);
+    const pts = FILTERED.filter(inB);
+    // 等步长抽稀到 1,000 点：保留空间分布形状，把 roam 时每帧绘制量降一个数量级。
+    // 波纹动画（effectScatter + showEffectOn:'render'）是此前缩放卡顿的直接原因。
+    // 1,000 这个上限还关系到散点可点性：实测超过它（1,300+）后 zrender 逐点命中测试
+    // 会失效（点击穿透到下面区县 → 误触筛选），1,000 以内稳定可点。
+    let points = pts;
+    if (pts.length > 1000) {
+      const step = pts.length / 1000;
+      points = [];
+      for (let i = 0; i < 1000; i++) points.push(pts[Math.floor(i * step)]);
+    }
     SCATTER_IDX = {};                                   // 机构 id -> 散点 dataIndex
     points.forEach((r, i) => { SCATTER_IDX[String(r.id)] = i; });
+    // 地图 tooltip 的等级构成跟随当前筛选（全量口径 DIST_LEVEL 在 initCharts 时算好）
+    DIST_LEVEL_F = {};
+    FILTERED.forEach(r => {
+      const dk = r.district || '未知';
+      if (!DIST_LEVEL_F[dk]) DIST_LEVEL_F[dk] = { '三级': 0, '二级': 0, '一级': 0, '未定级': 0, '不适用': 0 };
+      DIST_LEVEL_F[dk][lvGroup(r.level)]++;
+    });
+    const mapRows = refreshMapRows();
     MAP_CHART.setOption({
+      // 带 label 一起设：geo 的标签文本只在 setOption 时重算，
+      // 不带的话筛选后区县底色变了、标签上的数量却还是首帧的旧值。
+      geo: { label: mapLabelOption() },
+      visualMap: mapVismapOption(mapRows),
       series: [
-        { type: 'map', geoIndex: 0 },
+        mapSeriesOption(mapRows),
         {
-          type: 'effectScatter', coordinateSystem: 'geo', zlevel: 2,
+          type: 'scatter', coordinateSystem: 'geo', zlevel: 2, name: '机构点位',
           data: points.map(r => ({ name: r.name, value: [r.lng, r.lat, r.level || '其他'], instId: r.id, inst: r })),
-          symbolSize: v => v[2] === '三级' ? 7 : v[2] === '二级' ? 5 : 3,
-          rippleEffect: { period: 4, scale: 2.8, brushType: 'stroke' },
-          itemStyle: { color: v => v[2] === '三级' ? CRIT : v[2] === '二级' ? WARN : ACC2, cursor: 'pointer' },
-          showEffectOn: 'render',
+          symbolSize: v => v[2] === '三级' ? 5 : v[2] === '二级' ? 4 : 3,
+          itemStyle: {
+            color: v => v[2] === '三级' ? CRIT : v[2] === '二级' ? WARN : ACC2,
+            opacity: 0.65, borderWidth: 0,
+          },
+          cursor: 'pointer',
+          // 不用 progressive：1500 点普通散点单帧就能画完，而 progressive 模式下符号不进
+          // displayList、逐点命中测试会失效（点机构散点会穿透到下面区县 → 误触筛选）。
           tooltip: Object.assign({ trigger: 'item', formatter: scatterTipFmt }, TIP),
         },
       ],
@@ -1625,12 +1786,24 @@ function computeDistLevel() {
 }
 
 function mapTipFmt(p) {
-  if (p.seriesType === 'effectScatter') return scatterTipFmt(p);
-  const dl = DIST_LEVEL[p.name]; const total = p.value || 0;
-  let s = '<b style="font-size:13px">' + esc(p.name) + '</b><br/>机构总数：<b style="color:' + ACC + '">' + total + '</b> 家';
-  if (dl) s += '<div style="margin-top:4px;font-size:12px;color:' + SUB + '">' +
-    '三级 ' + dl['三级'] + ' · 二级 ' + dl['二级'] + ' · 一级 ' + dl['一级'] + '<br/>' +
-    '未定级 ' + dl['未定级'] + ' · 不适用 ' + dl['不适用'] + '</div>';
+  if (p.seriesType === 'scatter' || p.seriesType === 'effectScatter') return scatterTipFmt(p);
+  const dl = isMapFiltering() ? (DIST_LEVEL_F && DIST_LEVEL_F[p.name]) : DIST_LEVEL[p.name];
+  const total = +p.value || 0;
+  const fullRow = (DATA.overviews.districts || []).find(d => d.district === p.name);
+  const full = (fullRow && fullRow.inst_count) || 0;
+  let s = '<b style="font-size:13px">' + esc(p.name) + '</b><br/>';
+  if (!total) {
+    s += '<span style="color:' + DIM + '">当前筛选在该区无匹配机构</span>' +
+      (full ? ' <span style="color:' + DIM + '">（全量 ' + full + ' 家）</span>' : '');
+  } else {
+    s += '机构总数：<b style="color:' + ACC + '">' + total + '</b> 家';
+    s += total !== full
+      ? ' <span style="color:' + DIM + '">（全量 ' + full + ' 家 · 占 ' + (total / full * 100).toFixed(0) + '%）</span>'
+      : ' <span style="color:' + DIM + '">（占全市 ' + (total / (DATA.total || 1) * 100).toFixed(1) + '%）</span>';
+    if (dl) s += '<div style="margin-top:4px;font-size:12px;color:' + SUB + '">' +
+      '三级 ' + dl['三级'] + ' · 二级 ' + dl['二级'] + ' · 一级 ' + dl['一级'] + '<br/>' +
+      '未定级 ' + dl['未定级'] + ' · 不适用 ' + dl['不适用'] + '</div>';
+  }
   s += '<div style="margin-top:5px;font-size:11px;color:' + DIM + '">点击该区可直接筛选</div>';
   return s;
 }
@@ -1935,59 +2108,6 @@ function anSpLvOpt(F) {
   };
 }
 
-// ---------- 区域专科实力（挂牌重点专科数 + 每百家机构强度）----------
-// 2026-09-22 两处修正：
-//   1) 原 `.slice(0, 12)` 把 16 个区静默砍到 12 —— 通州 / 石景山 / 平谷 / 密云
-//      直接从图上消失，读者看到 12 行会以为「只有 12 个区有挂牌专科」。
-//      改为画全部有挂牌记录的区；标签够短，全画得下。
-//   2) 只画绝对数会把「东城 30.8 项/百家」和「密云 0.6 项/百家」压成两条一样的小尾巴
-//      （相差 51 倍，长度看不出差别）。条尾同时给每百家机构强度，量级差异才带得出来。
-function anDistSpOpt(F) {
-  const m = {};
-  F.forEach(r => {
-    const d = r.district || '未知';
-    const b = m[d] || (m[d] = { sp: 0, n: 0, nat: 0, mun: 0 });
-    b.n++; b.sp += (r.key_specialty_count || 0);
-    b.nat += (r.national_specialty_count || 0);
-    b.mun += (r.municipal_specialty_count || 0);
-  });
-  const ds = Object.keys(m).filter(d => m[d].sp > 0).sort((a, b) => m[b].sp - m[a].sp);
-  if (!ds.length) return null;
-  const rows = ds.slice().reverse();
-  const dens = d => m[d].sp / (m[d].n || 1) * 100;
-  return {
-    tooltip: Object.assign({
-      trigger: 'axis', axisPointer: { type: 'shadow' },
-      formatter: ps => {
-        const d = rows[ps[0].dataIndex], b = m[d];
-        return '<b>' + esc(d) + '</b><br/>重点专科挂牌 <b>' + b.sp.toLocaleString() + '</b> 项<br/>' +
-          '国家级 ' + b.nat + ' · 市级 ' + b.mun + '<br/>机构 ' + b.n.toLocaleString() + ' 家<br/>' +
-          '<span style="color:' + FAINT + '">人均强度：每百家机构 ' + dens(d).toFixed(1) + ' 项</span>';
-      },
-    }, TIP),
-    grid: { left: 62, right: 104, top: 6, bottom: 6 },
-    xAxis: Object.assign({ type: 'value' }, AXIS),
-    yAxis: Object.assign({ type: 'category', data: rows.map(d => trunc(d, 6)) }, AXIS,
-      { axisLabel: { color: CHART_AXIS, fontSize: 9.5 } }),
-    series: [{
-      type: 'bar', barMaxWidth: 13,
-      data: rows.map(d => ({
-        value: m[d].sp,
-        itemStyle: {
-          borderRadius: [0, 4, 4, 0],
-          color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0,
-            colorStops: [{ offset: 0, color: VIO }, { offset: 1, color: ACC }] },
-        },
-      })),
-      // 条尾一句话给两个数：绝对挂牌量 + 每百家机构强度（后者抹平了各区机构总量差异）
-      label: {
-        show: true, position: 'right', color: INK, fontSize: 9.5,
-        formatter: p => p.value.toLocaleString() + ' 项 · ' + dens(rows[p.dataIndex]).toFixed(1) + '/百家',
-      },
-    }],
-  };
-}
-
 // ---------- 区域资源禀赋矩阵（16 区 × 5 指标 · 列内归一热力图）----------
 // 2026-09-22 替换原「区域综合实力雷达」。原图三处硬伤：
 //   1) 选样就错了：按「机构总数」取 TOP6，于是机构总量大的昌平 / 房山 / 顺义入选，
@@ -2001,14 +2121,19 @@ function anDistSpOpt(F) {
 // 列 = 5 个指标。颜色按**列内**归一（每列最深 = 该列最大值），这样机构总数（千量级）
 // 与网络成员（十量级）两列都能读出层次；格内一律印**原始值**，颜色只负责扫格局、
 // 数字才是事实 —— 列内归一因此不会把读者带偏。
+// 2026-10-17：原并列的「区域专科实力」条形图已删 —— 它画的就是本矩阵的「重点专科」
+// 与「每百家专科」两列，属重复。它唯一独有的是**国家级 / 市级拆分**，已并入本图 tooltip，
+// 删图不丢信息。同批删掉的还有「协作网络覆盖」，其绝对数由 `ch_netlv` 的堆叠段完全覆盖。
 function anDistMxOpt(F) {
   const m = {};
   F.forEach(r => {
     const d = r.district || '未知';
-    const b = m[d] || (m[d] = { n: 0, l3: 0, sp: 0, net: 0 });
+    const b = m[d] || (m[d] = { n: 0, l3: 0, sp: 0, net: 0, nat: 0, mun: 0 });
     b.n++;
     if (r.level === '三级') b.l3++;
     b.sp += (r.key_specialty_count || 0);
+    b.nat += (r.national_specialty_count || 0);
+    b.mun += (r.municipal_specialty_count || 0);
     if (isNetMember(r)) b.net++;
   });
   const rows = Object.keys(m).filter(d => m[d].n > 0);
@@ -2038,8 +2163,8 @@ function anDistMxOpt(F) {
         const d = rows[p.value[1]], b = m[d];
         return '<b>' + esc(d) + '</b><br/>机构总数 <b>' + b.n.toLocaleString() + '</b> 家<br/>' +
           '三级机构 <b>' + b.l3 + '</b> 家 · 协作网络成员 ' + b.net + ' 家<br/>' +
-          '重点专科挂牌 <b>' + b.sp + '</b> 项<br/>' +
-          '每百家机构 ' + b.den.toFixed(1) + ' 项（全市均值 ' + avg.toFixed(1) + '）<br/>' +
+          '重点专科挂牌 <b>' + b.sp + '</b> 项（国家级 ' + b.nat + ' · 市级 ' + b.mun + '）<br/>' +
+          '每百家机构 <b>' + b.den.toFixed(1) + '</b> 项（全市均值 ' + avg.toFixed(1) + '）<br/>' +
           '<span style="color:' + FAINT + '">颜色按列内相对值，格内数字为原始值</span>';
       },
     }, TIP),
@@ -2383,13 +2508,79 @@ function anCoordOpt(F) {
 // ---------------------------------------------------------------------------
 function initAnalyticsCharts() {
   const mk = id => { const el = $(id); return el ? echarts.init(el) : null; };
-  CH_OWN = mk('ch_own'); CH_FEAT = mk('ch_feat'); CH_NET = mk('ch_net');
+  CH_OWN = mk('ch_own'); CH_FEAT = mk('ch_feat');
   CH_LVOWN = mk('ch_lvown'); CH_TOPSP = mk('ch_topsp'); CH_DEPTOP = mk('ch_deptop');
   CH_DISTLV = mk('ch_distlv'); CH_COORD = mk('ch_coord');
   CH_CATOWN = mk('ch_catown'); CH_SPDIST = mk('ch_spdist'); CH_SPLV = mk('ch_splv');
-  CH_DISTSP = mk('ch_distsp'); CH_DISTMX = mk('ch_distmx'); CH_NETLV = mk('ch_netlv');
+  CH_DISTMX = mk('ch_distmx'); CH_NETLV = mk('ch_netlv');
   CH_SRCMAP = mk('ch_srcmap');
   initAnalyticsInteractions();
+}
+
+// 科室覆盖统一口径：读 depts（科室映射台账，44 类标准科室，覆盖 6,745 家），
+// 与「科室筛选」下拉、在线 /api/overview/depts（MySQL dws_dept_coverage）同源。
+// ⚠️ 旧实现读的是 feature + key_depts（重点专科挂牌 / 百科科室明细）：
+//   ① 只有 23.4% 的机构有这个字段（2,262 家），另外 7,000 多家全被算成"无科室"；
+//   ② 同一科室被拆成「内科 / 普内科 / 中医内科」「检验科 / 医学检验科」多种写法，
+//      262 个名字里混着一级学科、二级学科、别名与医技平台科室，条形长度不可比；
+//   ③ 名字对不上筛选下拉，点条形下钻会失败。
+// 图表与 CSV 导出共用这一个函数，避免两处口径再次分叉。
+// 返回 [{name, total, rec}]：total = 开展该科室的机构数，rec = 其中有来源记录的（好大夫在线 /
+// 源数据登记 / 重点专科），其余为按「名称关键词 / 机构类型职能规定」推导的值。
+function deptCovRows(list) {
+  const m = {};
+  const arr = v => (Array.isArray(v) ? v : String(v || '').split(';')).map(x => String(x).trim()).filter(Boolean);
+  (list || []).forEach(r => {
+    const rec = new Set(arr(r.recorded_depts));
+    new Set(arr(r.depts)).forEach(x => {
+      const o = m[x] || (m[x] = { total: 0, rec: 0 });
+      o.total++;
+      if (rec.has(x)) o.rec++;
+    });
+  });
+  return Object.entries(m)
+    .map(([name, v]) => ({ name, total: v.total, rec: v.rec }))
+    .sort((a, b) => b.total - a.total);
+}
+
+// 科室覆盖横条：堆叠「有据可查 / 名称·规则推导」两段。
+// 这是这张图最要紧的一层诚实：全科医疗科 4,309 家里只有 203 家（4.7%）有来源记录，
+// 其余是按「机构名称 / 类型职能」推导的值 —— 只画总长，等于把推导值当成事实。
+function anDeptCovOpt(rows) {
+  if (!rows || !rows.length) return null;
+  const rs = rows.slice().reverse();          // 横向条形：y 轴自下而上
+  const tot = rs.map(r => r.total);
+  return {
+    tooltip: Object.assign({
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: ps => {
+        const r = rs[ps[0].dataIndex];
+        const p = r.total ? (r.rec / r.total * 100) : 0;
+        return '<b>' + esc(r.name) + '</b><br/>开展机构 <b>' + r.total.toLocaleString() + '</b> 家' +
+          '<br/>有据可查 ' + r.rec.toLocaleString() + ' 家 · ' + p.toFixed(1) + '%' +
+          '<br/><span style="opacity:.72">其余 ' + (r.total - r.rec).toLocaleString() +
+          ' 家为「名称 / 机构类型职能」推导值</span>';
+      },
+    }, TIP),
+    legend: {
+      show: true, top: 0, right: 2, itemWidth: 9, itemHeight: 9, itemGap: 10,
+      textStyle: { color: CHART_AXIS, fontSize: 10 },
+      data: ['有据可查', '名称 / 规则推导'],
+    },
+    grid: { left: 122, right: 52, top: 24, bottom: 8 },
+    xAxis: Object.assign({ type: 'value' }, AXIS),
+    yAxis: Object.assign({ type: 'category', data: rs.map(r => trunc(r.name, 11)) }, AXIS,
+      { axisLabel: { color: CHART_AXIS, fontSize: 10.5 } }),
+    series: [
+      { name: '有据可查', type: 'bar', stack: 'cov', barMaxWidth: 14,
+        itemStyle: { color: ACC }, data: rs.map(r => r.rec) },
+      { name: '名称 / 规则推导', type: 'bar', stack: 'cov', barMaxWidth: 14,
+        itemStyle: { color: cssVar('--cov-inf', '#C9D7F2'), borderRadius: [0, 4, 4, 0] },
+        data: rs.map(r => Math.max(0, r.total - r.rec)),
+        label: { show: true, position: 'right', color: INK, fontSize: 10,
+          formatter: p => tot[p.dataIndex].toLocaleString() } },
+    ],
+  };
 }
 
 function updateAnalyticsCharts() {
@@ -2432,8 +2623,6 @@ function updateAnalyticsCharts() {
   // 重点专科分级（水平条形）：断崖分布下「长度编码」是最稳的表达，见 anFeatOpt 注释
   CH_FEAT.setOption(anFeatOpt(F) || emptyOpt('当前筛选结果为空'), true);
 
-  CH_NET.setOption(barHOpt(NET_GROUPS.map(g => [g[0], F.filter(g[1]).length]), [VIO, VIO2, CRIT, ACC2, ACC]));
-
   // 等级 × 办别（堆叠条形，仅参评机构 1,289 家；口径见 anLvOwnOpt 注释）
   // ⚠️ 图形类型换过（柱状 → 旭日 → 堆叠条形），必须 notMerge：merge 模式下 ECharts 会拿
   //    新配置去合并旧 series，类型不同的两套 series 混在一起会画出空图或报错。
@@ -2456,20 +2645,15 @@ function updateAnalyticsCharts() {
   // 坐标精度覆盖率（仪表盘）：单一比率指标，读数比三段饼图更直接
   CH_COORD.setOption(anCoordOpt(F) || emptyOpt('当前筛选结果为空'), true);
 
-  const dc = {};
-  F.forEach(r => {
-    ((r.feature || '') + ';' + (r.key_depts || '')).split(';').forEach(x => { x = x.trim(); if (x) dc[x] = (dc[x] || 0) + 1; });
-  });
-  const td = Object.entries(dc).sort((a, b) => b[1] - a[1]).slice(0, 15).reverse();
-  CH_DEPTOP.setOption(td.length
-    ? barHOpt(td.map(p => [trunc(p[0], 11), p[1]]), ACC)
-    : emptyOpt('当前筛选结果里没有挂牌专科记录'), true);
+  // 科室覆盖 TOP15：口径见 deptCovRows 注释（depts / 44 类标准科室）。
+  // 空态文案不写死家数——那个数字随筛选条件变化，写死就会自相矛盾。
+  const dcTop = deptCovRows(F).slice(0, 15);
+  CH_DEPTOP.setOption(anDeptCovOpt(dcTop) || emptyOpt('当前筛选结果里没有科室映射记录'), true);
 
   // ---- 第二批维度（2026-09-21）----
   CH_CATOWN.setOption(anCatOwnOpt() || emptyOpt('暂无可归类机构'), true);
   CH_SPDIST.setOption(anSpDistOpt(F) || emptyOpt('当前筛选结果里没有挂牌重点专科的机构'), true);
   CH_SPLV.setOption(anSpLvOpt(F) || emptyOpt('当前筛选结果里没有重点专科记录'), true);
-  CH_DISTSP.setOption(anDistSpOpt(F) || emptyOpt('当前筛选结果里没有挂牌重点专科的机构'), true);
   CH_DISTMX.setOption(anDistMxOpt(F) || emptyOpt('筛选结果覆盖的区不足 3 个，无法横向对比'), true);
   CH_NETLV.setOption(anNetLvOpt(F) || emptyOpt('当前筛选结果不属于任何市级协作网络'), true);
   CH_SRCMAP.setOption(anSrcMapOpt(F) || emptyOpt('暂无数据'), true);
@@ -2513,7 +2697,10 @@ function anDrillDept(name) {
     toast(svgIcon('ok') + ' 已按科室「' + esc(name) + '」筛选：命中 <b>' + FILTERED.length.toLocaleString() + '</b> 家');
     track('analytics_drill', name, 'dept');
   } else {
-    toast(svgIcon('warn') + ' 「' + esc(name) + '」不在科室筛选口径内（该口径为 29 个通用科室），可在「智能筛选」用一句话检索这类机构', 5200);
+    const sel = $('f_dept');
+    const nk = sel ? Math.max(0, sel.options.length - 1) : 0;
+    toast(svgIcon('warn') + ' 「' + esc(name) + '」不在科室筛选口径内（该口径为 ' + nk +
+      ' 个一级科目），可在「智能筛选」用一句话检索这类机构', 5200);
   }
 }
 function initAnalyticsInteractions() {
@@ -2544,11 +2731,6 @@ function initAnalyticsInteractions() {
     if (!v[2]) { toast(svgIcon('warn') + ' 这一格是 0 家机构，没有可下钻的结果', 3600); return; }
     const d = AN_LVHEAT_ROWS[v[1]], l = AN_LVHEAT_LEVELS[v[0]];
     if (d) anDrill({ district: d, level: l }, d + ' · ' + l, { src: 'distlv' });
-  });
-  bind(CH_DISTSP, p => anDrill({ district: p.name }, p.name, { src: 'distsp' }));
-  bind(CH_NET, p => {
-    const key = { '儿科医联体·核心': 'ped_core', '儿科医联体·成员': 'ped_member', '卒中中心': 'stroke', '危重新生儿': 'neonatal', '危重孕产妇': 'maternal' }[p.name];
-    if (key) anDrill({ net: key }, p.name, { src: 'net' });
   });
   bind(CH_NETLV, p => {
     const key = { '儿科·核心': 'ped_core', '儿科·成员': 'ped_member', '卒中中心': 'stroke', '危重新生儿': 'neonatal', '危重孕产妇': 'maternal' }[p.name];
@@ -2660,11 +2842,10 @@ function anExportCSV() {
     push([b[0], n, (n / tot * 100).toFixed(1) + '%']);
   });
   push([]);
-  push(['【七、科室覆盖 TOP15】', '开展机构数']);
-  push(['科室名称', '开展机构数']);
-  const dc = {};
-  F.forEach(r => { ((r.feature || '') + ';' + (r.key_depts || '')).split(';').forEach(x => { x = x.trim(); if (x) dc[x] = (dc[x] || 0) + 1; }); });
-  Object.entries(dc).sort((a, b) => b[1] - a[1]).slice(0, 15).forEach(p => push([p[0], p[1]]));
+  push(['【七、科室覆盖 TOP15】', '开展机构数（44 类标准科室）']);
+  push(['科室名称', '开展机构数', '其中有据可查', '有据可查占比']);
+  deptCovRows(F).slice(0, 15).forEach(p => push([p.name, p.total, p.rec,
+    (p.total ? (p.rec / p.total * 100).toFixed(1) : '0.0') + '%']));
 
   const csv = '\ufeff' + rows.join('\r\n');
   try {
@@ -2723,20 +2904,92 @@ function anCopySummary() {
 // ============================================================================
 //  10. 导航
 // ============================================================================
-function initNav() {
-  const tabs = document.querySelectorAll('.navtab');
+function initNav() {  const tabs = document.querySelectorAll('.navtab');
   Array.prototype.forEach.call(tabs, btn => btn.addEventListener('click', () => {
     const v = btn.getAttribute('data-view');
+    // 浮层面板开着时点了别的查阅页 → 先收起面板（smartDockSet 内部不再模拟点击，无循环）
+    if (CUR_VIEW === 'filter' && v !== 'filter') smartDockSet(false);
     Array.prototype.forEach.call(tabs, b => b.classList.toggle('active', b === btn));
     Array.prototype.forEach.call(document.querySelectorAll('.view'), s => s.classList.toggle('active', s.id === 'view-' + v));
     CUR_VIEW = v;
     if (v === 'integration') renderIntegration();
     if (v === 'quality') renderQuality();
     // 智能筛选页的结果地图要等容器可见后才能正确取到尺寸，所以放在切换时初始化
-    if (v === 'filter' && window.__NLQ_UI__) { try { window.__NLQ_UI__.enter(); } catch (e) { console.error('[nlq]', e); } }
+    if (v === 'filter' && window.__CHAT__) { try { window.__CHAT__.enter(); } catch (e) { console.error('[chat]', e); } }
     writeState();
     setTimeout(resizeAll, 60);
   }));
+}
+
+// ============================================================================
+//  10.1 智能筛选悬浮球（2026-10-17；2026-10-18 起 window 只做 AI 问答聊天）
+//       打开 = #view-filter 变浮层面板；关闭 = 回到呼出前的查阅页。
+//       问答逻辑在 app.chat.js（__CHAT__）：本地引擎查真实数据 → Agnes 回答。
+// ============================================================================
+let DOCK_PREV_VIEW = 'overview';
+function smartDockSet(on) {
+  const fab = $('fab_nlq');
+  const view = document.getElementById('view-filter');
+  if (!fab || !view) return;
+  const badgeX = fab.querySelector('.ic-fabx');
+  if (on) {
+    if (CUR_VIEW && CUR_VIEW !== 'filter') DOCK_PREV_VIEW = CUR_VIEW;
+    // 关键修复：不要隐藏背后的查阅页，只把 #view-filter 作为浮层盖上去
+    view.classList.add('active');
+    // 如果当前没有任何查阅页处于激活态（例如 #v=filter 深链接直接打开），默认展示数据总览
+    if (!document.querySelector('.view.active:not(#view-filter)')) {
+      const overview = document.getElementById('view-overview');
+      if (overview) overview.classList.add('active');
+      const overviewBtn = document.querySelector('.navtab[data-view="overview"]');
+      if (overviewBtn) overviewBtn.classList.add('active');
+      DOCK_PREV_VIEW = 'overview';
+    }
+    CUR_VIEW = 'filter';
+    fab.classList.add('on');
+    fab.setAttribute('title', '收起智能筛选（Esc）');
+    if (badgeX) { badgeX.style.display = 'block'; }
+    // 智能问答窗口要等容器可见后才能正确取尺寸 / 聚焦，打开时才懒初始化
+    if (window.__CHAT__) { try { window.__CHAT__.enter(); } catch (e) { console.error('[chat]', e); } }
+    setTimeout(resizeAll, 60);
+  } else {
+    fab.classList.remove('on');
+    fab.setAttribute('title', '智能筛选：一句话筛选机构');
+    if (badgeX) { badgeX.style.display = 'none'; }
+    view.classList.remove('active');
+    CUR_VIEW = DOCK_PREV_VIEW || 'overview';
+    setTimeout(resizeAll, 60);
+  }
+}
+function initSmartDock() {
+  const fab = $('fab_nlq');
+  // FAB 的 DOM 位置在 app.js <script> 之后（body 最末尾），同步执行到这里还没解析；
+  // 等 DOM ready 再绑，不要静默放弃——否则悬浮球永远无响应。
+  if (!fab) {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSmartDock);
+    return;
+  }
+  // 老用户不再显示呼吸灯
+  try { if (localStorage.getItem('bjyy_fab_used')) fab.classList.remove('pulse'); } catch(e){}
+  fab.addEventListener('click', () => {
+    smartDockSet(CUR_VIEW !== 'filter');
+    // 用过一次就去掉呼吸灯，避免长期打扰
+    try { localStorage.setItem('bjyy_fab_used', '1'); } catch(e){}
+    fab.classList.remove('pulse');
+  });
+  const closeBtn = $('nlq_dock_close');
+  if (closeBtn) closeBtn.addEventListener('click', () => smartDockSet(false));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && CUR_VIEW === 'filter') smartDockSet(false);
+  });
+  window.__SMART_DOCK__ = { setPanel: smartDockSet };
+}
+// 悬浮球徽标：NLQ 出结果后把命中数挂到球上，扫一眼就知道上次查了多少
+function updateFabBadge(n) {
+  const b = $('fab_badge');
+  if (!b) return;
+  if (n === null || n === undefined) { b.style.display = 'none'; return; }
+  b.textContent = n > 999 ? '999+' : String(n);
+  b.style.display = 'block';
 }
 
 // ============================================================================
@@ -2806,6 +3059,7 @@ function writeState() {
     p.set('v', CUR_VIEW || 'overview');
     const g = id => { const el = $(id); return el ? (el.value || '').trim() : ''; };
     ['kw', 'district', 'level', 'cat', 'dept', 'net'].forEach(k => { const v = g('f_' + k); if (v) p.set(k, v); });
+    ['level_sub', 'evidence', 'radius'].forEach(k => { const v = g('f_' + k); if (v) p.set(k, v); });
     if (curSort() !== 'score') p.set('sort', curSort());
     if (curDir() !== 'asc') p.set('dir', curDir());
     const b = BASE_NOW;
@@ -2820,7 +3074,7 @@ function readState() {
   try {
     if (!location.hash || location.hash.length < 2) return st;
     const p = new URLSearchParams(location.hash.slice(1));
-    ['v', 'kw', 'district', 'level', 'cat', 'dept', 'net', 'sort', 'dir', 'base']
+    ['v', 'kw', 'district', 'level', 'cat', 'dept', 'net', 'level_sub', 'evidence', 'radius', 'sort', 'dir', 'base']
       .forEach(k => { const v = p.get(k); if (v) st[k] = v; });
   } catch (e) { }
   return st;
@@ -2884,13 +3138,96 @@ function openDrawer(id) {
     .catch(() => { });
 }
 
+// 预约入口与地图导航：不依赖任何接口 —— 在线/离线都得有，否则弱网时用户
+// 恰好最需要「怎么去、怎么挂号」却什么都看不到。
+// ⚠️ 抽成独立函数是必须的：paintDrawerLocal 与 paintDrawerFull 都会整块重写
+//    #pane-contact 的 innerHTML，谁最后跑谁说了算。把这段留在 paintDrawerLocal 里，
+//    在线形态就会在接口回来后把它整个冲掉（离线看着好好的，一开服务就消失）。
+function renderDrawerEvidence(r) {
+  if (!r || !window.EV) return;
+  const pc = $('pane-contact');
+  if (!pc) return;
+  let host = $('ev_contact');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'ev_contact';
+    pc.appendChild(host);
+  }
+  host.innerHTML = EV.bookingBlock(r, EV_COLORS()) + EV.navBlock(r, curBase(), EV_COLORS());
+  bindEvidenceUI(host, r);
+}
+
+// 院区/挂牌证据块单独挂在 #ev_campus 里，理由同 #ev_contact：开发形态下
+// EV.load() 是异步的，装载完成时若抽屉已打开，需要能只补画这一块，
+// 而不必把整个概览页连同 ECharts 对标图一起重画（那会丢掉用户的展开状态）。
+function paintDrawerEvidenceCampus(r) {
+  if (!r || !window.EV) return;
+  const host = $('ev_campus');
+  if (!host) return;
+  host.innerHTML = EV.campusBlock(r, EV_COLORS());
+  bindEvidenceUI(host, r);
+}
+
+// 机构证据增强区的交互绑定（app.evidence.js 生成的 DOM 只能读，不能自己绑事件）。
+// 作用域限定在传入的容器内，避免污染列表页同名的 class。
+function bindEvidenceUI(scope, r) {
+  if (!scope) return;
+
+  // ① 院区互跳：点同院区的另一条 → 直接打开那家的详情（抽屉复用，不跳页）
+  Array.prototype.forEach.call(scope.querySelectorAll('[data-ev-open]'), el => {
+    el.addEventListener('click', () => openDrawer(el.getAttribute('data-ev-open')));
+  });
+
+  // ② 出发点下拉：切换即 setBase，然后**整块重绘**证据区。
+  //    为什么不原地只改导航块：导航块的描述文字里含出发点名与直线距离，
+  //    原地改要同步改 4 个节点的文本，极易漏一处；而证据区只有预约+导航两块，
+  //    重绘成本远低于漏改的风险。重绘后必须重新绑定，否则新节点上的下拉框会失联。
+  const sel = scope.querySelector('[data-ev-origin]');
+  if (!sel) return;
+  sel.addEventListener('change', () => {
+    const v = sel.value;
+    if (v === '__me') {
+      if (!BASE_NOW) { toast(svgIcon('warn') + ' 尚未定位，请先点工具条的「我的位置」'); sel.value = curBase().name; return; }
+      setBase(BASE_NOW, true);
+    } else {
+      const p = BASE_POINTS[v];
+      if (!p || p.lng == null) { toast(svgIcon('warn') + ' 该出发点不可用'); sel.value = curBase().name; return; }
+      setBase(Object.assign({}, p), true);
+    }
+    const host = $('ev_contact');
+    if (host && window.EV) {
+      host.innerHTML = EV.bookingBlock(r, EV_COLORS()) + EV.navBlock(r, curBase(), EV_COLORS());
+      bindEvidenceUI(host, r);
+    }
+    refreshBaseSummary();
+  });
+}
+
+// 主题色在 loadTokens() 之后才有值，每次现取，取不到时回退中性色。
+function EV_COLORS() {
+  return { faint: (typeof FAINT !== 'undefined' && FAINT) || '#98a2b3' };
+}
+
+// app.evidence.js 的宿主常量。模块内不读全局作用域，避免离线/开发两种形态行为不一致。
+// 之所以挂到 window 而不是让模块直接引用 app.js 的 const：模块被单独 require 时
+// （node 单测）app.js 并不在场，直接引用会在定义处就抛 ReferenceError。
+window.__BASE_POINTS__ = BASE_POINTS;
+
 function paintDrawerLocal(r) {
+  const base = curBase();
+  // 模块需要的主题色在 loadTokens() 后才有值，这里每次现取，取不到时回退到中性色。
+  const EVC = EV_COLORS();
   $('dw_name').textContent = r.name;
   $('dw_meta').innerHTML = levelBadge(r.level) + catBadge(r.category) + ownBadge(r.ownership) +
     '<span class="chip">' + esc(r.district) + '</span>' +
     (r.category_sub && r.category_sub !== '未细分' ? '<span class="chip">' + esc(r.category_sub) + '</span>' : '');
-  const base = curBase();
-  const dist = (r.lng != null && r.lat != null) ? haversine(base.lng, base.lat, r.lng, r.lat).toFixed(1) + ' km' : '—';
+  const ksc = r.key_specialty_count || 0;
+  // 重点专科：0 有兩種成因（真实未入选 / 数据源未覆盖，军队医院不在地方公开名单里），
+  // 统一写「本数据集未收录」而不是「0 项」——不把数据边界说成事实。
+  const kscHtml = ksc > 0
+    ? ksc + ' 项<div style="color:' + FAINT + ';font-size:10px;margin-top:3px">国家 / 市级临床重点专科名单收录数</div>'
+    : '<span style="color:' + FAINT + '">本数据集未收录</span>' +
+      '<div style="color:' + FAINT + ';font-size:10px;margin-top:3px;line-height:1.6">军队医院（如解放军总医院）不在地方公开的重点专科名单内，其他机构可能确实未入选；这不代表该机构没有重点专科。</div>';
   $('pane-ov').innerHTML =
     '<div class="infogrid">' +
       box('机构类型', esc(r.category || '—')) +
@@ -2899,23 +3236,61 @@ function paintDrawerLocal(r) {
       box('办别性质', (r.ownership || '未标注') + (r.ownership_basis ? '<div style="color:' + FAINT + ';font-size:10px;margin-top:3px">依据 ' + esc(r.ownership_basis) + '</div>' : OWN_SRC_LABEL[r.ownership_src] || '')) +
       box('科室数量', deptText(r) +
         '<div style="color:' + FAINT + ';font-size:10px;margin-top:3px">' + deptSourceNote(r) + '</div>') +
-      box('重点专科', num(r.key_specialty_count) + ' 项') +
-      box('距' + (BASE_NOW ? base.name : '市中心'), dist) +
+      box('重点专科', kscHtml) +
     '</div>' +
     '<div class="blk"><h4><span class="bar"></span>协作网络</h4><div class="deptchips">' +
       (netDetail(r) ? netDetail(r).split('、').map(x => '<span class="chip acc">' + esc(x) + '</span>').join('')
                     : '<span style="color:' + DIM + ';font-size:12px">未纳入市级协作网络</span>') +
     '</div></div>' +
-    '<div class="blk"><h4><span class="bar"></span>同区同类机构 · 距离对标 <span class="r">红色为本机构</span></h4>' +
+    // 同区同类对标默认折叠：它排在基本信息之后，不抢占地址 / 联系信息的注意力
+    '<details class="dwdock"><summary>同区同类机构 · 距离对标<span class="dwdock-hint">点击展开 / 收起</span></summary>' +
       '<div class="dwscope" id="dw_scope"></div>' +
       '<div class="dwchart" id="dw_chart" style="height:292px"></div>' +
-      '<div class="dwfoot" id="dw_foot"></div></div>';
+      '<div class="dwfoot" id="dw_foot"></div></details>' +
+    // 院区与挂牌证据：放在对标之后、基本信息之后，折叠与否由其自身内容量决定。
+    // 多数机构没有院区/挂牌记录 → campusBlock 返回空串，这一块自动消失。
+    (window.EV ? '<div id="ev_campus">' + EV.campusBlock(r, EVC) + '</div>' : '');
   paintDwChart(r);
+  // 折叠态下 ECharts 拿到的是 0 尺寸画布：展开时补一次 resize
+  const dk = $('pane-ov').querySelector('details.dwdock');
+  if (dk) dk.addEventListener('toggle', function () {
+    if (dk.open && DW_CHART) { try { DW_CHART.resize(); } catch (e) { } }
+  });
   // 离线单文件（file://）没有后端，联系方式必须用快照里的 addr/phone 本地渲染，
   // 否则面板会永远停在「正在获取联系方式…」——这是必须避免的空转假象。
-  $('pane-contact').innerHTML = ENV.api ? '<div class="empty">正在获取联系方式…</div>' : (contactLocalHTML(r) + transportHTML(r));
+  $('pane-contact').innerHTML = ENV.api ? '<div class="empty">正在获取联系方式…</div>'
+    : (contactLocalHTML(r) + transportHTML(r) + drawerDistBox(r));
+  // 预约入口与地图导航两块不依赖任何接口 —— 在线/离线都得有，否则弱网时用户
+  // 恰好最需要「怎么去、怎么挂号」却什么都看不到。
+  // 用独立的 #ev_contact 容器装着：切换出发点时整块重绘，不会波及上面的联系方式。
+  const pc = $('pane-contact');
+  renderDrawerEvidence(r);
+  const cs = pc.querySelector('a[href="#copy"]');
+  if (cs) cs.addEventListener('click', e => {
+    e.preventDefault();
+    const n = (DW_CUR && DW_CUR.name) || '';
+    if (navigator.clipboard) navigator.clipboard.writeText(n).then(() => toast(svgIcon('ok') + ' 已复制：' + esc(n)), () => toast('复制失败'));
+  });
   $('pane-spec').innerHTML = specialtyHTML(r) + deptsLocalHTML(r);
   $('pane-near').innerHTML = aroundPlaceholder(r);
+}
+
+// 详情抽屉的「距参考点」块：与列表行同一口径 —— 粗精度坐标加「约」，
+// 默认基准点名「天安门（市中心）」，避免被误读成"我的当前位置"。
+function drawerDistBox(r) {
+  const base = curBase();
+  const dist = (r.lng != null && r.lat != null && base.lng != null && base.lat != null)
+    ? ((r.coord_precision === 'high' ? '' : '约 ') +
+       haversine(base.lng, base.lat, r.lng, r.lat).toFixed(1) + ' km（球面直线）')
+    : '<span style="color:' + FAINT + '">无坐标</span>';
+  return '<div class="blk"><h4><span class="bar"></span>距离参考点 <span class="r">Haversine 球面直线距离</span></h4>' +
+    '<div class="infogrid">' +
+      box('当前基准', BASE_NOW ? esc(base.name) : '天安门（市中心）') +
+      box('直线距离', dist +
+        (r.lng != null && r.coord_precision !== 'high'
+          ? '<div style="color:' + FAINT + ';font-size:10px;margin-top:3px">粗精度坐标，距离为估算值</div>' : '')) +
+      box('坐标精度', esc(r.coord_precision || '—')) +
+    '</div></div>';
 }
 
 // 离线快照的「科室明细」。
@@ -2925,11 +3300,13 @@ function paintDrawerLocal(r) {
 // 而不是"筛得到、详情里却看不到"。
 // 科室数的展示口径（2026-09-20 定版；2026-09-22 两处修订，勿回退）
 // ---------------------------------------------------------------------------
-// dept_count 字面是 hospital_depts.csv 中该机构的行数，但该表绝大多数行是推导出来的：
-//   source='rule'      9,855 行 —— 按「机构等级 × 类型」套的通用清单
-//   source='name'      3,800 行 —— 按机构名推导（「中医医院」→ 中医内科、针灸推拿科）
-//   source='online'    2,620 行 —— 好大夫在线逐家核实的真实科室（2026-09-22 新增）
-//   source='key_depts'   459 行 + 'specialty' 159 行 —— 源数据登记的真实科室
+// dept_count 字面是 hospital_depts.csv 中该机构的行数。2026-10-18 治理后：
+//   source='rule'      3,630 行 —— 仅限类型职能规定（社区中心/站、村卫生室、
+//                      妇幼保健院、急救机构）；医院等级通用清单已删除
+//   source='name'      3,747 行 —— 按机构名推导（「中医医院」→ 中医内科、针灸推拿科）
+//   source='online'    3,320 行 —— 好大夫在线逐家核实的真实科室
+//   source='key_depts'   475 行 + 'specialty' 247 行 —— 源数据登记的真实科室
+//   另有 307 行「院区继承」沿用主院来源（10 家院区，raw_name 带主院名）
 // 结论：**唯一可对外的数字只有在线的核实值**（dept_count_src 非空）。
 // 推导出的科室名仍参与「科室」维度检索与排序，但不作为事实展示。
 //
@@ -3013,8 +3390,8 @@ function deptsLocalHTML(r) {
       ? '该类机构（' + esc(fine) + '）' + esc(NO_DEPT_CAT[fine]) +
         '，因此没有"科室设置"这项资料。以上是按机构类型归入的<b style="color:' + ACC + '">诊疗科目</b>，' +
         '仅用于科室维度检索。'
-      : '⚠️ 该机构应当收录科室设置，但源数据与在线核实均未取得，以上名录系按「机构等级 × 类型」' +
-        '或机构名称推导，仅用于科室维度检索，<b style="color:' + ACC + '">不代表该院真实科室构成</b>。';
+      : '⚠️ 该机构应当收录科室设置，但源数据与在线核实均未取得，以上名录系按「机构名称 / 机构类型职能」' +
+        '推导，仅用于科室维度检索，<b style="color:' + ACC + '">不代表该院真实科室构成</b>。';
   return '<div class="blk"><h4><span class="bar"></span>科室明细 <span class="r">' + head + '</span></h4>' +
     '<div class="deptchips">' + ds.map(x => '<span class="chip">' + esc(x) + '</span>').join('') + '</div>' +
     '<div style="color:' + FAINT + ';font-size:10.5px;margin-top:9px">' + note + '</div></div>';
@@ -3068,7 +3445,7 @@ function contactLocalHTML(r) {
 // 同区同类机构 · 距离对标（同区 + 同类型 + 同等级的可比机构，按与基准点的距离排）
 // ---------------------------------------------------------------------------
 // 这里**刻意不再用「科室数」做横向对比**。dept_count 由四种来源拼成，且 97% 是推导：
-//   source='rule'      9,855 行 —— 按「机构等级 × 类型」套的通用清单（三级 19 / 二级 13 / 一级 6、7）
+//   source='rule'      —— 按「机构名称 / 机构类型职能」推导（等级通用清单已于 2026-10-18 删除）
 //   source='name'      3,800 行 —— 按机构名推导（「中医医院」→ 中医内科、针灸推拿科）
 //   source='online'    2,620 行 —— 好大夫在线逐家核实的真实科室（2026-09-22 联网新增）
 //   source='key_depts'   459 行 + 'specialty' 159 行 —— 源数据登记的真实科室，仅 3.7%
@@ -3276,14 +3653,19 @@ function paintDrawerFull(d) {
     '<div class="linklist">' + linkCard(svgIcon('clipboard'), '复制机构名称', '到 114 平台粘贴检索', '#copy', false) + '</div></div>';
   // 在线形态也一样补上「交通与官网」：这三列 MySQL 的 ads_inst_search 里没有，
   // 但快照行里有（build_spa.sh 从主表回填），所以按 id 取本地行即可，无需后端改动。
-  $('pane-contact').innerHTML += transportHTML(
-    (DATA.institutions || []).find(x => String(x.id) === String(d.id)));
+  const localRow = (DATA.institutions || []).find(x => String(x.id) === String(d.id));
+  $('pane-contact').innerHTML += transportHTML(localRow);
+  // 距离参考点块：与列表行同一口径（粗精度加「约」、默认基准天安门）
+  if (localRow) $('pane-contact').innerHTML += drawerDistBox(localRow);
   const cp = $('pane-contact').querySelector('a[href="#copy"]');
   if (cp) cp.addEventListener('click', e => {
     e.preventDefault();
     const n = L.hospital_name || (DW_CUR && DW_CUR.name) || '';
     if (navigator.clipboard) navigator.clipboard.writeText(n).then(() => toast(svgIcon('ok') + ' 已复制：' + esc(n)), () => toast('复制失败'));
   });
+  // 预约入口 + 地图导航：接口已把 #pane-contact 整块重写过，这里补回来。
+  // 用快照行（字段与本地一致）而不是接口行，避免为了两段文案再发一次请求。
+  renderDrawerEvidence(localRow || (DW_CUR || null));
 
   // 周边配套
   const a = d.around || {};
@@ -3328,7 +3710,7 @@ function paintDrawerFull(d) {
       (derivedOnly ? '<div style="color:' + FAINT + ';font-size:10.5px;margin-bottom:8px">' +
         (_nd ? '该类机构按《基本标准》以「诊疗科目」核准执业，不设临床科室建制；以下为执业登记的诊疗科目。'
              : '该机构源数据未收录科室设置，' +
-               '以下名录系按「机构等级 × 类型」或机构名称推导，仅用于科室维度检索，' +
+               '以下名录系按「机构名称 / 机构类型职能」推导，仅用于科室维度检索，' +
                '<b style="color:' + ACC + '">不代表该院真实科室构成</b>。') + '</div>' : '') +
       '<div class="tblbox"><table class="tiny"><thead><tr><th>科室</th><th>是否重点</th><th>来源</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
   }
@@ -3468,6 +3850,9 @@ function localCompareRow(r) {
     distance_km: dist == null ? null : +dist.toFixed(1),
     distance_text: dist == null ? '—' : dist.toFixed(1) + ' km（距' + base.name + '）',
     coord_precision: r.coord_precision || '—',
+    // 证据行要用：dept_count_src 非空 = 在线逐家核实的真实科室数，为空则是按
+    // 「名称 / 机构类型职能」推导的值。漏带这一列，对比表会把两种口径的科室数当成同一口径比高低。
+    dept_count_src: r.dept_count_src || '',
   };
 }
 
@@ -3481,6 +3866,7 @@ function apiCompareRow(it) {
     feature: it.feature || '', addr: it.addr || '', phone: it.phone || '',
     distance_km: it.distance_km, distance_text: it.distance_text || '—',
     coord_precision: it.coord_precision || '—',
+    dept_count_src: it.dept_count_src || '',
   };
 }
 
@@ -3495,6 +3881,8 @@ const CMP_ROWS = [
   ['key_specialty_count', '重点专科数'], ['national_specialty_count', '国家级重点专科'],
   ['municipal_specialty_count', '市级重点专科'], ['dept_count', '科室数量（含推导）'],
   ['distance_km', '距离基准点'], ['networks_text', '协作网络'],
+  // ↓ 证据两行（2026-10-17 新增）：对比表原来只有数值，用户看不出「这个数字是怎么来的」。
+  ['campus_text', '院区 / 挂牌形态'], ['dept_evidence', '科室证据强度'],
   ['national_specialty', '国家级专科清单'], ['municipal_specialty', '市级专科清单'],
   ['feature', '擅长科室'], ['addr', '地址'], ['phone', '联系电话'], ['coord_precision', '坐标精度'],
 ];
@@ -3526,6 +3914,21 @@ function paintCompare(rows, isLocal, fields) {
       } else if (k === 'phone') v = r.phone ? '<a href="tel:' + esc(r.phone) + '">' + esc(r.phone) + '</a>' : '<span style="color:' + FAINT + '">未收录</span>';
       else if (k === 'addr') v = esc(r.addr || '未收录');
       else if (k === 'category' || k === 'district' || k === 'networks_text' || k === 'coord_precision') v = esc(v || '—');
+      // 证据两行：强调「怎么来的」而不是「有多少」。刻意不给这两行加 best 高亮 ——
+      // 「有院区记录」「科室是核实值」都不是可比的优劣，加高亮等于暗示"证据多 = 机构强"。
+      else if (k === 'campus_text') {
+        const c = (window.EV && EV.campusCell) ? EV.campusCell(r) : { text: '—', evidence: '—' };
+        v = '<div>' + esc(c.text) + '</div><div class="mini" style="color:' + FAINT + ';font-size:10px;margin-top:3px">' +
+            esc(c.evidence) + '</div>';
+      } else if (k === 'dept_evidence') {
+        const e = (window.EV && EV.deptEvidenceCell) ? EV.deptEvidenceCell(r)
+          : { text: '—', detail: '', strong: false };
+        const badge = e.strong
+          ? '<span class="chip" style="background:rgba(var(--teal-rgb),.14);border-color:rgba(var(--teal-rgb),.3)">已核实</span>'
+          : '<span class="chip" style="background:rgba(var(--warn-rgb),.14);border-color:rgba(var(--warn-rgb),.32)">推导值</span>';
+        v = '<div>' + badge + ' ' + esc(e.text) + '</div>' +
+            '<div class="mini" style="color:' + FAINT + ';font-size:10px;margin-top:3px">' + esc(e.detail) + '</div>';
+      }
       else v = '<b>' + esc(v) + '</b>';
       return '<td class="' + (i === bestIdx ? 'best' : '') + '">' + v + extra + '</td>';
     }).join('');
@@ -3768,17 +4171,6 @@ function renderOverviewKPI() {
   setText('v_hospitals', num(hospN));
   setText('v_community', num(commN));
   setText('v_sources', num(dqv().sourceFiles));
-  drawOverviewOwn();
-}
-function drawOverviewOwn() {
-  if (!OV_OWN_CHART || !DATA) return;
-  const own = {};
-  DATA.institutions.forEach(r => { const k = r.ownership || '未标注'; own[k] = (own[k] || 0) + 1; });
-  OV_OWN_CHART.setOption(pieOpt([
-    ['公立', own['公立'] || 0, ACC2],
-    ['民营', own['民营'] || 0, WARN],
-    ['未标注', own['未标注'] || 0, DIM],
-  ]));
 }
 
 // ---------- 数据整合中心：数据源 + Spark 处理流程 + 处理结果 + ETL 批次时效 ----------

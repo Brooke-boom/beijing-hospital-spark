@@ -31,6 +31,14 @@ docs/论文大纲.md
 docs/毕业论文.md
 docs/images/
 答辩PPT/
+# 答辩 PPT 工作目录（两套并存，均属答辩材料，防抄袭不入库）
+答辩PPT-*/
+
+# 学校模板与论文正式稿（含学位材料，防抄袭 + 版权，不入库）
+论文/
+
+# WPS 锁文件
+.~*
 
 # 大屏快照数据（体积大不入库；dashboard_offline.html 为唯一入库的离线大屏版本，按 build_spa.sh 重新生成后提交）
 web/snapshot_data.json

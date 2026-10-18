@@ -26,7 +26,7 @@ import re
 import uuid
 
 import pymysql
-from flask import Flask, g, jsonify, render_template, request, make_response, send_from_directory
+from flask import Flask, g, jsonify, render_template, request, make_response, send_from_directory, redirect
 
 # 自然语言筛选：解析 / 执行 / 统计 / 摘要（词表与前端离线引擎同源）
 sys_path = os.path.dirname(os.path.abspath(__file__))
@@ -89,24 +89,15 @@ def index():
     return resp
 
 
-# ============== Vue 单页应用（前后端分离形态）==============
-# web/vue/dist 由 `bash web/vue/build.sh` 构建产出；Flask 只负责静态托管，
-# 业务数据一律仍走 /api/* 从 MySQL 取——前后端通过 JSON 接口解耦，不共享模板。
-# 与原有单文件大屏（/）并存：/ 是零依赖离线兜底，/spa/ 是 Vue 在线形态。
-SPA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vue", "dist")
-
-
+# ============== Vue 单页应用（前后端分离形态）已下线 ==============
+# 2026-10-17 按用户要求：离线单文件大屏成为唯一入口。
+# /spa/ 及其子路径统一 302 跳回 /，由零依赖单文件（templates/index.html）承接。
+# web/vue/ 源码保留，用于答辩时展示「Vue+Flask 分离」技术栈，但不再对外服务。
 @app.route("/spa/")
 @app.route("/spa/<path:sub>")
 def spa(sub=""):
-    """托管 Vue 构建产物。hash 路由模式，任意深链都回退到 index.html。"""
-    if not os.path.isdir(SPA_DIR):
-        return ("Vue 前端尚未构建：请先执行  bash web/vue/build.sh", 503)
-    target = sub if sub and os.path.isfile(os.path.join(SPA_DIR, sub)) else "index.html"
-    resp = make_response(send_from_directory(SPA_DIR, target))
-    if target.endswith(".html"):
-        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    return resp
+    """旧 Vue 入口已下线：统一跳转到离线单文件大屏。"""
+    return redirect("/", code=302)
 
 
 # ============== API：多维筛选与排序 ==============
@@ -211,18 +202,22 @@ def api_institutions():
             _c, _v = _net_map[net]
             where.append(f"{_c} = %s")
             params.append(_v)
-    if radius is not None:
-        where.append("t.coord_precision = 'high' AND d.distance_km <= %s")
-        params.append(radius)
+    # 半径（radius）不在这里进 WHERE：距离要在子查询里算完，外层用 distance_km 别名过滤，
+    # 见下方 outer_where。
     where_sql = " AND ".join(where)
 
-    # Haversine 距离（km）—— 有坐标的机构才算距离
+    # Haversine 距离（km）—— 有坐标的机构才算距离。
+    # ⚠ 距离表达式**内联在单表子查询里**，不再 JOIN 一个「全表算距离」的派生表：
+    # 2026-10-17 实测，派生表 join + ORDER BY distance + LIMIT 会让优化器选灾难计划——
+    # 以 9,678 行的物化派生表为驱动表循环索引查找，「昌平区+诊所」按距离排序要 12.8s
+    # （同样的条件无 LIMIT 只 0.02s，其他排序 0.08s）。内联后由 district 等索引驱动，
+    # 同一查询降到毫秒级。改这里之前先看 etl 里 verify_pipeline 的距离排序用例。
     dist_expr = (
-        "CASE WHEN lng IS NOT NULL AND lat IS NOT NULL THEN "
+        "CASE WHEN t.lng IS NOT NULL AND t.lat IS NOT NULL THEN "
         "ROUND(6371 * 2 * ASIN(SQRT("
-        " POWER(SIN(RADIANS(lat - %s) / 2), 2) +"
-        " COS(RADIANS(%s)) * COS(RADIANS(lat)) *"
-        " POWER(SIN(RADIANS(lng - %s) / 2), 2)"
+        " POWER(SIN(RADIANS(t.lat - %s) / 2), 2) +"
+        " COS(RADIANS(%s)) * COS(RADIANS(t.lat)) *"
+        " POWER(SIN(RADIANS(t.lng - %s) / 2), 2)"
         ")), 2) ELSE NULL END"
     )
     dist_params = [lat, lat, lng]
@@ -248,21 +243,10 @@ def api_institutions():
         order_sql = "name ASC"
     else:
         sort = "score"
-        order_sql = "score DESC, t.name ASC"
+        order_sql = "score DESC, name ASC"
 
-    base_select = (
-        f"FROM ads_inst_search t"
-        f" JOIN (SELECT id, {dist_expr} AS distance_km FROM ads_inst_search) d"
-        f" ON t.id = d.id"
-        f" LEFT JOIN (SELECT hospital_id, COUNT(*) AS rule_dept_count FROM dwd_dept_relation_clean"
-        f" WHERE source = 'rule' GROUP BY hospital_id) rc ON rc.hospital_id = t.id"
-        f" WHERE {where_sql}"
-    )
-
-    total = query(f"SELECT COUNT(*) AS n {base_select}", dist_params + params, one=True)["n"]
-
-    offset = (page - 1) * page_size
-    items = query(
+    # 单表子查询：过滤 + 科室计数 + 距离一次算清（外层再套排序/分页/半径）
+    inner_select = (
         "SELECT t.id, t.name, t.district, t.category_norm AS category, t.category AS category_fine,"
         " t.level_norm AS level,"
         " t.level_sub, t.addr, t.phone, t.key_depts,"
@@ -270,9 +254,28 @@ def api_institutions():
         " t.net_pediatric, t.net_stroke, t.net_neonatal, t.net_maternal,"
         " t.lng, t.lat, t.coord_precision, t.dept_count, t.dept_count_src, t.key_specialty_count,"
         " CASE WHEN t.coord_precision = 'high' THEN '门址或兴趣点，直线距离' ELSE '近似位置，距离仅供参考' END AS distance_note,"
-        " d.distance_km, COALESCE(rc.rule_dept_count, 0) AS rule_dept_count, " + score_expr + " AS score " + base_select +
+        " " + dist_expr + " AS distance_km,"
+        " COALESCE(rc.rule_dept_count, 0) AS rule_dept_count, " + score_expr + " AS score"
+        " FROM ads_inst_search t"
+        " LEFT JOIN (SELECT hospital_id, COUNT(*) AS rule_dept_count FROM dwd_dept_relation_clean"
+        " WHERE source = 'rule' GROUP BY hospital_id) rc ON rc.hospital_id = t.id"
+        f" WHERE {where_sql}"
+    )
+
+    # 半径条件下沉到外层：用子查询算出的 distance_km 别名，且只作用于 high 精度坐标
+    outer_where, outer_params = "1=1", []
+    if radius is not None:
+        outer_where = "x.coord_precision = 'high' AND x.distance_km <= %s"
+        outer_params.append(radius)
+
+    total = query(f"SELECT COUNT(*) AS n FROM ({inner_select}) x WHERE {outer_where}",
+                  dist_params + params + outer_params, one=True)["n"]
+
+    offset = (page - 1) * page_size
+    items = query(
+        f"SELECT x.* FROM ({inner_select}) x WHERE {outer_where}"
         f" ORDER BY {order_sql} LIMIT %s OFFSET %s",
-        dist_params + params + [page_size, offset],
+        dist_params + params + outer_params + [page_size, offset],
     )
     return jsonify({
         "total": total,
@@ -1046,7 +1049,8 @@ def api_inst_compare():
         "SELECT id, name, district, category_norm, level_norm, ownership, ownership_basis,"
         " addr, phone, feature, national_specialty, national_specialty_count,"
         " municipal_specialty, municipal_specialty_count, key_specialty_count, dept_count,"
-        " net_pediatric, net_stroke, net_neonatal, net_maternal, lng, lat, coord_precision"
+        " dept_count_src, net_pediatric, net_stroke, net_neonatal, net_maternal,"
+        " lng, lat, coord_precision"
         f" FROM ads_inst_search WHERE id IN ({ph})", ids)
     order = {i: n for n, i in enumerate(ids)}
     rows.sort(key=lambda r: order.get(str(r["id"]), 99))
@@ -1219,37 +1223,34 @@ def api_ai_advice():
 # 筛选结果（facts）里选**，模型不产生任何新机构名、数字、医生与号源；
 # 绝不做疾病诊断、用药或治疗建议；急症一律提示就近急诊/120。
 AI_CHAT_RULES = (
-    "你是「北京市医疗机构数据智能分析与筛选平台」的就医咨询助手。硬性要求：\n"
-    "① 绝不做疾病诊断、不开药、不给治疗方案，也不判断病情严重程度；"
-    "出现胸痛、呼吸困难、大出血、意识障碍等急症描述时，第一句就提示"
-    "「请立即前往就近医院急诊或拨打120」；\n"
-    "② 涉及具体医院时，**只能从【当前筛选结果】列出的机构中选择并说明理由"
-    "（等级、区域、类型、重点专科等字段）**，严禁引入清单外的任何机构名；\n"
-    "③ 严禁编造医生姓名、出诊时间、号源、价格、成功率等任何未给出的信息与数字；\n"
-    "④ 问诊导诊只给「科室方向 + 就诊前准备」；就医建议只给「就医路径与流程提示」；\n"
-    "⑤ 回答简洁分点，控制在 220 字以内；结尾提醒：以上为信息参考，"
-    "具体以医院官方信息与医生面诊为准；\n"
-    "⑥ 只输出回答正文，不要标题、不要 Markdown、不要 JSON。\n"
+    "你是「北京市医疗机构数据智能分析与筛选平台」的数据问答助手。硬性要求：\n"
+    "① 只回答与平台数据相关的机构问题（行政区/等级/类型/科室分布、机构推荐等）；"
+    "用户描述疾病、症状、用药时，第一句说明「系统只提供机构资源数据，不做医学判断」，"
+    "不展开任何医学内容；出现胸痛、呼吸困难、大出血、意识障碍等急症描述时，"
+    "第一句就提示「请立即前往就近医院急诊或拨打120」；\n"
+    "② 提到机构或数字时，**只能使用【当前查询结果】中出现过的机构名与数字**，"
+    "严禁引入清单外的任何机构名，严禁编造或推算未给出的信息与数字"
+    "（电话、号源、价格、评分、排名等一律不给）；\n"
+    "③ 清单为空时直说「当前没有匹配结果」，可建议放宽条件（行政区 / 等级 / 科室）；\n"
+    "④ 回答简洁分点，控制在 220 字以内；结尾提醒：以上为数据口径内的参考，"
+    "就诊信息以医院官方公布为准；\n"
+    "⑤ 只输出回答正文，不要标题、不要 Markdown、不要 JSON。\n"
 )
 AI_CHAT_MODE_PROMPTS = {
-    # 模式 → 追加指令（与前端三个模式一一对应）
-    "triage": "本次任务【问诊导诊】：根据用户描述的不适，建议可能对应的科室方向"
-              "（可给 1~2 个备选科室），并提示就诊前需要准备的事项（如既往病历、"
-              "用药清单）。facts 里若无合适机构可不提医院。\n",
-    "visit": "本次任务【就医建议】：给出就医路径与流程提示（挂号方式、检查准备、"
-             "医保与材料等一般性建议），不涉及具体疾病判断。\n",
-    "hospital": "本次任务【医院选择】：必须从【当前筛选结果】的机构清单中给出建议"
-                "（可按等级/区域/重点专科字段说明理由，最多推荐 3 家）；"
-                "清单为空时直接说明「请先完成一次筛选」，不要凭空推荐。\n",
+    # 悬浮球智能问答窗口只有一个模式：基于本地引擎算出的真实查询结果回答。
+    "data": "本次任务【机构数据问答】：根据【当前查询结果】里的真实机构与统计，"
+            "用自然语言回答用户问题；可在清单范围内归纳、对比与推荐"
+            "（最多点名 3 家，理由只能引用其字段值）。\n",
 }
 
 
 @app.route("/api/ai/chat", methods=["POST"])
 def api_ai_chat():
-    """智能筛选页 AI 问答窗口：问诊导诊 / 就医建议 / 医院选择（受约束的接地问答）。
+    """悬浮球智能问答窗口（Agnes 接地问答）：用户提问 → AI 基于真实查询结果回答。
 
     POST { mode, question, facts, history? }
-    - facts 由前端拼装自**当前筛选结果**（真实查询返回），医院推荐只能从中选；
+    - facts 由前端拼装自**本地引擎对同一句话的真实查询结果**（机构清单 / 维度统计），
+      机构名与数字只能从中来——AI 只组织语言，不产出事实；
     - history 取最近 6 条做上下文；缓存键不含 history（完全相同的提问秒回）；
     - 三级防护与既有链路一致：限流明确提示 / 未启用明确提示 / 异常不打断页面。
     """
@@ -1263,7 +1264,7 @@ def api_ai_chat():
     if not (AI_LLM_ENABLED and AI_API_KEY):
         return jsonify({"ok": False, "reason": "llm_disabled",
                         "hint": "大模型未启用（离线分享页不支持 AI 问答）"})
-    mode_prompt = AI_CHAT_MODE_PROMPTS.get(mode) or AI_CHAT_MODE_PROMPTS["triage"]
+    mode_prompt = AI_CHAT_MODE_PROMPTS.get(mode) or AI_CHAT_MODE_PROMPTS["data"]
     # 缓存键：mode + facts + question（不含 history，保证同题命中）
     ck = AI_MODEL + "|chat|" + hashlib.sha1(
         (mode + "\x00" + facts + "\x00" + question).encode("utf-8")).hexdigest()[:24]
@@ -1360,6 +1361,7 @@ def api_about():
             {"date": "2026-09-17", "desc": "多维分析数据联网完善：办别与等级在线核实（公立 3,085 / 民营 5,323 / 未标注 1,381）；352 家等级缺失经核实确为数据边界"},
             {"date": "2026-09-18", "desc": "信息架构重构为七视图；新增 Vue 3 + Flask 前后端分离形态（/spa/），与零依赖离线单文件并存"},
             {"date": "2026-09-20", "desc": "「就医决策 / 智能导诊」下线，重构为「自然语言智能筛选」：新增 web/nlq.py（条件解析 + 真实数据查询 + 维度统计）与 /api/nlq/* 、/api/statistics/* 接口；AI 定位收敛为机构数据筛选助手"},
+            {"date": "2026-10-17", "desc": "前端入口统一：/spa/（Vue 形态）下线并 302 跳转回 /，离线单文件大屏成为唯一入口；Vue 源码保留作技术栈展示"},
         ],
     })
 

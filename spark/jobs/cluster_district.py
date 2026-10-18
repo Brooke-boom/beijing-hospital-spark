@@ -7,7 +7,7 @@
 
 输入（只读，不写 HDFS，不影响贯通校验的表清单对账）：
   /hospital/dwd/dwd_institution_clean   机构明细（9,678 行）
-  /hospital/dwd/dwd_dept_relation_clean 机构-科室映射（16,438 行）
+  /hospital/dwd/dwd_dept_relation_clean 机构-科室映射（11,419 行）
 
 特征（每区 6 维，均为现算统计量）：
   机构总数 / 医院数 / 三级数 / 二级数 / 重点专科数（国家级+市级）/

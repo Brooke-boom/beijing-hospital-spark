@@ -39,7 +39,7 @@ export const useDataStore = defineStore('data', {
     netSizeLoaded: false,
     base: null,              // 已设定的基准点（null = 未定位，距离按天安门算并标注）
     picks: [],               // 对比选择（机构 id）
-    theme: 'dark',
+    theme: 'light',          // 默认浅色（与单文件形态一致；深色由顶栏按钮切换）
     drawer: { open: false, id: null, data: null, loading: false },
     compare: { open: false, data: null, loading: false },
     toast: '',
@@ -222,6 +222,22 @@ export const useDataStore = defineStore('data', {
       await this.fetchList()
     },
 
+    // 「使用我的位置」：浏览器定位作为距离参考点。
+    // 标注一律用「我的位置」这一设备自身事实，不用「最近已知点」反推地名——后者会把
+    // 域外坐标标成北京的地点名（坐标系越界误判的坑见 geolocation-out-of-bounds-guard）。
+    async locateMe() {
+      if (!navigator.geolocation) { this.notify('当前浏览器不支持定位'); return }
+      this.notify('正在获取浏览器位置…')
+      try {
+        const pos = await new Promise((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, maximumAge: 60000 }))
+        await this.setBase({ name: '我的位置', lng: pos.coords.longitude, lat: pos.coords.latitude })
+        this.notify('基准点已设为：我的位置')
+      } catch (e) {
+        this.notify('定位失败：' + (e && e.message ? e.message : '未授权或超时'))
+      }
+    },
+
     async gotoPage(page) {
       const p = Math.min(Math.max(1, page), this.totalPages)
       this.query.page = p
@@ -282,8 +298,8 @@ export const useDataStore = defineStore('data', {
       try { localStorage.setItem('spa_theme', theme) } catch (e) { /* 隐私模式下忽略 */ }
     },
     initTheme() {
-      let t = 'dark'
-      try { t = localStorage.getItem('spa_theme') || 'dark' } catch (e) { /* ignore */ }
+      let t = 'light'
+      try { t = localStorage.getItem('spa_theme') || 'light' } catch (e) { /* ignore */ }
       this.applyTheme(t)
     },
     toggleTheme() { this.applyTheme(this.theme === 'dark' ? 'light' : 'dark') },

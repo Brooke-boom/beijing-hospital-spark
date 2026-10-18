@@ -42,7 +42,12 @@ conn = pymysql.connect(host='127.0.0.1', port=3307, user='root', password='hospi
 def q(sql):
     with conn.cursor() as cur:
         cur.execute(sql); return cur.fetchall()
-rows = q("""SELECT a.id, a.name, a.district, a.level_norm AS level, a.category_norm AS category,
+rows = q("""SELECT a.id, a.name, a.district, a.level_norm AS level,
+    -- level_sub：等级等次（甲等 / 乙等 / 丙等）。离线快照此前漏了它，
+    -- 于是「三甲 = 三级且甲等」这个组合条件在离线形态恒为 0 家——解析得出来、查不出来。
+    -- 线上 /api/institutions 的 level_sub 一直有（ads_inst_search 原生列），
+    -- 这里补齐后两端同源；仍为空（未定级 / 不参评）的机构保持空串，不补默认值。
+    a.level_sub, a.category_norm AS category,
     -- category_fine：主表的**细粒度**机构类型（医务室 / 护理站 / 中医医院 …）。
     -- 展示层按 10 类粗口径（category_norm）会把这些并进"其他机构 / 医院"，
     -- 而「科室数」这一项的展示口径需要区分 医务室 / 护理站（它们按诊疗科目执业、
@@ -64,7 +69,7 @@ rows = q("""SELECT a.id, a.name, a.district, a.level_norm AS level, a.category_n
                WHERE source = 'rule' GROUP BY hospital_id) rc ON rc.hospital_id = a.id""")
 for r in rows:
     r['id'] = str(r['id']).strip()
-    for k in ('name','district','level','category','category_fine','category_sub','ownership',
+    for k in ('name','district','level','level_sub','category','category_fine','category_sub','ownership',
               'feature','feature_level','coord_precision','key_depts','grade_scope',
               'addr','phone',
               'national_specialty','municipal_specialty',
@@ -256,12 +261,15 @@ conn.close()
 PYEOF
 fi
 
-echo "=== 2. 刷新自然语言筛选词表 ==="
+echo "=== 2. 刷新自然语言筛选词表 + 院区证据 ==="
 # 词表只有一份真源：web/nlq.py。这里把它导出成 web/nlq_lexicon.json，
 # 再内联进单文件产物 —— 单文件形态的解析结果因此与后端逐字段一致
 # （etl/verify_offline_nlq.py 会逐条比对，漂移立刻暴露）。
 # 放在构建链路里自动跑，而不是靠人记得手抄。
 "$PYTHON_BIN" etl/export_nlq_lexicon.py
+# 院区 / 挂牌证据同理由 data/processed/{master_institutions,alias_map}.csv 导出，
+# 判据（什么才算院区、什么只是旧称）写在导出脚本里，不在前端手写。
+"$PYTHON_BIN" etl/export_campus_evidence.py
 
 echo "=== 3. 拼装单文件 HTML ==="
 "$PYTHON_BIN" << 'PYEOF'
@@ -279,7 +287,15 @@ if not lex_path.exists():
                      'python etl/export_nlq_lexicon.py')
 lex_json = lex_path.read_text(encoding='utf-8')
 nlq_js = open('web/app.nlq.js', encoding='utf-8').read()
-nlq_ui_js = open('web/app.nlq.ui.js', encoding='utf-8').read()
+chat_js = open('web/app.chat.js', encoding='utf-8').read()
+ev_js = open('web/app.evidence.js', encoding='utf-8').read()
+
+# 院区 / 挂牌证据：让详情页与对比表能说清「这块牌子是院区还是旧称」。
+campus_path = Path('web/campus_evidence.json')
+if not campus_path.exists():
+    raise SystemExit('缺少 web/campus_evidence.json，请先运行：'
+                     'python etl/export_campus_evidence.py')
+campus_json = campus_path.read_text(encoding='utf-8')
 
 
 def inline(s):
@@ -294,10 +310,12 @@ assert '<script src="app.js"></script>' in html, '产物拼装失败：未找到
 html = html.replace('<script src="app.js"></script>',
                     f'<script>window.__SNAPSHOT__ = {inline(data)};</script>\n'
                     f'<script>window.__NLQ_LEX__ = {inline(lex_json)};</script>\n'
+                    f'<script>window.__CAMPUS__ = {inline(campus_json)};</script>\n'
                     f'<script>\n{inline(js)}\n</script>')
 # 词表装载脚本（开发形态回退读 nlq_lexicon.json）在产物里已由 __NLQ_LEX__ 覆盖，原样保留即可
 for tag, code in (('<script src="app.nlq.js"></script>', nlq_js),
-                  ('<script src="app.nlq.ui.js"></script>', nlq_ui_js)):
+                  ('<script src="app.chat.js"></script>', chat_js),
+                  ('<script src="app.evidence.js"></script>', ev_js)):
     if html.count(tag) != 1:
         raise SystemExit(f'产物拼装失败：锚点 {tag} 出现 {html.count(tag)} 次（应为 1 次）')
     html = html.replace(tag, f'<script>\n{inline(code)}\n</script>')

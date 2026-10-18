@@ -1,11 +1,21 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- 内联空图标：避免浏览器自动请求 /favicon.ico 产生 404 -->
   <link rel="icon" href="data:,">
   <title>北京市医疗机构资源整合与多维筛选可视化系统</title>
+  <script>
+    // 首帧主题脚本：在样式与 Vue 挂载前落定 data-theme，避免浅色默认下闪一下深色。
+    // 与 store.initTheme 同一优先级：localStorage 显式选择 > 浅色默认。
+    (function () {
+      try {
+        var t = localStorage.getItem('spa_theme');
+        if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { /* 隐私模式下忽略 */ }
+    })();
+  </script>
 </head>
 <body>
   <div id="app"></div>

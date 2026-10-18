@@ -4,11 +4,11 @@ import { LEGACY_REDIRECT } from './hubs'
 // 用 hash 模式：Flask 把构建产物挂在 /spa/ 子路径下，hash 模式无需服务端回退规则，
 // 直接双击 dist/index.html 也能跑（离线兜底）。
 const routes = [
-  // 默认入口 = 任务主线，而不是某个报表页。
-  // 这个重定向就是「系统」与「大屏」的分界线：用户进来是来筛机构、要结果的，不是来看图的。
-  { path: '/', redirect: '/filter' },
-  { path: '/filter', name: 'filter', component: () => import('./views/SmartFilterView.vue'),
-    meta: { title: '智能筛选' } },
+  // 默认入口 = 机构查询。智能筛选已改为常驻悬浮球（SmartFilterDock），不再占独立路由——
+  // 查询是动作不是地点，任何查阅页都能呼出。
+  { path: '/', redirect: '/find' },
+  // 旧深链接兜底：/filter 曾是智能筛选独立页，统一落到机构查询
+  { path: '/filter', redirect: '/find' },
 
   // 查阅支撑页：一个页面回答一个问题，页内用子标签切换看法
   { path: '/find', name: 'find', component: () => import('./views/HubView.vue'),

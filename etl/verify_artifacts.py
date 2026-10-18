@@ -162,10 +162,12 @@ def main():
         print("  ✗ 内联快照不一致：%s" % {k: v[:12] for k, v in snapshots.items()})
         ok = False
 
-    # ---- 智能筛选页（自然语言 + 条件双通道）的离线能力是否真的进了产物 ----
-    # 这三件套缺任何一件，单文件形态的"智能筛选"就会退化成空壳（页面在、点了没反应），
+    # ---- 智能问答窗口（悬浮球 · Agnes 聊天）的离线能力是否真的进了产物 ----
+    # 2026-10-18 重构：界面层由 app.nlq.ui.js（条件卡片/结果列表）换成 app.chat.js（聊天），
+    # NLQ 引擎保留 —— 聊天窗口在本地真实查一遍、产出 facts，是防幻觉的根基。
+    # 这三件套缺任何一件，单文件形态的"智能问答"就会退化成空壳（页面在、点了没反应），
     # 且因为不报错，很容易在提交前被漏掉。
-    print("\n▶ 智能筛选页离线能力（app.nlq.js + app.nlq.ui.js + 词表）")
+    print("\n▶ 智能问答窗口离线能力（app.nlq.js + app.chat.js + 词表）")
     lex_js = os.path.join(WEB, "nlq_lexicon.json")
     if not os.path.exists(lex_js):
         print("  ✗ 缺少 web/nlq_lexicon.json（跑：python3 etl/export_nlq_lexicon.py）"); ok = False
@@ -188,11 +190,13 @@ def main():
         problems = []
         for mark, label in (("window.__NLQ_LEX__", "内联词表"),
                             ("app.nlq.js", "解析引擎 app.nlq.js"),
-                            ("app.nlq.ui.js", "界面层 app.nlq.ui.js")):
+                            ("app.chat.js", "聊天界面层 app.chat.js")):
             if mark not in html:
                 problems.append("缺 " + label)
         if "app.plan.js" in html or "app.plan.ui.js" in html:
             problems.append("残留已下线的 app.plan*.js")
+        if 'src="app.nlq.ui.js"' in html or "app.nlq.ui.js\"></script>" in html:
+            problems.append("残留已下线的 app.nlq.ui.js 脚本引用")
         # 「就医决策」可以出现在**历史说明**里（更新日志写"已于某日下线/重构"是正常的，
         # 也是应该保留的），只有当成在跑的模块才算残留 —— 故用否定前行排除"下线 / 重构"语境。
         stale_plan = re.search(r"就医决策(?![^。；\n]{0,24}(?:下线|重构))", html)
@@ -238,21 +242,29 @@ def main():
             else:
                 print("  ✓ 无 IDE 预览脏标记")
             # 路由是按需动态 import 的，入口 html 只引用 app.js + css；
-            # 其余 chunk 需单独点名，避免"少打包了几个视图"这种静默失败
+            # 预期 chunk 从源码动态推导（扫描 src 下所有 import('...') 动态导入），
+            # 不写死清单——视图增减、合并打包时断言自动跟随，不会变成假报警。
             assets = os.path.join(vue_dist, "assets")
             if os.path.isdir(assets):
                 files = sorted(os.listdir(assets))
                 asize = sum(os.path.getsize(os.path.join(assets, f)) for f in files)
-                expect_chunks = ["app.js", "charts.js", "index.css",
-                                 "SmartFilterView.js", "HubView.js",
-                                 "OverviewView.js", "AnalyticsView.js", "InstitutionsView.js",
-                                 "FilterView.js", "IntegrationView.js", "QualityView.js",
-                                 "AboutView.js"]
+                expect_chunks = ["app.js", "index.css"]
+                for root, _dirs, fs in os.walk(os.path.join(BASE, "web", "vue", "src")):
+                    for f in fs:
+                        if not f.endswith((".js", ".vue")):
+                            continue
+                        try:
+                            src_txt = open(os.path.join(root, f), encoding="utf-8").read()
+                        except OSError:
+                            continue
+                        for mname in re.findall(r"""import\(\s*['"][^'"]*?([A-Za-z0-9_]+)\.(?:vue|js)['"]\s*\)""", src_txt):
+                            expect_chunks.append(mname + ".js")
+                expect_chunks = sorted(set(expect_chunks))
                 miss = [c for c in expect_chunks if c not in files]
-                print("  %s dist/assets 共 %d 个文件 / %.2f MB"
-                      % ("✓" if not miss else "✗", len(files), asize / 1024 / 1024))
+                print("  %s dist/assets 共 %d 个文件 / %.2f MB（预期 chunk %d 个，按源码动态推导）"
+                      % ("✓" if not miss else "✗", len(files), asize / 1024 / 1024, len(expect_chunks)))
                 if miss:
-                    print("  ✗ 缺少预期 chunk：%s（九个视图应各自成块）" % miss); ok = False
+                    print("  ✗ 缺少动态导入的 chunk：%s" % miss); ok = False
                 # 已下线的就医决策工作台不应再被打进产物
                 stale = [f for f in files if f.startswith("PlanView") or f.startswith("PlanCandidateCard")]
                 if stale:

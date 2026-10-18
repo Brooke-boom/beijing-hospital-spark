@@ -253,8 +253,8 @@ fi
 echo
 if [[ "$FAILED" == "0" ]]; then
   printf '\033[32m✅ 真实链路贯通：容器 → HDFS/Spark → MySQL → Flask API → 前端产物\033[0m\n'
-  echo "   演示入口： http://127.0.0.1:$PORT/spa/   （Vue + Flask）"
-  echo "              http://127.0.0.1:$PORT/       （单文件大屏）"
+  echo "   演示入口： http://127.0.0.1:$PORT/       （单文件离线大屏，唯一入口）"
+  echo "              旧 /spa/ 已 302 跳转回 /，不再单独提供 Vue 形态"
   exit 0
 else
   printf '\033[31m❌ 有 %d 项未通过，见上方 ✗\033[0m\n' "$FAILED"

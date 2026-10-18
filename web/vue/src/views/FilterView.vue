@@ -1,15 +1,15 @@
 <template>
   <div class="page">
     <div class="panel">
-      <h3>智能筛选 <span class="tag">7 维条件组合</span>
+      <h3>智能筛选 <span class="tag">多维条件组合</span>
         <span class="muted" style="margin-left:auto">
           命中 <b style="color:var(--ink-strong)">{{ fmt(store.total) }}</b> 家
         </span>
       </h3>
       <div class="muted">
-        七个维度：关键词 / 区域 / 等级 / 类型 / 科室 / 协作网络 / 距离基准。
-        条件通过 <code>GET /api/institutions</code> 提交，后端在 MySQL 上用复合索引执行，
-        实测典型多维筛选扫描行数由 9,777 降至 33。
+        常用维度：关键词 / 区域 / 等级 / 类型；更多维度（科室 / 等级等次 / 来源证据 / 协作网络）收在折叠区；
+        距离参考点与半径独立成组。条件通过 <code>GET /api/institutions</code> 提交，
+        后端在 MySQL 上用复合索引执行——实测「海淀区 + 三级」索引扫描 29 行，全表 9,681 行。
       </div>
 
       <div class="row" style="margin-top:12px;flex-wrap:wrap">
@@ -35,21 +35,23 @@
                 <th>机构名称</th>
                 <th style="width:78px">等级</th>
                 <th style="width:78px">办别</th>
-                <th style="width:78px">距离</th>
-                <th style="width:70px">评分</th>
+                <th style="width:96px">距参考点</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="(r, i) in store.items" :key="r.id" @click="store.openDrawer(r.id)">
                 <td class="muted">{{ (store.query.page - 1) * store.query.pageSize + i + 1 }}</td>
                 <td>
-                  <div class="name">{{ r.name }}</div>
+                  <div class="name">{{ r.name }}
+                    <!-- 重点专科短徽标：有收录才显示；未收录的说明放详情抽屉，不逐行挂「0 项」 -->
+                    <span v-if="(r.key_specialty_count || 0) > 0" class="ksc"
+                          title="数据集收录的重点专科数（国家 / 市级临床重点专科名单）">{{ r.key_specialty_count }} 重点专科</span>
+                  </div>
                   <div class="sub">{{ r.district }}<template v-if="r.addr"> · {{ r.addr }}</template></div>
                 </td>
                 <td><span class="badge" :class="lvClass(r.level)">{{ r.level || '—' }}</span></td>
                 <td><span class="badge" :class="ownClass(r.ownership)">{{ r.ownership || '未标注' }}</span></td>
-                <td>{{ r.distance_km === null || r.distance_km === undefined ? '—' : (r.coord_precision === 'high' ? '' : '约 ') + r.distance_km + ' km（直线）' }}</td>
-                <td>{{ r.score === null || r.score === undefined ? '—' : r.score }}</td>
+                <td :title="distTip(r)">{{ r.distance_km === null || r.distance_km === undefined ? '—' : (r.coord_precision === 'high' ? '' : '约 ') + r.distance_km + ' km' }}</td>
               </tr>
             </tbody>
           </table>
@@ -69,12 +71,15 @@
           <div class="k">关键词</div><div>{{ store.query.q || '（未设）' }}</div>
           <div class="k">区域</div><div>{{ store.query.district || '（全部）' }}</div>
           <div class="k">等级</div><div>{{ store.query.level || '（全部）' }}</div>
+          <div class="k">等次</div><div>{{ store.query.level_sub || '（全部）' }}</div>
           <div class="k">类型</div><div>{{ store.query.category || '（全部）' }}</div>
           <div class="k">科室</div><div>{{ store.query.dept || '（全部）' }}</div>
+          <div class="k">科室证据</div><div>{{ store.query.dept_evidence === 'recorded' ? '仅有来源记录' : '（全部）' }}</div>
           <div class="k">协作网络</div><div>{{ netLabel || '（全部）' }}</div>
+          <div class="k">半径</div><div>{{ store.query.radius ? store.query.radius + ' km（仅高精度）' : '（不限）' }}</div>
           <div class="k">排序</div><div>{{ sortLabel }}</div>
-          <div class="k">距离基准</div>
-          <div>{{ store.base ? (store.base.name + '（' + store.base.lng + ', ' + store.base.lat + '）') : '天安门（默认）' }}</div>
+          <div class="k">距离参考点</div>
+          <div>{{ store.base ? (store.base.name + '（' + store.base.lng + ', ' + store.base.lat + '）') : '天安门（市中心）' }}</div>
           <div class="k">命中</div><div>{{ fmt(store.total) }} 家</div>
         </div>
 
@@ -104,14 +109,17 @@ const store = useDataStore()
 const PRESETS = [
   { label: '三级医院', patch: { level: '三级' } },
   { label: '二级医院', patch: { level: '二级' } },
+  { label: '一级医院', patch: { level: '一级' } },
   { label: '儿科医联体', patch: { net: 'ped_core' } },
   { label: '卒中中心', patch: { net: 'stroke' } },
   { label: '妇幼保健', patch: { category: '妇幼保健' } },
   { label: '急救中心', patch: { category: '急救中心' } }
 ]
 
+// 与 web/nlq.py 的 SORT_LABEL 同口径：严格 AND 条件下匹配度恒 1，
+// 因此首项不叫「条件匹配度」，叫「默认排序」。
 const SORTS = {
-  score: '条件匹配度', distance: '距离（近 → 远）', level: '医院等级',
+  score: '默认排序', distance: '距离（近 → 远）', level: '医院等级',
   depts: '科室收录量', name: '机构名称'
 }
 const sortLabel = computed(() => SORTS[store.query.sort] || store.query.sort)
@@ -124,7 +132,9 @@ const apiPath = computed(() => {
   const p = new URLSearchParams()
   Object.entries({
     q: store.query.q, district: store.query.district, level: store.query.level,
+    level_sub: store.query.level_sub, dept_evidence: store.query.dept_evidence,
     category: store.query.category, dept: store.query.dept, net: store.query.net,
+    radius: store.query.radius,
     sort: store.query.sort, page: store.query.page, page_size: store.query.pageSize
   }).forEach(([k, v]) => { if (v !== '' && v !== null && v !== undefined) p.set(k, v) })
   const b = store.base
@@ -156,5 +166,11 @@ function ownClass(o) {
   if (o === '公立') return 'pub'
   if (o === '民营') return 'pri'
   return 'na'
+}
+// 距离列：粗精度坐标加「约」，title 写清参考点（与 InstitutionsView 同一口径）
+function distTip(r) {
+  const base = store.base ? store.base.name : '天安门（市中心）'
+  if (r.distance_km === null || r.distance_km === undefined) return '该机构无坐标，暂不参与距离排序'
+  return '距' + base + '的球面直线距离' + (r.coord_precision === 'high' ? '' : '（坐标为粗精度，值为估算）') + '，不代表路程'
 }
 </script>

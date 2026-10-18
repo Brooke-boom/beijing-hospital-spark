@@ -98,6 +98,14 @@ QUERIES = [
     "北京儿童医院",
     "北京市三级医院",
     "北京协和医院有多少家",
+    # ---- 检查项目 → 科室映射 + 就近参照（2026-10-18）----
+    # 「想拍核磁」曾被整串吞进机构名关键词（kw="北京航空航天大学想拍核磁" → 0 命中）：
+    # 检查词要映射到标准科室，"X 附近"要解析成就近参照而不是机构名残渣。
+    "在北京航空航天大学附近，想拍核磁",
+    "做个彩超的机构",
+    "协和医院附近能拍片吗",
+    "天安门附近的三甲医院",
+    "海淀区附近的口腔诊所",
 ]
 
 # ---- 筛选用例：直接给结构化条件（条件筛选 Tab 的路径） ----------------
@@ -128,6 +136,20 @@ SEMANTIC_CASES = [
     ("海淀区 头疼发烧", ["行政区=海淀区"],            ["机构名称关键词"]),
     ("海淀区头疼发烧",  ["行政区=海淀区"],            ["机构名称关键词"]),
     ("丰台区 发烧咳嗽", ["行政区=丰台区"],            ["机构名称关键词"]),
+    # ---- 检查项目映射 + 就近参照（2026-10-18）----
+    # 检查词必须落到**标准科室**（真实存在于科室表），"X 附近"必须变成就近参照
+    # 而不是机构名关键词——四个都可能静默失效（句子读得懂、结果 0 条）。
+    ("在北京航空航天大学附近，想拍核磁",
+     ["科室=医学影像科", "排序方式=距离（近→远）",
+      "就近参照=北京航空航天大学 附近（参照点取数据集内真实坐标，按距离就近排序）"],
+     ["机构名称关键词"]),
+    ("做个彩超的机构",  ["科室=超声医学科"],          ["机构名称关键词"]),
+    ("协和医院附近能拍片吗",
+     ["科室=医学影像科",
+      "就近参照=协和医院 附近（参照点取数据集内真实坐标，按距离就近排序）"],
+     ["机构名称关键词"]),
+    # 行政区已占用 → 不做就近，行政区筛选必须保住
+    ("海淀区附近的口腔诊所", ["行政区=海淀区", "机构类型=诊所"], ["就近参照"]),
 ]
 """这几条的观测点是"机构名称关键词必须**完整含'北京'**"。若哪天裸"北京"又被当成
 停用词全局剥掉，kw 会退化成"协和/儿童/大学第一"，这里立刻变红。
@@ -163,6 +185,12 @@ FILTER_CASES = [
     # ---- 科室 + 距离 + 多条件叠加 ----
     {"name": "海淀区骨科按距离排序",
      "conditions": {"district": ["海淀区"], "dept": "骨科", "_sort": "distance"}},
+    # ---- 就近参照（2026-10-18）：near_kw 由执行器解析成基准点，不进 WHERE ----
+    # 「北京航空航天大学」数据集内只有一条 rough 坐标记录（沙河校区医务室），
+    # 这条用例同时守着"低精度参照点不放弃"的降级语义。
+    {"name": "就近参照+医学影像科",
+     "conditions": {"near_kw": "北京航空航天大学", "dept": "医学影像科",
+                    "_sort": "distance"}},
 ]
 
 
@@ -294,6 +322,15 @@ def py_distance_km(inst, base):
 
 
 def py_filter(insts, cond, page=1, page_size=20, base=None):
+    # 就近参照（与 JS resolveNearBase / SQL resolve_near_base 同语义）：
+    # 选出参照点 → 覆盖基准；选不到 → 参照词退回 kw（kw 为空才并入）。
+    if cond.get("near_kw"):
+        nk = cond.pop("near_kw")
+        hit = nlq.pick_near_row(insts, nk)
+        if hit:
+            base = (hit["lng"], hit["lat"])
+        elif not cond.get("kw"):
+            cond["kw"] = nk
     base = base or nlq.DEFAULT_BASE
     out = []
     for it in insts:
@@ -507,10 +544,37 @@ def main():
         check("db_total[海淀区骨科]", n_db == n_local and n_local > 0,
               "库=%d 离线=%d（两端须一致且非空）" % (n_db, n_local))
         print("  真库核对：海淀区+骨科 = %d 家（库里查同一条件也是 %d 家）" % (n_local, n_db))
+
+        # ---- 就近参照选点一致性（2026-10-18）----
+        # 后端 run_filter 实际执行的是 SQL 选点（resolve_near_base），离线/校验走
+        # 纯函数 pick_near_row —— 两份实现必须选中**同一家机构**，否则同一句
+        # 「在 X 附近」在线与离线会从两个不同的基准点算距离，排序结果悄悄分叉。
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT t.name FROM ads_inst_search t"
+                    " WHERE (t.name LIKE %s OR t.addr LIKE %s)"
+                    " AND t.lng IS NOT NULL AND t.lat IS NOT NULL"
+                    " ORDER BY (t.coord_precision = 'high') DESC, (t.name LIKE %s) DESC,"
+                    " t.src_count_int DESC, t.id ASC LIMIT 1",
+                    ("%北京航空航天大学%",) * 3)
+                db_near = cur.fetchone()[0]
+        except Exception as e:  # noqa: BLE001
+            check("near_base[北京航空航天大学]", False, "SQL 失败：%s" % str(e)[:120])
+        else:
+            py_near = nlq.pick_near_row(insts, "北京航空航天大学")
+            check("near_base[北京航空航天大学]",
+                  py_near is not None and py_near["name"] == db_near,
+                  "SQL 选点=%s 纯函数选点=%s（两份排序键实现必须同序）"
+                  % (db_near, py_near and py_near["name"]))
+            print("  就近参照选点：%s（SQL 与纯函数一致）" % db_near)
+            check("near_base[非空]", py_near is not None,
+                  "数据集内选不出参照点 → 「在北航附近」这类问句会静默失效")
         # 口语化问句：解析出来的条件拿去查库，必须是**非空**的。
         # 这正是用户会踩的坑——句子读得懂，结果 0 条，且不报任何错。
         for q in ("想找个靠谱的大医院", "海淀那边有哪些大医院", "附近有什么好点的医院",
-                  "北京市三级医院", "北京协和医院"):
+                  "北京市三级医院", "北京协和医院",
+                  "在北京航空航天大学附近，想拍核磁"):
             cond = dict(nlq.parse(q, dept_names=dept_names)["conditions"])
             cond.pop("_sort", None)
             try:

@@ -192,6 +192,18 @@ var NLQ = (function () {
         spans.push([dh[0].start, dh[0].len]);
       }
     }
+    // ---------- 6.2 检查/项目说法 → 标准科室（"想拍核磁"→ 医学影像科） ----------
+    // 与 nlq.py 6.2 同源：标准科室名没命中时才扫描检查词表（LEX.dept_exam_alias）。
+    // 只做名词映射，不推断"哪家机构能做这个检查"——由 dept 条件去真实科室表里查。
+    var examWord = '';
+    if (!cond.dept && LEX.dept_exam_alias) {
+      var eh = findAll(t, LEX.dept_exam_alias);
+      if (eh.length) {
+        examWord = eh[0].word;
+        cond.dept = LEX.dept_exam_alias[examWord];
+        spans.push([eh[0].start, eh[0].len]);
+      }
+    }
 
     // ---------- 6.5 科室证据与距离半径（与后端 nlq.py 6.5 同源） ----------
     // 「（仅有/只有/有）来源记录」→ 只认 specialty/online/key_depts 三类真实来源；
@@ -221,6 +233,25 @@ var NLQ = (function () {
       });
     }
 
+    // ---------- 6.7 就近参照：「在 X 附近 / 周边 / 周围」（与 nlq.py 6.7 同源） ----------
+    // 参照词既不是行政区也不是机构名关键词——留在第 8 步会把
+    // "北京航空航天大学想拍核磁"整串吞进 kw → 0 命中。执行时由 runFilter/runStats
+    // 从数据集内取名称/地址含 X 的机构坐标当距离基准，按距离就近排序。
+    var nearSpecial = false;
+    var nearM = t.match(/(?:[在离从])?([0-9A-Za-z\u4e00-\u9fa5]{2,15}?)(?:附近|周边|周围)/);
+    if (nearM) {
+      var nx = nearM[1];
+      var xs = t.indexOf(nx, nearM.index);
+      var occN = occupiedSet(spans);
+      // 已识别片段占用的前导字符逐字退掉（「海淀区附近」→ 只留行政区条件，不做就近）
+      while (nx && occN[xs]) { nx = nx.slice(1); xs++; }
+      if (nx.length >= 2 && (LEX.city_scope_words || ['北京市', '北京']).indexOf(nx) < 0) {
+        spans.push([nearM.index, nearM[0].length]);
+        if (nx === '天安门' || nx === '市中心') nearSpecial = true;
+        else cond.near_kw = nx;
+      }
+    }
+
     // ---------- 7. 结构性附加条件 ----------
     if (/有地址|有详细地址|地址信息|填了地址/.test(t)) {
       cond.has_addr = true;
@@ -244,9 +275,11 @@ var NLQ = (function () {
     var masked = mask(t, spans);
     masked = masked.replace(/\u0000([和与及或、])\u0000/g, '');
     var rest = masked.split('\u0000').join('');
-    LEX.stop_phrases.forEach(function (ph) { rest = rest.split(ph).join(''); });
-    // 排序说法是"意图"而不是"机构名"（「按距离从近到远」命中了"从近到远"，却剩下"按距离"）
+    // 排序说法是"意图"而不是"机构名"（「按距离从近到远」命中了"从近到远"，却剩下"按距离"）。
+    // ⚠ 必须**先于** stop_phrases：停用词里有「按」，先把「按距离」切成「距离」后排序词
+    // 就再也删不掉 → 两个示例查询曾经 kw="距离"、命中 0 条（与 nlq.py 同源同坑）。
     (LEX.sort_words || []).forEach(function (sw) { rest = rest.split(sw[0]).join(''); });
+    LEX.stop_phrases.forEach(function (ph) { rest = rest.split(ph).join(''); });
     // ① 城市作用域词：剥掉之后什么都不剩才是"整个北京市"这个范围；
     //    只要还剩东西（"北京协和"→"协和"）就原样保留，所以裸"北京"不在 stop_phrases 里。
     var cityScope = LEX.city_scope_words || ['北京市', '北京'];
@@ -262,6 +295,9 @@ var NLQ = (function () {
       }
       if (allDegree) rest = '';
     }
+    // ④ 排序意图残渣（兜底，与 nlq.py 同源）：整句只剩"距离 / 远近"这类词时，
+    //    它是排序意图而不是机构名；机构名里不存在这些词，删除不误伤真实关键词。
+    if (rest && /^(距离|远近|近远|由近|从近|升序|降序|排序方式)$/.test(rest)) rest = '';
     // ③ 症状词剥离（与 nlq.py SYMPTOM_WORDS 同源）：「海淀区 头疼发烧」若不剥，
     //    "头疼发烧"会整段变成机构名关键词 → 查询恒为 0。剥掉后有效条件照常生效。
     var strippedSyms = [];
@@ -304,6 +340,14 @@ var NLQ = (function () {
           .replace('%s', strippedSyms.join('、'));
     }
 
+    // ---------- 10.6 检查词映射说明（与 nlq.py 10.6 同源） ----------
+    if (examWord) {
+      var prevEx = out.notice || '';
+      out.notice = (prevEx ? prevEx + '\n' : '')
+        + (LEX.exam_notice || '「%s」是检查/项目说法，已按映射改用科室「%s」查询。')
+          .replace('%s', examWord).replace('%s', cond.dept);
+    }
+
     var statsLike = LEX.stats_words.some(function (w) { return t.indexOf(w) >= 0; });
     if (statsLike) {
       var dim = null;
@@ -314,6 +358,10 @@ var NLQ = (function () {
       out.dimension = dim || 'district';
       out.chart = LEX.dim_chart[out.dimension] || 'bar';
     }
+
+    // ---------- 10.9 就近参照的默认排序（与 nlq.py 10.9 同源） ----------
+    // 「X 附近」没显式说排序方式时默认按距离；显式给了排序词就尊重用户选择。
+    if ((cond.near_kw || nearSpecial) && !cond._sort) cond._sort = 'distance';
 
     out.conditions = cond;
     out.districts = dists;
@@ -354,8 +402,109 @@ var NLQ = (function () {
     if (cond.has_coord) add('has_coord', '数据完整度', [true], '含坐标');
     if (cond.src_min) add('src_min', '数据来源数', [cond.src_min], '至少 ' + cond.src_min + ' 个来源');
     if (cond.kw) add('kw', '机构名称关键词', [cond.kw], cond.kw);
+    // key 用 "_near" 前缀：explain() 跳过所有 "_" 开头的 chip —— 就近参照是
+    // 排序意图不是筛选条件，给它算"命中贡献"会得出「去掉无影响」的假解释。
+    if (cond.near_kw) add('_near', '就近参照', [cond.near_kw],
+      cond.near_kw + ' 附近（参照点取数据集内真实坐标，按距离就近排序）');
     if (cond._sort) add('_sort', '排序方式', [cond._sort], LEX.sort_label[cond._sort] || cond._sort);
     return chips;
+  }
+
+  // --------------------------------------------------------------------------
+  //  命中解释 / 无结果放宽建议
+  // --------------------------------------------------------------------------
+  //  要回答两个用户真的会问的问题：
+  //    「为什么只剩 30 家？」      → 每条条件在别的条件之上又筛掉了多少
+  //    「一条都没有，怎么改？」    → 哪个条件一去掉就立刻有结果
+  //
+  //  做法：对每个条件各算两次 —— ①只用这一条 ②用「除这一条以外的全部条件」。
+  //  两者都走同一个 matches()，因此解释口径与结果口径**不可能**漂移；
+  //  这是刻意的：另写一套过滤逻辑再指望两边对上，正是这类功能最常见的 bug 来源。
+  //
+  //  ⚠️ 边际贡献 = keep_n - total，**不是** alone_n - keep_n。
+  //     alone_n（只用该条）可能远大于也可能远小于 keep_n，两者相减会得到负数，
+  //     界面上就会出现「收紧 -261 家」这种自相矛盾的话。
+  //     keep_n - total 才是「在其它条件都满足的前提下，这条又筛掉多少」，
+  //     由集合包含关系保证恒 ≥ 0。
+  // 复杂度：O(机构数 × 条件数)，全量 9,678 家 × 最多 10 条条件 ≈ 20 万次匹配，
+  //  实测 < 60 ms，只在出结果时算一次，不需要缓存。
+  function explain(institutions, cond, baseIn, total) {
+    // "_" 开头的 chip（_sort 排序 / _near 就近参照）是意图不是筛选条件，
+    // 参与命中解释会得出「去掉它毫无影响」的假解释（与 nlq.py explain 同源）。
+    var chips = describe(cond).filter(function (c) {
+      return String(c.key || '').charAt(0) !== '_';
+    });
+    if (!chips.length) return { items: [], suggestion: null, total: total };
+
+    var items = chips.map(function (c) {
+      var alone = 0;
+      for (var i = 0; i < institutions.length; i++) {
+        if (matches(institutions[i], onlyKey(cond, c.key), baseIn)) alone++;
+      }
+      return { key: c.key, label: c.label, text: c.text,
+               alone_n: alone, keep_n: null, drop_n: null };
+    });
+
+    // keep_n：逐条剔除重算 —— 在「其余全部条件」下，放开这一条会多出多少家
+    items.forEach(function (it) {
+      var kept = 0;
+      var c2 = withoutKey(cond, it.key);
+      for (var j = 0; j < institutions.length; j++) {
+        if (matches(institutions[j], c2, baseIn)) kept++;
+      }
+      it.keep_n = kept;
+      it.drop_n = kept - total;          // 边际贡献，恒 ≥ 0
+    });
+
+    // 建议放宽哪一个：**边际贡献最小**的那条 —— 它对结果影响最小，去掉最不心疼。
+    // ⚠️ 只在「去掉后确实还有结果」的候选里挑。原实现先按边际贡献排序再判断
+    //    keep_n > 0，一旦排在最前的那条去掉后仍是 0 家（比如「医院类型」被
+    //    「民营 + 某区」完全排除），就整条不给建议 —— 而旁边明明有一条
+    //    去掉就能出 15 家的条件。这是把「候选集」和「排序」搞反了。
+    var usable = items.filter(function (it) { return it.keep_n > 0; });
+    var ranked = usable.slice().sort(function (a, b) {
+      return (a.drop_n - b.drop_n) || (a.alone_n - b.alone_n);
+    });
+    var best = ranked[0] || null;
+
+    return {
+      items: items,
+      // usable 为空 = 去掉任意单条条件都还是 0 家。此时给不出有意义的动作，
+      // 由界面回落到泛化提示，而不是硬推一条注定无结果的建议。
+      suggestion: best,
+      total: total,
+    };
+  }
+
+  // 只保留 cond 里的一个条件键（其余置空）→ 用来算 alone_n
+  function onlyKey(cond, key) {
+    var c = copyCond(cond);
+    FILTER_KEYS.forEach(function (k) { if (k !== key) c[k] = emptyLike(cond[k]); });
+    return c;
+  }
+  // 剔掉 cond 里的一个条件键（其余保留）→ 用来算 keep_n
+  function withoutKey(cond, key) {
+    var c = copyCond(cond);
+    if (FILTER_KEYS.indexOf(key) >= 0) c[key] = emptyLike(cond[key]);
+    return c;
+  }
+  // 浅拷贝即可：cond 的值全是数组/字符串/数字/布尔，改副本不影响原对象。
+  // （注意别复用 normalize —— 那个是给用户输入文本做全半角与去空白的，
+  //   拿它处理条件对象会把数组变成字符串。）
+  function copyCond(cond) {
+    var c = {};
+    Object.keys(cond).forEach(function (k) { c[k] = cond[k]; });
+    return c;
+  }
+  // ⚠️ 这个清单必须与 matches() 里实际读的字段一一对应，且与 describe() 的 chip key 对齐。
+  //    少登记一个 → explain 算不出那条条件的贡献（UI 上那行会静默消失）；
+  //    多登记一个 → matches 根本不读它，alone/keep 恒等于总数，给出「去掉它毫无影响」的假解释。
+  var FILTER_KEYS = ['district', 'level', 'grades', 'level_min', 'radius', 'category',
+    'ownership', 'source', 'dept', 'dept_evidence', 'src_min', 'has_addr', 'has_coord', 'kw'];
+  function emptyLike(v) {
+    if (Array.isArray(v)) return [];
+    if (typeof v === 'boolean') return false;
+    return null;
   }
 
   // --------------------------------------------------------------------------
@@ -428,6 +577,54 @@ var NLQ = (function () {
   // 距离基准：与后端 nlq.DEFAULT_BASE 完全同一口径 —— 不传基准点即按天安门，
   // 前端把这种情况的文案标成「距市中心」，避免出现一个说不清距离哪里的"距离"。
   var DEFAULT_BASE = { lng: 116.397428, lat: 39.90923 };
+
+  // --------------------------------------------------------------------------
+  //  就近参照点（"在 X 附近"）—— 与 nlq.py pick_near_row / resolve_near_base 同序
+  //  排序键：高精度坐标优先 → 名称命中优先于地址命中 → 来源数多优先 → 快照序（id 升序）。
+  //  没有高精度时退用低精度并在 note 注明；连带坐标的都没有 → 绝不伪造基准点，
+  //  参照词退回机构名关键词检索（kw 为空才并入）。
+  // --------------------------------------------------------------------------
+  function pickNearRow(institutions, nk) {
+    var best = null, bestKey = null;
+    for (var i = 0; i < institutions.length; i++) {
+      var it = institutions[i];
+      if (it.lng == null || it.lat == null) continue;
+      var inName = (it.name || '').indexOf(nk) >= 0;
+      if (!inName && (it.addr || '').indexOf(nk) < 0) continue;
+      var key = [
+        it.coord_precision === 'high' ? 1 : 0,
+        inName ? 1 : 0,
+        (it.src_count_int != null ? it.src_count_int : (it.src_count || 0)),
+      ];
+      var better = false;
+      if (!bestKey) better = true;
+      else for (var k = 0; k < 3; k++) {
+        if (key[k] !== bestKey[k]) { better = key[k] > bestKey[k]; break; }
+      }
+      if (better) {
+        best = { lng: +it.lng, lat: +it.lat, name: it.name, precision: it.coord_precision };
+        bestKey = key;
+      }
+    }
+    return best;
+  }
+  function resolveNearBase(institutions, cond) {
+    var nk = cond.near_kw;
+    if (!nk) return null;
+    var hit = pickNearRow(institutions, nk);
+    if (hit) {
+      var rough = hit.precision !== 'high';
+      return { base: hit,
+        note: '就近参照「' + nk + '」：基准点取数据集内 ' + hit.name + ' 的登记坐标'
+          + (rough ? '（街道级精度，距离仅供参考）' : '') };
+    }
+    cond.near_kw = null;
+    if (!cond.kw) {
+      cond.kw = nk;
+      return { note: '数据集内没有名称或地址含「' + nk + '」且带坐标的机构，已改按机构名称/地址关键词检索' };
+    }
+    return { note: '数据集内没有名称或地址含「' + nk + '」且带坐标的机构，已忽略就近参照' };
+  }
 
   function haversineKm(lng1, lat1, lng2, lat2) {
     var R = 6371, rad = Math.PI / 180;
@@ -503,6 +700,12 @@ var NLQ = (function () {
     }
     // 距离必须**在排序之前**算好：此前 distance_km 恒为 null，于是"按距离排序"
     // 会静默退化成按名称排序——条件看着生效、其实没生效，正是最该避免的一类缺陷。
+    // 就近参照（near_kw）优先于页面传入的基准点：它是用户显式给定的参照物。
+    var nearNote = null;
+    if (cond.near_kw) {
+      var nr = resolveNearBase(institutions, cond);
+      if (nr) { nearNote = nr.note; if (nr.base) baseIn = { lng: nr.base.lng, lat: nr.base.lat }; }
+    }
     var base = baseIn || DEFAULT_BASE;
     var out = [];
     for (var i = 0; i < institutions.length; i++) {
@@ -535,7 +738,10 @@ var NLQ = (function () {
     return {
       total: total, page: page, page_size: pageSize, sort: cond._sort || 'score',
       items: out.slice(start, start + pageSize), all: out,
-      stats: overview(out)
+      stats: overview(out),
+      near_note: nearNote,
+      // 命中解释随结果一起返回。只在第 1 页算：翻页时条件没变，重算一遍纯属浪费。
+      explain: page === 1 ? explain(institutions, cond, baseIn, total) : null,
     };
   }
 
@@ -557,6 +763,13 @@ var NLQ = (function () {
   function runStats(institutions, cond, dimension, baseIn) {
     if (cond.dept_evidence === 'recorded' && institutions.some(function (r) { return !Object.prototype.hasOwnProperty.call(r, 'recorded_depts'); })) {
       throw new Error('此快照未收录科室来源证据，请带数据库重建快照后再统计。');
+    }
+    // 就近参照解析失败会退回 kw（改写 cond），必须发生在筛选之前——
+    // 否则统计条件与展示的条件卡片对不上（与 nlq.run_stats 同源）。
+    var nearNote = null;
+    if (cond.near_kw) {
+      var nr0 = resolveNearBase(institutions, cond);
+      if (nr0) nearNote = nr0.note;
     }
     var pool = [];
     for (var i = 0; i < institutions.length; i++) {
@@ -586,6 +799,7 @@ var NLQ = (function () {
     }
     return { dimension: dimension, label: LEX.dim_label[dimension],
       chart: LEX.dim_chart[dimension] || 'bar', rows: rows,
+      near_note: nearNote,
       summary: summarizeStats(cond, dimension, LEX.dim_label[dimension], rows) };
   }
 
@@ -640,6 +854,7 @@ var NLQ = (function () {
     matches: matches,
     matchScore: matchScore,
     runFilter: runFilter,
+    explain: explain,
     runStats: runStats,
     sortItems: sortItems,
     summarizeStats: summarizeStats,

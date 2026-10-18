@@ -217,6 +217,32 @@ SYMPTOM_NOTICE = (
     "例如「海淀区的社区卫生服务中心」。"
 )
 
+# 检查/项目说法 → 标准科室（2026-10-18）。
+# 「在北京航空航天大学附近，想拍核磁」里没有任何标准科室名："核磁"若不做映射，
+# "想拍核磁"整段会被吞进机构名关键词（实测 kw="北京航空航天大学想拍核磁" → 0 命中，
+# 而且两端一致地错）。纪律：这里只做**名词到标准科室名的映射**，映射目标必须真实
+# 存在于科室词典（dwd_dept_relation_clean 的 dept_name 取值域）；系统**不推断**
+# "哪家机构能做这个检查"——能否开展以机构登记的科室隶属关系为准，由 dept 条件
+# 去真实科室表里查，查不到就是查不到，绝不放水。
+DEPT_EXAM_ALIAS = {
+    # 影像（放射）类
+    "核磁共振": "医学影像科", "磁共振": "医学影像科", "核磁": "医学影像科",
+    "mri": "医学影像科", "MRI": "医学影像科",
+    "ct": "医学影像科", "CT": "医学影像科",
+    "拍片": "医学影像科", "x光": "医学影像科", "X光": "医学影像科",
+    "透视": "医学影像科", "放射科": "医学影像科", "影像科": "医学影像科",
+    "放射": "医学影像科", "影像": "医学影像科",
+    # 超声类
+    "彩超": "超声医学科", "b超": "超声医学科", "B超": "超声医学科",
+    "超声": "超声医学科",
+    # 内镜（临床科室开展的检查项目）
+    "胃镜": "消化内科", "肠镜": "消化内科",
+}
+EXAM_NOTICE = (
+    "「%s」是检查/项目说法，已按映射用科室「%s」查询真实数据；"
+    "某家机构能否开展该检查，以其登记的科室信息为准。"
+)
+
 # 免责 / 口径说明（前端"数据来源说明"区块直接展示，保证 AI 边界对用户可见）
 AI_SCOPE_NOTE = (
     "AI 只负责理解您的中文描述并生成结构化筛选条件；"
@@ -320,6 +346,13 @@ STOP_PHRASES = sorted([
     "就近", "本地",
     "开设有", "开设", "设有", "设置的",
     "有地址", "有详细地址", "有坐标",
+    # ---------- 检查/就诊动作词（2026-10-18）----------
+    # 「在北京航空航天大学附近，想拍核磁」里的"想拍"表达的是**意图**，不是机构名；
+    # 不剥掉就会跟剩余文本一起被吞进机构名关键词 → 结果恒为 0（与"想找"同类）。
+    # 收录标准同上：**不可能出现在医疗机构名称里**。
+    "想拍", "要拍", "能拍", "可以拍", "拍个",
+    "想做", "要做", "想做个", "做个", "做检查", "想做检查",
+    "想预约", "要预约",
     "的", "家", "个", "间", "所", "只", "是", "有", "在", "从", "到", "为", "取自",
     "吗", "呢", "啊", "吧", "请给我", "给我",
     "？", "?", "。", ".", "，", ",", "、", "；", ";", "：", ":", "！", "!", "「", "」",
@@ -474,6 +507,18 @@ def parse(text, dept_names=None):
             spans.append((start, ln))
             cond["dept"] = word
 
+    # ---------- 6.2 检查/项目说法 → 标准科室（"想拍核磁"→ 医学影像科） ----------
+    # 只在标准科室名没命中时才扫描：用户直接说"医学影像科"时轮不到检查词。
+    # exam_word 记录原文说法，用于在意图判定后给出映射说明（EXAM_NOTICE）。
+    exam_word = ""
+    if not dept:
+        eh = _find_all(t, DEPT_EXAM_ALIAS)
+        if eh:
+            exam_word, e_start, e_ln = eh[0]
+            dept = DEPT_EXAM_ALIAS[exam_word]
+            spans.append((e_start, e_ln))
+            cond["dept"] = dept
+
     # ---------- 6.5 科室证据与距离半径（结构化条件之外的自然语言入口） ----------
     # 「（仅有/只有/有）来源记录」→ 科室只认 specialty/online/key_depts 三类真实来源
     # 映射，不认 name/rule 推断。整段说法必须掩蔽，否则"记录"两个字会漏进
@@ -501,6 +546,30 @@ def parse(text, dept_names=None):
             if _p >= 0 and not any(i in _occ for i in range(_p, _p + len(_bp))):
                 spans.append((_p, len(_bp)))
 
+    # ---------- 6.7 就近参照：「在 X 附近 / 周边 / 周围」 ----------
+    # 参照词（如"北京航空航天大学"）既不是行政区也不是机构名关键词——留在第 8 步
+    # 会把"北京航空航天大学想拍核磁"整串吞进 kw → 0 命中。执行时由 run_filter /
+    # run_stats 从数据集内取名称/地址含 X 的机构坐标当距离基准（pick_near_row），
+    # 按距离就近排序；这是**排序意图**，不进 WHERE。
+    m_near = re.search(r"(?:[在离从])?([0-9A-Za-z\u4e00-\u9fa5]{2,15}?)(?:附近|周边|周围)", t)
+    near_special = False
+    if m_near:
+        _x = m_near.group(1)
+        _s = m_near.start(1)
+        _occ = _occupied(spans)
+        # 已识别片段占用的前导字符逐字退掉：「海淀区附近」退成空 → 不做就近，
+        # 行政区条件照常生效（不退会把"海淀区"变成参照词、丢掉行政区筛选）。
+        while _x and _s in _occ:
+            _x = _x[1:]
+            _s += 1
+        if len(_x) >= 2 and _x not in CITY_SCOPE_WORDS:
+            spans.append((m_near.start(), m_near.end() - m_near.start()))
+            if _x in ("天安门", "市中心"):
+                # 距离基准本就是天安门，缺的只是"就近排序"这个意图
+                near_special = True
+            else:
+                cond["near_kw"] = _x
+
     # ---------- 7. 结构性附加条件 ----------
     if re.search(r"有地址|有详细地址|地址信息|填了地址", t):
         cond["has_addr"] = True
@@ -527,13 +596,16 @@ def parse(text, dept_names=None):
     # 只有夹在两个已识别片段之间的连接词才是真的连接词（"朝阳区[和]海淀区"）
     masked = re.sub(r"(?<=\x00)[和与及或、](?=\x00)", "", masked)
     rest = masked.replace("\x00", "")
-    for phrase in STOP_PHRASES:          # 已按长度降序，长词先删
-        rest = rest.replace(phrase, "")
     # 排序说法是"意图"而不是"机构名"。命中的那一个已被 mask 掉，但整句里可能还剩下
     # 别的排序词（「按距离从近到远」命中了"从近到远"，却留下一个"按距离"），
     # 留着就会被当成机构名关键词，把结果掐成 0 条。
+    # ⚠ 这一步必须**先于** STOP_PHRASES：停用词里有「按」，先把「按距离」切成「距离」，
+    # 而「距离」不是排序词，就再也删不掉 → 「海淀区三级医院按距离从近到远」曾经 kw="距离"、
+    # 命中 0 条（两个示例查询全中）。顺序反了就是"两端一致地错"。
     for word, _sort in SORT_WORDS:
         rest = rest.replace(word, "")
+    for phrase in STOP_PHRASES:          # 已按长度降序，长词先删
+        rest = rest.replace(phrase, "")
     # ① 城市作用域词：剥掉之后什么都不剩 → 用户说的是"整个北京市"这个范围，
     #    不是机构名前缀。只要还剩东西（"北京协和"→"协和"）就原样保留。
     _probe = rest
@@ -543,6 +615,10 @@ def parse(text, dept_names=None):
         rest = ""
     # ② 纯程度残渣（"大医院"剩下一个"大"）：不是机构名关键词，也不算"没听懂"。
     if rest and len(rest) <= 2 and all(c in DEGREE_ONLY_CHARS for c in rest):
+        rest = ""
+    # ④ 排序意图残渣（兜底）：整句只剩"距离 / 远近"这类词时，它是排序意图而不是机构名。
+    #    与 ② 同性质的兜底——机构名里不存在这些词，删掉不会误伤任何真实关键词。
+    if rest and re.fullmatch(r"距离|远近|近远|由近|从近|升序|降序|排序方式", rest):
         rest = ""
     # ③ 症状词剥离（见 SYMPTOM_WORDS 注释）：「海淀区 头疼发烧」若不剥，
     #    "头疼发烧"会整段变成机构名关键词 → 查询恒为 0。剥掉后行政区等
@@ -587,6 +663,11 @@ def parse(text, dept_names=None):
         out["notice"] = (_prev + "\n" if _prev else "") + (
             SYMPTOM_NOTICE % "、".join(stripped_symptoms))
 
+    # ---------- 10.6 检查词映射说明 ----------
+    if exam_word:
+        _prev = out.get("notice")
+        out["notice"] = (_prev + "\n" if _prev else "") + (EXAM_NOTICE % (exam_word, dept))
+
     stats_like = any(w in t for w in STATS_WORDS)
     dimension = None
     if stats_like:
@@ -599,6 +680,12 @@ def parse(text, dept_names=None):
         out["intent"] = "stats"
         out["dimension"] = dimension
         out["chart"] = DIM_CHART.get(dimension, "bar")
+
+    # ---------- 10.9 就近参照的默认排序 ----------
+    # 「X 附近」的本质是"离 X 近的排前面"。用户没显式说排序方式时默认按距离；
+    # 显式给了排序词（7.5 步已识别）就尊重用户的选择，不覆盖。
+    if (cond.get("near_kw") or near_special) and not cond.get("_sort"):
+        cond["_sort"] = "distance"
 
     # ---------- 11. 用于展示的"AI 理解了什么" ----------
     out["conditions"] = cond
@@ -665,6 +752,11 @@ def describe(cond):
     if cond.get("kw"):
         chips.append({"key": "kw", "label": "机构名称关键词", "values": [cond["kw"]],
                       "text": cond["kw"]})
+    if cond.get("near_kw"):
+        # key 用 "_near" 前缀：explain() 会跳过所有 "_" 开头的 chip —— 就近参照是
+        # 排序意图不是筛选条件，给它算"命中贡献"会得出「去掉无影响」的假解释。
+        chips.append({"key": "_near", "label": "就近参照", "values": [cond["near_kw"]],
+                      "text": cond["near_kw"] + " 附近（参照点取数据集内真实坐标，按距离就近排序）"})
     if cond.get("_sort"):
         chips.append({"key": "_sort", "label": "排序方式", "values": [cond["_sort"]],
                       "text": SORT_LABEL.get(cond["_sort"], cond["_sort"])})
@@ -776,7 +868,10 @@ ORDER_BY = {
     "depts": "t.dept_count DESC, t.name ASC",
     "name": "t.name ASC",
 }
-SORT_LABEL = {"score": "条件匹配度", "distance": "距离（近→远）", "level": "医院等级",
+# 排序标签与界面下拉一一对应。「score」改叫「默认排序」：严格 AND 组合下所有
+# 结果都满足全部条件、匹配度恒为 1（match_score_sql 恒返回 1.0），
+# 再拿「条件匹配度」当维度名会让人以为分数有高低——旧版加权评分已废弃。
+SORT_LABEL = {"score": "默认排序", "distance": "距离（近→远）", "level": "医院等级",
               "depts": "科室收录量", "name": "机构名称"}
 
 
@@ -807,11 +902,78 @@ def haversine_sql(base_lng, base_lat):
     return expr, [base_lat, base_lat, base_lng]
 
 
+# =============================================================================
+#  就近参照点（"在 X 附近"）的选取
+# -----------------------------------------------------------------------------
+#  排序键（SQL 与纯函数两份实现必须同序，verify_offline_nlq 会互相比对）：
+#    ① 高精度坐标优先（coord_precision='high'）——没有高精度时退而求其次用低精度，
+#      并在 near_note 里注明"街道级精度，距离仅供参考"，绝不因精度不足而直接放弃
+#      （否则「北京航空航天大学附近」只剩沙河校区医务室一条 rough 记录，会静默失效）；
+#    ② 名称命中优先于地址命中；③ 来源数多的优先；④ id 小的优先（稳定裁决）。
+# =============================================================================
+def pick_near_row(rows, nk):
+    """纯函数版（快照 / 校验脚本用）：在机构行列表里选就近参照点。"""
+    best, best_key = None, None
+    for r in rows:
+        lng, lat = r.get("lng"), r.get("lat")
+        if lng is None or lat is None:
+            continue
+        in_name = nk in (r.get("name") or "")
+        if not in_name and nk not in (r.get("addr") or ""):
+            continue
+        key = (1 if r.get("coord_precision") == "high" else 0,
+               1 if in_name else 0,
+               int(r.get("src_count_int") or 0))
+        if best is None or key > best_key:
+            best, best_key = {"lng": float(lng), "lat": float(lat),
+                              "name": r.get("name"),
+                              "precision": r.get("coord_precision")}, key
+    return best
+
+
+def resolve_near_base(q, cond):
+    """把 near_kw 解析成距离基准点（MySQL 路径，选点排序与 pick_near_row 同序）。
+
+    返回 (base, near_note)。找不到带坐标的参照机构时**绝不伪造基准点**：
+    参照词退回机构名关键词检索（kw 为空才并入，不覆盖已有条件），并返回说明文字。
+    """
+    nk = cond.get("near_kw")
+    if not nk:
+        return None, None
+    like = "%" + nk + "%"
+    try:
+        row = q("SELECT t.name, t.lng, t.lat, t.coord_precision FROM ads_inst_search t"
+                " WHERE (t.name LIKE %s OR t.addr LIKE %s)"
+                " AND t.lng IS NOT NULL AND t.lat IS NOT NULL"
+                " ORDER BY (t.coord_precision = 'high') DESC, (t.name LIKE %s) DESC,"
+                " t.src_count_int DESC, t.id ASC LIMIT 1",
+                [like, like, like], one=True)
+    except Exception:
+        row = None
+    if row and row.get("lng") is not None and row.get("lat") is not None:
+        rough = row.get("coord_precision") != "high"
+        note = ("就近参照「%s」：基准点取数据集内 %s 的登记坐标%s"
+                % (nk, row.get("name"),
+                   "（街道级精度，距离仅供参考）" if rough else ""))
+        return (float(row["lng"]), float(row["lat"])), note
+    cond["near_kw"] = None
+    if not cond.get("kw"):
+        cond["kw"] = nk
+        return None, ("数据集内没有名称或地址含「%s」且带坐标的机构，"
+                      "已改按机构名称/地址关键词检索" % nk)
+    return None, ("数据集内没有名称或地址含「%s」且带坐标的机构，已忽略就近参照" % nk)
+
+
 def run_filter(q, cond, page=1, page_size=20, base=None):
     """按条件查真实机构数据。q 是 app.py 的 query(sql, args, one) 函数。
 
     base 为 (lng, lat) 基准点；不传则按天安门算（与 /api/institutions 一致）。
+    条件含 near_kw（「在 X 附近」）时以解析出的参照点为准——就近参照是用户
+    显式给定的基准，优先级高于页面传入的地图中心/定位。
     """
+    near_note = None
+    if cond.get("near_kw"):
+        base, near_note = resolve_near_base(q, cond)
     where, params = build_where(cond, base=base)
     score_sql, _ = match_score_sql(cond)
     lng, lat = base or DEFAULT_BASE
@@ -843,11 +1005,103 @@ def run_filter(q, cond, page=1, page_size=20, base=None):
         % (where, ORDER_BY[sort]),
         dist_args + params + [page_size, offset])
     return {"total": total, "page": page, "page_size": page_size, "sort": sort,
-            "base": {"lng": lng, "lat": lat}, "items": rows}
+            "base": {"lng": lng, "lat": lat}, "items": rows,
+            "near_note": near_note,
+            # 命中解释只在第 1 页算：翻页时条件没变，重算一遍纯属浪费
+            "explain": explain(q, cond, base=base, total=total) if page == 1 else None}
+
+
+# 与 web/app.nlq.js 的 FILTER_KEYS 逐项对应。
+# ⚠️ 两端必须完全一致：少一项 → 解释算不出那条条件的贡献（UI 上那行静默消失）；
+#    多一项 → build_where 根本不读它，alone/keep 恒等于总数，
+#    于是给出「去掉它毫无影响」的假解释 —— 比没有解释更糟。
+FILTER_KEYS = ("district", "level", "grades", "level_min", "radius", "category",
+               "ownership", "source", "dept", "dept_evidence", "src_min",
+               "has_addr", "has_coord", "kw")
+
+
+def _empty_like(v):
+    if isinstance(v, list):
+        return []
+    if isinstance(v, bool):
+        return False
+    return None
+
+
+def _single_key(cond, key):
+    """浅拷贝 cond 后把除 key 外的筛选键置空 → 只剩这一条条件。"""
+    c = dict(cond)
+    for k in FILTER_KEYS:
+        if k != key:
+            c[k] = _empty_like(cond.get(k))
+    return c
+
+
+def _without_key(cond, key):
+    """浅拷贝 cond 后把 key 置空 → 其余条件全留。"""
+    c = dict(cond)
+    if key in FILTER_KEYS:
+        c[key] = _empty_like(cond.get(key))
+    return c
+
+
+def explain(q, cond, base=None, total=None):
+    """逐条条件的命中解释 + 放宽建议。
+
+    回答两个用户真的会问的问题：
+      · 「为什么只剩 30 家？」  → 每条条件在别的条件之上又筛掉了多少
+      · 「一条都没有怎么改？」→ 哪一条去掉后立刻有结果
+
+    与 app.nlq.js 的 explain() 同结构、同语义、同口径，双端 UI 才能一致。
+    ⚠️ 边际贡献 drop_n = keep_n - total，**不是** alone_n - keep_n：
+       alone_n 可能远大于也可能远小于 keep_n，两者相减会得到负数。
+    """
+    # "_" 开头的 chip（_sort 排序 / _near 就近参照）是意图不是筛选条件，
+    # 参与命中解释会得出「去掉它毫无影响」的假解释。
+    chips = [c for c in describe(cond)
+             if not str(c.get("key", "")).startswith("_")]
+    if total is None:
+        where0, params0 = build_where(cond, base=base)
+        total = q("SELECT COUNT(*) AS n FROM ads_inst_search t WHERE " + where0,
+                  params0, one=True)["n"]
+    if not chips:
+        return {"items": [], "suggestion": None, "total": total}
+
+    def count(c):
+        where, params = build_where(c, base=base)
+        return q("SELECT COUNT(*) AS n FROM ads_inst_search t WHERE " + where,
+                 params, one=True)["n"]
+
+    items = []
+    for chip in chips:
+        keep = count(_without_key(cond, chip["key"]))
+        items.append({
+            "key": chip["key"], "label": chip["label"], "text": chip["text"],
+            "alone_n": count(_single_key(cond, chip["key"])),
+            "keep_n": keep,
+            "drop_n": keep - total,          # 边际贡献，恒 ≥ 0
+        })
+
+    # 建议放宽哪一个：**边际贡献最小**的那条 —— 它对结果影响最小，去掉最不心疼。
+    # ⚠️ 只在「去掉后确实还有结果」的候选里挑：先按边际贡献排序再看 keep_n > 0，
+    #    会让「医院类型」这种被其它条件完全排除的项占住第一名，
+    #    于是旁边明明有一条去掉就能出 15 家的条件却整条不给建议。
+    usable = [it for it in items if it["keep_n"] > 0]
+    ranked = sorted(usable, key=lambda it: (it["drop_n"], it["alone_n"]))
+    # usable 为空 = 去掉任意单条条件都还是 0 家，由界面回落到泛化提示，
+    # 而不是硬推一条注定无结果的建议。
+    return {"items": items,
+            "suggestion": ranked[0] if ranked else None,
+            "total": total}
 
 
 def run_stats(q, cond, dimension, base=None):
     """按维度分组统计真实数量。dimension ∈ district/category/level/ownership/source"""
+    near_note = None
+    if cond.get("near_kw"):
+        # 参照词解析失败会退回 kw（改写 cond），必须发生在 WHERE 编译之前——
+        # 否则统计条件与展示的条件卡片对不上。
+        _, near_note = resolve_near_base(q, cond)
     where, params = build_where(cond, base=base)
     if dimension == "district":
         sql = ("SELECT t.district AS name, COUNT(*) AS cnt,"
@@ -886,7 +1140,7 @@ def run_stats(q, cond, dimension, base=None):
         raise ValueError("不支持的统计维度：" + str(dimension))
     rows = q(sql, params)
     return {"dimension": dimension, "label": DIM_LABEL[dimension], "rows": rows,
-            "chart": DIM_CHART[dimension]}
+            "chart": DIM_CHART[dimension], "near_note": near_note}
 
 
 def summarize_stats(cond, stats):
@@ -957,6 +1211,8 @@ def export_lexicon():
         "medical_words": MEDICAL_WORDS,
         "symptom_words": SYMPTOM_WORDS,
         "symptom_notice": SYMPTOM_NOTICE,
+        "dept_exam_alias": DEPT_EXAM_ALIAS,
+        "exam_notice": EXAM_NOTICE,
         "narrative_crowd": NARRATIVE_CROWD,
         "narrative_course": NARRATIVE_COURSE,
         "stop_phrases": STOP_PHRASES,

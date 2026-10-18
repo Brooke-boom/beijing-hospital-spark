@@ -13,18 +13,9 @@
       </div>
     </div>
 
-    <!-- 主任务：一句话 → 一组条件 → 一份真实结果 -->
-    <!-- 点它就是回到任务起点；起始页本身不重复渲染"重新开始"，页内那个按钮才是有意义的那个 -->
-    <router-link v-for="n in NAV_MAIN" :key="n.name" :to="{ name: n.name }" class="navtab main"
-                 :class="{ active: route.name === n.name }" :title="n.title">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-           stroke-linecap="round" stroke-linejoin="round" v-html="n.icon" />
-      <span class="lbl">{{ n.title }}</span>
-    </router-link>
-
-    <div class="navgroup">查阅</div>
-
-    <router-link v-for="n in NAV_LOOK" :key="n.name" :to="{ name: n.name }" class="navtab"
+    <!-- 查阅页：一个页面回答一个问题，页内用子标签切换看法。
+         智能筛选不在这里——它已改为常驻右下角的悬浮球，任何页都能呼出。 -->
+    <router-link v-for="n in NAV" :key="n.name" :to="{ name: n.name }" class="navtab"
                  :class="{ active: route.name === n.name }" :title="n.title">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
            stroke-linecap="round" stroke-linejoin="round" v-html="n.icon" />
@@ -32,7 +23,7 @@
     </router-link>
 
     <div class="sidefoot">
-      智能筛选为任务主线<br>其余为数据查阅支撑
+      右下角悬浮球 = 智能筛选<br>一句话筛选，任何页可呼出
     </div>
   </aside>
 </template>
@@ -42,13 +33,8 @@ import { useRoute } from 'vue-router'
 
 const route = useRoute()
 
-// 导航分两层：主线（办事）与查阅（看数据）。
-// 平级的 7 个入口会让人以为这是个看板，分层之后主次关系才明确。
-const NAV_MAIN = [
-  { name: 'filter', title: '智能筛选', icon: '<path d="M4 5h16l-6.2 7.2V19l-3.6 1.8v-8.6L4 5z"/>' }
-]
-
-const NAV_LOOK = [
+// 侧栏只留查阅页；智能筛选改为悬浮球（SmartFilterDock），不再占导航位。
+const NAV = [
   { name: 'find', title: '找机构', icon: '<circle cx="11" cy="11" r="7"/><path d="M16.4 16.4L21 21"/>' },
   { name: 'profile', title: '资源画像', icon: '<path d="M4 20V10M9 20V4M14 20v-7M19 20v-12"/>' },
   { name: 'govern', title: '数据治理', icon: '<path d="M12 2l9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/>' },

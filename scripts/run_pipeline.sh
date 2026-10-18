@@ -103,7 +103,9 @@ if [[ "$SKIP_FRONT" == "1" ]]; then
   step "4/6 前端产物（已跳过）"
 else
   step "4/6 前端产物：快照 + 词表 + 单文件大屏 + Vue 构建"
-  bash web/build_spa.sh
+  # build_spa.sh 内部用 PYTHON_BIN 调 Python（快照要 pymysql 连真库）；
+  # PATH 里的 python3 没装 pymysql 会让快照/词表静默降级 —— 必须显式传受管解释器。
+  PYTHON_BIN="$PY" bash web/build_spa.sh
   bash web/vue/build.sh
 fi
 

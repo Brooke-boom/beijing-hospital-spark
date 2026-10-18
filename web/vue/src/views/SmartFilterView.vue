@@ -17,7 +17,7 @@
           用一句话描述
         </button>
         <button type="button" :class="{ on: mode === 'cond' }" @click="store.nlqSetMode('cond')">
-          逐项设置条件
+          手动条件
         </button>
         <span class="nlqscope">不提供诊断 / 用药建议 / 挂号推荐</span>
       </div>
@@ -277,8 +277,7 @@
                   <th>机构名称</th>
                   <th style="width:74px">等级</th>
                   <th style="width:74px">办别</th>
-                  <th style="width:78px">距离</th>
-                  <th style="width:70px">匹配度</th>
+                  <th style="width:96px">距参考点</th>
                 </tr>
               </thead>
               <tbody>
@@ -286,7 +285,11 @@
                     @mouseenter="focusPoint(r.id)" @click="store.openDrawer(r.id)">
                   <td class="muted">{{ (res.page - 1) * res.page_size + i + 1 }}</td>
                   <td>
-                    <div class="name">{{ r.name }}</div>
+                    <div class="name">{{ r.name }}
+                      <!-- 重点专科短徽标：有收录才显示；未收录的说明放详情抽屉，不逐行挂「0 项」 -->
+                      <span v-if="(r.key_specialty_count || 0) > 0" class="ksc"
+                            title="数据集收录的重点专科数（国家 / 市级临床重点专科名单）">{{ r.key_specialty_count }} 重点专科</span>
+                    </div>
                     <div class="sub">
                       {{ r.district }}
                       <template v-if="r.category"> · {{ r.category }}</template>
@@ -295,8 +298,7 @@
                   </td>
                   <td><span class="badge" :class="lvClass(r.level)">{{ r.level || '—' }}</span></td>
                   <td><span class="badge" :class="ownClass(r.ownership)">{{ r.ownership || '未标注' }}</span></td>
-                  <td>{{ r.distance_km === null || r.distance_km === undefined ? '—' : (r.coord_precision === 'high' ? '' : '约 ') + r.distance_km + ' km（直线）' }}</td>
-                  <td>{{ r.score === null || r.score === undefined ? '—' : Number(r.score).toFixed(3) }}</td>
+                  <td :title="distTip(r)">{{ r.distance_km === null || r.distance_km === undefined ? '—' : (r.coord_precision === 'high' ? '' : '约 ') + r.distance_km + ' km' }}</td>
                 </tr>
               </tbody>
             </table>
@@ -336,16 +338,19 @@
       </div>
 
       <div class="panel">
-        <h3>本次会话的查询 <span class="tag">{{ store.nlq.history.length }}</span></h3>
-        <div v-if="store.nlq.history.length" class="nlqhist">
-          <button v-for="(h, i) in store.nlq.history" :key="i" class="h" type="button"
-                  :title="'重新执行：' + h.title" @click="store.nlqReplay(h)">
-            <b>{{ h.title }}</b>
-            <span class="muted">{{ fmt(h.n) }} 家</span>
-            <i>{{ h.at }}</i>
-          </button>
-        </div>
-        <div v-else class="muted">本次会话还没有查询记录。</div>
+        <details class="histfold">
+          <summary>本次会话的查询 <span class="tag">{{ store.nlq.history.length }}</span>
+            <span class="muted">点击展开 / 收起 · 可一键重放</span></summary>
+          <div v-if="store.nlq.history.length" class="nlqhist" style="margin-top:10px">
+            <button v-for="(h, i) in store.nlq.history" :key="i" class="h" type="button"
+                    :title="'重新执行：' + h.title" @click="store.nlqReplay(h)">
+              <b>{{ h.title }}</b>
+              <span class="muted">{{ fmt(h.n) }} 家</span>
+              <i>{{ h.at }}</i>
+            </button>
+          </div>
+          <div v-else class="muted" style="margin-top:10px">本次会话还没有查询记录。</div>
+        </details>
       </div>
     </div>
   </div>
@@ -363,11 +368,9 @@ import beijingGeo from '../../geo/beijing_geo.json'
 const store = useDataStore()
 
 const EXAMPLES = [
-  '朝阳区和海淀区的三级公立医院',
-  '按行政区统计三级医院的数量',
+  '朝阳区和海淀区的三级医院',
   '开设有骨科的机构，按距离从近到远',
-  '医保定点名单里的社区卫生服务中心有多少家',
-  '查看各区机构数量分布'
+  '按行政区统计三级医院的数量'
 ]
 
 const baseText = ref('')
@@ -413,8 +416,10 @@ const categories = computed(() =>
 const ownerships = computed(() => (store.nlq.lex && store.nlq.lex.ownerships) || ['公立', '民营', '未标注'])
 const sourceRules = computed(() => (store.nlq.lex && store.nlq.lex.source_rules) || [])
 const dimLabel = computed(() => (store.nlq.lex && store.nlq.lex.dim_label) || { district: '行政区' })
-const sortLabel = computed(() => (store.nlq.lex && store.nlq.lex.sort_label) || { score: '条件匹配度' })
-const sortLabelText = computed(() => sortLabel.value[(res.value && res.value.sort) || 'score'] || '条件匹配度')
+// 词表里的排序标签以后端为准；后端未返回时退回与 web/nlq.py 一致的「默认排序」——
+// 严格 AND 条件下所有命中都满足全部条件，不存在有区分度的匹配分。
+const sortLabel = computed(() => (store.nlq.lex && store.nlq.lex.sort_label) || { score: '默认排序' })
+const sortLabelText = computed(() => sortLabel.value[(res.value && res.value.sort) || 'score'] || '默认排序')
 
 const engineLabel = computed(() => {
   const e = res.value && res.value.parsed && res.value.parsed.engine
@@ -454,6 +459,13 @@ function ownClass(o) {
   if (o === '公立') return 'pub'
   if (o === '民营') return 'pri'
   return 'na'
+}
+
+// 距离列口径与列表行一致：粗精度坐标加「约」，title 写清参考点
+function distTip(r) {
+  const base = store.base ? store.base.name : '天安门（市中心）'
+  if (r.distance_km === null || r.distance_km === undefined) return '该机构无坐标，暂不参与距离排序'
+  return '距' + base + '的球面直线距离' + (r.coord_precision === 'high' ? '' : '（坐标为粗精度，值为估算）') + '，不代表路程'
 }
 
 // ---------------- 提交 ----------------

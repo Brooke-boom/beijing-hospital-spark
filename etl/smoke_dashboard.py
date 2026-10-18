@@ -32,8 +32,11 @@ STUB_HTML = "/tmp/smoke_dashboard.html"
 
 # ECharts 空桩：app.js 实际用到 init / getMap / registerMap / graphic 四个 API
 ECHARTS_STUB = """
+window.__INIT_IDS = [];   // 记录真正被 echarts.init() 过的容器 id：打桩页没有真实 canvas，
+                          // 但「哪些容器被初始化过」是同步可判的真实关系，用来钉「面板已接线」
 window.echarts = {
-  init: function () {
+  init: function (el) {
+    try { if (el && el.id) window.__INIT_IDS.push(el.id); } catch (e) {}
     return {
       setOption: function () {}, resize: function () {}, dispose: function () {},
       on: function () {}, off: function () {}, clear: function () {},
@@ -68,9 +71,14 @@ setTimeout(function(){
     var ids=['overview','analytics','institutions','filter','integration','quality','about'];
     var okv=[], rowsByView={};
     ids.forEach(function(v){
-      try{ if(typeof switchView==='function') switchView(v); }catch(e){ r.push('switchfail_'+v+'='+e.message); }
+      try{
+        // 2026-10-17 智能筛选改悬浮球：filter 视图用 smartDockSet 开合（switchView 依赖的 navtab 已删）
+        if(v==='filter'){ if(typeof smartDockSet==='function') smartDockSet(true); }
+        else if(typeof switchView==='function') switchView(v);
+      }catch(e){ r.push('switchfail_'+v+'='+e.message); }
       okv.push(v+(vis('view-'+v)?'+':'-'));
       rowsByView[v]=cnt('#list .row');
+      if(v==='filter' && typeof smartDockSet==='function') smartDockSet(false);
     });
     r.push('switch='+okv.join(','));
     r.push('rows_total='+rowsByView['overview']);
@@ -82,10 +90,22 @@ setTimeout(function(){
     //    id 写错时页面不报错、只是那块永远空白——正是本脚本存在的理由。
     try{
       if(typeof switchView==='function') switchView('analytics');
-      r.push('an_panels='+cnt('#view-analytics .apanel'));
+      // ⚠️ 期望值一律现算，不写死数字。2026-10-17 删掉 3 张重复图后，
+      //    这里原本把 an_panels 钉成 15、把 anIds 写死 7 个（含已删的 ch_distsp），
+      //    结果是「删图」被当成「页面坏了」报红。判据改成两条关系：
+      //      ① 每个 .apanel 的图表容器都被 echarts.init() 初始化过（桩页记在 __INIT_IDS）
+      //      ② 每个 .achart 容器都可见且有高度
+      //    ⚠️ 这里刻意**不**量 canvas 像素尺寸：桩页根本没有 canvas，而真页上
+      //    switchView 的 resizeAll 是异步跑的，同一 tick 里量到的永远是 100×100 兜底值。
+      var anPanels=[].slice.call(document.querySelectorAll('#view-analytics .apanel'));
+      var inited={}; (window.__INIT_IDS||[]).forEach(function(x){ inited[x]=1; });
+      var anAlive=anPanels.filter(function(p){
+        var c=p.querySelector('.achart'); return !!(c && inited[c.id]);
+      }).length;
+      r.push('an_panels='+anPanels.length+'/'+anAlive+' init');
       r.push('an_secs='+cnt('#view-analytics .sec-title'));
       r.push('an_kpis='+cnt('#view-analytics .kpis .card'));
-      var anIds=['ch_catown','ch_spdist','ch_splv','ch_distsp','ch_distmx','ch_netlv','ch_srcmap'];
+      var anIds=[].slice.call(document.querySelectorAll('#view-analytics .achart')).map(function(e){return e.id;});
       var anMiss=[];
       anIds.forEach(function(id){ if(!vis(id)) anMiss.push(id); });
       r.push('an_newcharts='+(anIds.length-anMiss.length)+'/'+anIds.length+(anMiss.length?(' miss:'+anMiss.join(',')):''));
@@ -251,16 +271,30 @@ def main():
         _n_master = sum(1 for _ in _csv.reader(_mf)) - 1
     checks.append((f"快照机构数 = 主表 {_n_master}", n_snap == _n_master, str(n_snap)))
     checks.append(("七个视图齐备", kv.get("views") == "7", kv.get("views", "?")))
-    checks.append(("导航项 7 个", kv.get("nav") == "7", kv.get("nav", "?")))
+    # 2026-10-17 智能筛选改悬浮球后侧栏少一项（7 → 6）；期望值改从探针输出对账，
+    # 不写死"应该有几个"——nav 数量由 DOM 现算，这里只断它等于 6 且与视图容器自洽。
+    checks.append(("导航项 6 个（智能筛选已改悬浮球）", kv.get("nav") == "6", kv.get("nav", "?")))
     sw = kv.get("switch", "")
     checks.append(("七视图均可显示", sw.count("+") == 7, sw))
     rows = int(kv.get("rows_inst", "0") or 0)
     checks.append(("机构列表有行", rows > 0, "rows_inst=%d" % rows))
     # ── 分析页（多维分析）结构与渲染 ──
-    checks.append(("分析页面板 15 个", kv.get("an_panels") == "15", kv.get("an_panels", "?")))
+    # ⚠️ 图数不写死：判据是「面板数 == 有活 canvas 的面板数」+「容器全可见」两条关系。
+    #    2026-10-17 删掉 3 张重复图后，这里原本把面板数钉成 15、把容器清单写死 7 个，
+    #    于是「正常删图」被判成「页面坏了」—— 写死的期望值一改就变假报警。
+    ap = str(kv.get("an_panels", ""))
+    ap_parts = ap.split("/")
+    ap_tot = ap_parts[0].strip()
+    ap_live = ap_parts[1].split()[0].strip() if len(ap_parts) > 1 else ""
+    checks.append(("分析页面板全部已初始化 ECharts",
+                   ap_tot.isdigit() and int(ap_tot) > 0 and ap_tot == ap_live, ap))
     checks.append(("分析页四区段", kv.get("an_secs") == "4", kv.get("an_secs", "?")))
     checks.append(("分析页 KPI 六卡", kv.get("an_kpis") == "6", kv.get("an_kpis", "?")))
-    checks.append(("新增 7 图容器可见", str(kv.get("an_newcharts", "")).startswith("7/7"),
+    nc_parts = str(kv.get("an_newcharts", "")).split("/")
+    nc_ok = nc_parts[0].strip()
+    nc_tot = nc_parts[1].split()[0].strip() if len(nc_parts) > 1 else ""
+    checks.append(("分析页图表容器全部可见",
+                   nc_ok.isdigit() and int(nc_ok) > 0 and nc_ok == nc_tot,
                    kv.get("an_newcharts", "?")))
     checks.append(("分析页口径条非空", kv.get("an_scope") == "true", kv.get("an_scope", "?")))
     checks.append(("分析页工具条三键", kv.get("an_tools") == "3", kv.get("an_tools", "?")))

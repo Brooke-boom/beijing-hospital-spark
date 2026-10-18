@@ -30,7 +30,7 @@ export const HUBS = {
   },
   profile: {
     title: '资源画像',
-    desc: '把 9,684 家机构当成一个整体来看：数量、等级、办别、区域与科室覆盖的结构是什么样的。',
+    desc: '把 9,678 家机构当成一个整体来看：数量、等级、办别、区域与科室覆盖的结构是什么样的。',
     tabs: [
       { k: 'overview', t: '总览', c: OverviewView },
       { k: 'analytics', t: '结构分析', c: AnalyticsView }
@@ -50,7 +50,7 @@ export const HUBS = {
 // 注意：'/filter' 从"找机构·条件筛选子标签"升级成了任务主线本身，
 // 因此它不再出现在映射表里——它已经是一个真实路由了。
 export const LEGACY_REDIRECT = {
-  '/plan': { name: 'filter' },
+  '/plan': { name: 'find' },
   '/institutions': { name: 'find', query: { t: 'institutions' } },
   '/overview': { name: 'profile', query: { t: 'overview' } },
   '/analytics': { name: 'profile', query: { t: 'analytics' } },
