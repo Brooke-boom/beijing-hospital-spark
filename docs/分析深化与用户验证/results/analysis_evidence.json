@@ -1,0 +1,16 @@
+{
+  "snapshot_sha256": "22d1cdaa70f50042c86619715e421ac5b4f9a40a8fa108f04c20d8ea9e58ec8b",
+  "institutions": 9678,
+  "tertiary": 180,
+  "mapped": 6745,
+  "recorded": 772,
+  "networks": [
+    44,
+    67,
+    7,
+    18
+  ],
+  "network_union": 92,
+  "spark_district_match": true,
+  "spark_overlap_cells_match": 16
+}

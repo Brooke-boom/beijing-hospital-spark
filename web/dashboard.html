@@ -5,10 +5,10 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="dashboard-version" content="v4.0-ui-refresh-20260911">
+<meta name="dashboard-version" content="v6.12-all-tertiary-20261019">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236b8cff'><path d='M4 21V6l8-3 8 3v15M9 21v-4h6v4M12 8v5M9.5 10.5h5'/></svg>">
-<title>北京市医疗机构资源整合与多维筛选可视化系统</title>
+<title>基于Spark的北京市医疗机构资源整合与多维筛选可视化系统</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
 <script>
   /* 大模型兜底开关：默认关闭。前端规则引擎与本地疾病-科室知识库完全离线可用，
@@ -80,7 +80,7 @@
   --gap:24px; --pad-x:28px;
   /* 侧栏宽度：唯一真源。侧栏是 fixed 定位（脱离文档流），主列靠 margin-left 让位，
      所以窄屏换宽度必须改这里，不能只改 .sidebar 的 width，否则主列会被侧栏压住。 */
-  --sb-w:188px;
+  --sb-w:220px;
   --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
 }
 /* ============================================================================
@@ -119,7 +119,7 @@
   --map-r1:#171922; --map-r2:#3a4150; --map-r3:#4f639f; --map-r4:#5d74bb; --map-r5:#6f64b8;
   --r-s:6px; --r-m:8px; --r-l:10px; --r-xl:14px;
   --gap:24px; --pad-x:28px;
-  --sb-w:188px;
+  --sb-w:220px;
   --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -939,7 +939,7 @@ body.has-pick{padding-bottom:84px}
 .pi svg{width:15px;height:15px;color:var(--tint-fg)}
 .who svg{width:16px;height:16px;vertical-align:-3px;margin-right:3px}
 .btn svg{margin-right:5px;vertical-align:-3px}
-#toast 
+#toast
 
 /* ============================ 多维筛选区增强 ============================ */
 .railcard .fh .ftag{margin-left:2px;background:rgba(var(--acc-rgb),.13);color:var(--acc);
@@ -1343,58 +1343,138 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   .chatlog{ height:42vh; }
   .chatmsg{ max-width:92%; }
 }
+
+/* Grouped navigation and evidence / query explanations */
+.sidebrand{display:flex;align-items:center;gap:10px;padding:10px 10px 22px;color:var(--ink);font-size:14px;font-weight:650}
+.sidebrand small{display:block;font-size:10.5px;font-weight:400;color:var(--ink-3);margin-top:4px}
+.sidebrand-mark{display:grid;place-items:center;background:var(--acc);color:var(--bg);width:31px;height:34px;border-radius:9px;font-size:17px}
+.navgroup{padding:0 0 17px;margin-bottom:13px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:4px}
+.navgroup:last-child{border-bottom:0}
+.navgroup .navcap{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:650;color:var(--ink-2);padding:0 11px}
+.navgroup-n{color:var(--ink-4);font-size:10px;font-variant-numeric:tabular-nums}
+.navdesc{padding:0 11px 8px;font-size:10px;color:var(--ink-4)}
+.navtab .lbl small{display:block;font-size:10px;color:var(--ink-3);font-weight:400;margin-top:4px}
+.navhint{margin-left:auto;font-size:9px;color:var(--acc);font-weight:650}
+.sidebar .navtab.active{box-shadow:inset 3px 0 var(--acc)}
+.navsystem{margin-top:auto;border-top:1px solid var(--line);padding-top:16px}
+.sidebar .navtab:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.query-explain{margin:12px 0;border-top:1px solid var(--line);padding:12px 0;color:var(--ink-2);font-size:12px}
+.query-explain summary{cursor:pointer;font-weight:600;line-height:1.7}
+.query-explain .ex-note{line-height:1.8;color:var(--ink-3);margin:8px 0}
+.query-explain table,.metric-table{width:100%;border-collapse:collapse;font-size:11.5px}
+.query-explain th,.query-explain td,.metric-table th,.metric-table td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;line-height:1.6}
+.query-explain th,.metric-table th{color:var(--ink-3);font-weight:500}
+.query-explain td:first-child{min-width:120px}
+.metric-block{margin:0 var(--pad-x) 20px;padding:18px;overflow:hidden}
+.metric-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.metric-head h3{margin:0;font-size:13px}
+.metric-details summary{cursor:pointer;font-size:12px;color:var(--ink-2);padding:8px 0}
+.metric-details[open] summary{margin-bottom:8px}
+.metric-meta{font-size:11px;color:var(--ink-3);line-height:1.9;margin:10px 0;overflow-wrap:anywhere}
+.evidence-note{font-size:11px;color:var(--ink-3);line-height:1.9;margin-top:10px}
+.evidence-recorded{color:var(--acc)}
+.evidence-inferred{color:var(--warn)}
+@media(max-width:1080px){
+ .sidebar .sidebrand,.sidebar .navdesc,.sidebar .navcap,.sidebar .navhint{display:none}
+ .sidebar .navgroup{padding-bottom:12px;margin-bottom:8px}
+ .sidebar .navtab{min-height:44px;width:100%}
+ .sidebar .navsystem{padding-top:10px}
+ .sidebar .navchat .lbl{display:none}
+ .sidebar .navtab.active{box-shadow:inset 2px 0 var(--acc)}
+ .metric-block{padding:12px}
+}
+
+
+/* Unified auxiliary information hub. */
+.help-technical{margin:22px var(--pad-x)}.help-technical>summary{cursor:pointer;font-weight:600;padding:14px 0}.help-technical .about-grid{padding-left:0;padding-right:0}
+.help-hub-tabs{display:none;gap:6px;flex-wrap:wrap;margin:0 var(--pad-x) 22px;border-bottom:1px solid var(--border,#dbe1ea);padding-bottom:8px}
+body.ux-help-view .help-hub-tabs{display:flex}
+.help-hub-tabs button{font:inherit;border:0;background:transparent;color:var(--muted,#64748b);padding:11px 16px;border-radius:7px;cursor:pointer}
+.help-hub-tabs button[aria-selected="true"]{background:var(--acc-soft,#e8efff);color:var(--acc,#2563eb);font-weight:600}
+.help-hub-tabs button:focus-visible{outline:2px solid var(--acc,#2563eb);outline-offset:2px}
+body.ux-help-view .ux-data-context{display:none}
+.help-related{display:flex;align-items:center;gap:12px;flex-wrap:wrap;color:var(--muted,#64748b);margin-top:24px}
+.integ-col.pipe>summary{font-weight:600;cursor:pointer;padding-bottom:10px}
+.integ-col.pipe:not([open]){align-self:start}
+@media(max-width:600px){.help-hub-tabs{gap:3px;margin-bottom:16px}.help-hub-tabs button{padding:10px 9px;font-size:13px}}
+
+
+.analysis-context{margin:0 var(--pad-x) 12px}.analysis-context>summary{cursor:pointer;color:var(--ink-3);padding:8px 0}.analysis-context .kpis{padding-left:0;padding-right:0}
+#an_batch_status{font-size:12px;border-left:3px solid var(--acc,#2563eb);padding-left:10px}#an_question{font-size:20px;margin:16px 0}.analysis-table td{white-space:nowrap}#an_matrix_table{max-height:420px;overflow:auto}
 </style>
 <script>/* 首帧前落定主题，避免明暗闪烁 */(function(){try{var t=localStorage.getItem("bjyy_theme");if(t==="dark")document.documentElement.setAttribute("data-theme","dark");}catch(e){}})();</script>
+<link rel="stylesheet" href="ux.css">
 </head>
 <body>
+<a class="skip-link" href="#ux_page_title">跳转到主要内容</a>
 <div class="loading" id="loading"><span class="pulse"></span>正在加载数据快照…</div>
 
 <div class="layout">
-<aside class="sidebar">
-  <nav class="navbar" id="navbar">
-  <!-- 智能筛选已改为右下角悬浮球（#fab_nlq），不再占侧边栏导航位。
-       查询是动作不是地点：任何查阅页都能一键呼出浮层面板。 -->
-  <div class="navcap">数据查阅</div>
-  <button class="navtab active" data-view="overview"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg></span><span class="lbl">数据总览</span></button>
-  <button class="navtab" data-view="analytics"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-12"/></svg></span><span class="lbl">医疗资源分析</span></button>
-  <button class="navtab" data-view="institutions"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.4 16.4L21 21"/></svg></span><span class="lbl">机构查询</span></button>
-  <button class="navtab" data-view="integration"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg></span><span class="lbl">数据整合</span></button>
-  <button class="navtab" data-view="quality"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></span><span class="lbl">数据质量</span></button>
-  </nav>
-  <button class="navtab navaux" data-view="about"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 10v6M12 7.5h.01"/></svg></span><span class="lbl">系统说明</span></button>
-  <div class="sidefoot"><span class="navnote"><b>智能筛选</b>是主入口：说一句话或选条件 → 系统解析成筛选条件 → 查真实数据库<br>下方<b>数据查阅</b>分组把整合后的机构数据摊开供查阅</span></div>
+<aside class="sidebar" id="sidebar" aria-label="主导航">
+<button type="button" class="ux-menu-close" id="ux_menu_close" aria-label="关闭导航">关闭 ×</button>
+<div class="sidebrand"><span class="sidebrand-mark">医</span><span>北京医疗资源<small>机构查询与资源分析</small></span></div>
+<nav class="navbar" id="navbar" aria-label="功能分组">
+<div class="navgroup">
+<div class="navcap">查询与筛选</div>
+<div class="navdesc">查找机构，查看匹配依据</div>
+<button class="navtab active" title="机构查询" aria-label="机构查询" data-view="institutions"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.4 16.4L21 21"/></svg></span><span class="lbl">机构查询</span></button>
+<button class="navtab" title="找医生" aria-label="找医生" data-view="doctors"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="7" r="4"/><path d="M4 21v-2a8 8 0 0116 0v2M12 14v7M9 18h6"/></svg></span><span class="lbl">找医生</span></button>
+
+</div>
+<div class="navgroup">
+<div class="navcap">资源分析</div>
+<div class="navdesc">查看全市分布与资源结构</div>
+<button class="navtab" title="数据总览" aria-label="数据总览" data-view="overview"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg></span><span class="lbl">数据总览</span></button>
+<button class="navtab" title="医疗资源分析" aria-label="医疗资源分析" data-view="analytics"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M9 20V4M14 20v-7M19 20v-12"/></svg></span><span class="lbl">医疗资源分析</span></button>
+</div>
+<div class="navgroup assistant-group"><div class="navcap">智能助手</div><button class="navtab navchat" id="nav_chat" type="button" aria-controls="view-filter" aria-expanded="false" title="智能问答：用一句话筛选机构"><span class="ico"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v12H9l-5 4zM8 8h8M8 12h5"/></svg></span><span class="lbl">智能问答</span><span class="navhint">AI</span></button></div>
+</nav>
+<div class="navsystem"><button class="navtab" title="帮助与数据说明" aria-label="帮助与数据说明" data-view="help"><span class="ico" aria-hidden="true">ⓘ</span><span class="lbl">帮助与数据说明</span></button></div>
+<div class="sidefoot"><span class="navnote">公开机构数据快照<br><span id="nav_snapshot">—</span><br>支持离线查询与条件解释</span></div>
 </aside>
+<div class="ux-nav-backdrop" id="ux_nav_backdrop" aria-hidden="true"></div>
 <div class="maincol">
 <header class="topbar">
+  <button type="button" class="ux-menu" id="ux_menu" aria-label="打开全部导航" aria-controls="sidebar" aria-expanded="false">☰</button>
   <div class="brand">
     <div class="mark"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V6l8-3 8 3v15M9 21v-4h6v4M12 8v5M9.5 10.5h5"/></svg></div>
     <div style="min-width:0">
-      <h1>北京市医疗机构资源整合与多维筛选可视化系统</h1>
-      <div class="sub">Beijing Medical Institutions · Spark · Flask · ECharts</div>
+      <h1>基于Spark的北京市医疗机构资源整合与多维筛选可视化系统</h1>
+      <div class="sub">公开机构信息 · 多维筛选 · 资源分析</div>
     </div>
   </div>
   <div class="topmeta">
     <span class="chipmeta">数据快照 <b id="m_total">—</b> 家机构</span>
-    <span class="chipmeta t2" title="数据快照生成日期（数据截止日），非实时数据；Spark 全链路重跑约 54 秒">更新 <b id="m_time">—</b></span>
-    <span class="chipmeta" id="ai_state">AI 兜底 <b>检测中</b></span>
+    <span class="chipmeta t2" title="数据快照日期，不代表机构信息实时更新">更新 <b id="m_time">—</b></span>
+    <span class="chipmeta ux-mode" id="ux_mode">本地快照</span><span id="ai_state" hidden></span>
+    <button type="button" class="help-entry" data-go-view="help" aria-label="使用帮助" title="查看使用方法与常见问题"><span aria-hidden="true">?</span><span class="help-entry-label">使用帮助</span></button>
     <button class="themebtn" id="btn_theme" type="button" title="切换白天 / 黑夜外观" aria-label="切换白天 / 黑夜外观"><svg class="ic ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7.4a4.6 4.6 0 100 9.2 4.6 4.6 0 000-9.2zM12 2.4v2.1M12 19.5v2.1M4.3 4.3l1.5 1.5M18.2 18.2l1.5 1.5M2.4 12h2.1M19.5 12h2.1M4.3 19.7l1.5-1.5M18.2 5.8l1.5-1.5"/></svg><svg class="ic ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.2 14.6A8.6 8.6 0 019.4 3.8a8.6 8.6 0 1010.8 10.8z"/></svg></button>
   </div>
 </header>
 
+<div class="ux-page-heading">
+  <div class="ux-breadcrumb" id="ux_breadcrumb">查询与筛选</div>
+  <h2 id="ux_page_title" tabindex="-1">机构查询</h2>
+  <p id="ux_page_desc">组合条件查找机构，查看来源，收藏并对比。</p>
+  <div class="ux-data-context"><span class="ux-status-dot"></span><span id="ux_context_note">当前显示全量机构数据</span><button type="button" class="text-button" data-go-view="institutions">调整查询条件</button></div>
+</div>
+<div id="ux_active_conditions" class="global-conditions" aria-label="当前页面条件"></div>
+
 
 <!-- ============================ 数据总览 ============================ -->
-<section id="view-overview" class="view active">
+<section id="view-overview" class="view">
   <div class="kpis k4" id="cards">
-    <div class="card hero"><div class="l">医疗机构总数</div><div class="v" id="v_total">—</div><div class="s">整合后主表口径（ads_inst_search）</div></div>
-    <div class="card k2"><div class="l">医院数量</div><div class="v" id="v_hospitals">—</div><div class="s">综合 / 专科 / 中医医院合计</div></div>
-    <div class="card k3"><div class="l">社区机构</div><div class="v" id="v_community">—</div><div class="s">社区卫生服务中心 + 站</div></div>
+    <div class="card hero"><div class="l">全市机构记录</div><div class="v" id="v_total">—</div><div class="s">固定快照总量 · 含院区和旧名</div></div>
+    <div class="card k2"><div class="l">全市医院类型记录</div><div class="v" id="v_hospitals">—</div><div class="s">综合 / 专科 / 中医医院合计</div></div>
+    <div class="card k3"><div class="l">全市社区机构</div><div class="v" id="v_community">—</div><div class="s">社区卫生服务中心 + 站</div></div>
     <div class="card k4"><div class="l">数据源数量</div><div class="v" id="v_sources">—</div><div class="s">去重后公开数据文件</div></div>
   </div>
 
+  <div id="ov_finding" class="overview-finding" role="status"></div>
   <div class="split">
     <div class="panel mapwrap">
       <h3>北京市医疗机构区域分布 <span class="tag">MAP · 16 区 · 点击联动筛选</span></h3>
-      <div class="scope" id="map_scope"></div>
+      <label class="map-points-control"><input type="checkbox" id="map_points"> 显示机构散点（抽样，最多1,000点）</label><div class="scope" id="map_scope"></div>
       <div class="mapstage">
         <div id="map"></div>
         <div id="map_diag">⏳ 等待地图初始化…</div>
@@ -1420,7 +1500,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
       <div class="scope" id="scope_ch1"></div><div id="ch1"></div></div>
   </div>
 
-  <div class="panel" style="margin:var(--gap) var(--pad-x) 0">
+  <details class="overview-method"><summary>数据依据与查询工具</summary>  <div class="panel" style="margin:var(--gap) var(--pad-x) 0">
     <h3>数据来源与数据质量概览 <span class="tag">DATA SOURCES</span></h3>
     <div class="srcbar" id="ov_src_bar">
       <span class="src-chip">医保局定点机构 <b>4,876</b></span>
@@ -1428,99 +1508,123 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
       <span class="src-chip">区级卫健委及专题公开数据 <b>6,955</b></span>
       <span class="src-chip">共 <b>70</b> 个源文件</span>
       <span class="src-chip">原始记录 <b>13,803</b></span>
-      <span class="src-chip">去重合并后 <b>9,791</b> → 最终 <b>9,678</b></span>
-      <span class="src-chip">坐标补全率 <b>99.98%</b></span>
+      <span class="src-chip">治理审计 <b>9,789 − 112 + 1 = 9,678</b></span>
+      <span class="src-chip">坐标非空率 <b id="ov_coord_coverage">—</b></span>
     </div>
     <div class="notice" style="margin-top:11px">数据来源覆盖医保局定点机构、社区卫生服务机构、各区卫健委公开名录与重点专科公示名单；详细字段完整率、去重统计与清洗流程见 <button class="btn ghost sm" type="button" onclick="switchView('integration')">数据整合</button> 与 <button class="btn ghost sm" type="button" onclick="switchView('quality')">数据质量</button> 页。</div>
-  </div>
+  </div><div class="ux-welcome overview-query-tools"><div><span class="eyebrow">北京市公开医疗机构数据</span><h3>从机构信息出发，了解身边的医疗资源</h3><p>按区域、等级和科室组合筛选，查看来源记录，再收藏或横向对比。</p></div><div class="ux-welcome-actions"><button class="btn primary" type="button" id="ux_to_query">开始查询机构 →</button><button class="btn ghost" type="button" id="ux_ask">用一句话筛选</button></div></div>
+</details>
 </section>
 
 <!-- ============================ 多维分析 ============================ -->
 <section id="view-analytics" class="view">
-  <div class="kpis" id="cards2">
+
+
+  <div class="analysis-explorer" aria-label="专题分析">
+    <div class="analysis-heading"><h3>专题分析</h3><button class="btn ghost sm" id="an_direction_export" type="button">导出本专题</button></div>
+    <div class="analysis-tabs" role="tablist" aria-label="分析方向">
+      <button type="button" role="tab" id="an_tab_region" data-analysis="region" aria-controls="an_direction_panel" aria-selected="true">区域资源结构</button>
+      <button type="button" role="tab" id="an_tab_primary" data-analysis="primary" aria-controls="an_direction_panel" aria-selected="false" tabindex="-1">基层服务结构</button>
+      <button type="button" role="tab" id="an_tab_evidence" data-analysis="evidence" aria-controls="an_direction_panel" aria-selected="false" tabindex="-1">科室与专科</button>
+      <button type="button" role="tab" id="an_tab_network" data-analysis="network" aria-controls="an_direction_panel" aria-selected="false" tabindex="-1">协作网络覆盖</button>
+      <button type="button" role="tab" id="an_tab_quality" data-analysis="quality" aria-controls="an_direction_panel" aria-selected="false" tabindex="-1">数据治理成效</button>
+    </div>
+    <div id="an_direction_panel" role="tabpanel" aria-labelledby="an_tab_region" tabindex="0">
+      <div class="analysis-chart-heading"><h3 id="an_question"></h3><div id="an_direction_insight" class="analysis-insight" role="status"></div></div>
+      <label id="an_region_focus_wrap" class="analysis-note">比较指标 <select id="an_region_focus" aria-label="区域比较指标"><option value="total">全部类型机构记录</option><option value="tertiary">仅三级机构记录</option></select><select id="an_region_measure" aria-label="区域比较方式"><option value="count">数量（条）</option><option value="share">占当前范围同类记录比例（%）</option><option value="local">三级占本区全部记录比例（%）</option></select></label><h4 id="an_direction_chart_title" class="direction-chart-title">机构总数 · 按行政区对比</h4><div id="an_direction_chart" class="direction-chart" role="img" aria-label="当前分析专题的各行政区数量对比"></div><p id="an_reading_limit" class="analysis-note analysis-limit"></p><details class="analysis-data analysis-method"><summary>分析依据、计算方法与明细</summary><p id="an_chart_basis" class="analysis-note"></p><p id="an_batch_status" class="analysis-note"></p><details class="analysis-data"><summary>加工与实验记录</summary><p id="an_batch_details" class="analysis-note"></p></details><details class="analysis-data" id="an_evidence_chain"><summary>数据依据—方法—发现—限制</summary><p id="an_direction_note" class="analysis-note"></p><div id="an_evidence_chain_body" class="analysis-note"></div></details><div id="an_scope_summary" class="analysis-scope-summary" hidden></div><details class="analysis-data"><summary>查看区域基础指标表</summary><div class="tblbox"><table class="analysis-table"><thead id="an_direction_head"></thead><tbody id="an_direction_rows"></tbody></table></div></details>
+      <details class="analysis-data"><summary>查看补充矩阵数据</summary><div id="an_matrix_table" class="tblbox"></div></details><p id="an_interaction_note" class="analysis-footnote"></p></details>
+    </div>
+  </div>
+  <section id="an_supplement" class="analysis-secondary-direct" aria-label="专题矩阵图"><h4 id="an_secondary_title" class="direction-chart-title"></h4><div id="an_secondary_chart" class="direction-chart" role="img" aria-label="专题补充图表"></div><p id="an_secondary_note" class="analysis-note"></p></section>
+<div class="analysis-existing integrated-charts" aria-label="当前专题相关图表"><h3 id="an_related_title">区域等级结构</h3>
+
+    <div hidden class="detail-tabs" role="tablist" aria-label="详细图表分类">
+      <button type="button" role="tab" id="detail_tab_structure" data-detail-tab="structure" aria-controls="detail_structure" aria-selected="true">机构结构</button>
+      <button type="button" role="tab" id="detail_tab_specialty" data-detail-tab="specialty" aria-controls="detail_specialty" aria-selected="false" tabindex="-1">科室与专科</button>
+      <button type="button" role="tab" id="detail_tab_spatial" data-detail-tab="spatial" aria-controls="detail_spatial" aria-selected="false" tabindex="-1">区域对比</button>
+      <button type="button" role="tab" id="detail_tab_network" data-detail-tab="network" aria-controls="detail_network" aria-selected="false" tabindex="-1">网络与数据</button>
+    </div>
+<div class="analysis-detail-panel" id="detail_structure" data-detail-panel="structure" role="region" aria-labelledby="detail_tab_structure"><p class="detail-finding" id="detail_finding_structure" role="status"></p>
+  <div class="sec-title"><span class="bar"></span><span class="n">01</span>资源结构<span class="hint">当前筛选范围 · 条长表示数量，颜色表示办别</span></div>
+  <div class="agrid ag-n3">
+    <div class="apanel"><h3>办别分布（公立 / 民营）</h3><div class="achart" id="ch_own"></div><p class="chart-reading">扇区表示占比；数量与百分比并列，未标注办别单独展示。</p></div>
+    <div class="apanel"><h3>各等级机构数量与办别</h3><div class="achart" id="ch_lvown"></div><p class="chart-reading">仅统计已标注参评等级的机构；颜色表示办别，长度表示家数。</p></div>
+    <div class="apanel"><h3>各类型机构数量与办别</h3><div class="achart" id="ch_catown"></div><p class="chart-reading">同一根条按办别拆分；全部段的数量之和为该类型机构数。</p></div>
+  </div>
+
+</div>
+<div class="analysis-detail-panel" id="detail_specialty" data-detail-panel="specialty" role="region" aria-labelledby="detail_tab_specialty" hidden><p class="detail-finding" id="detail_finding_specialty" role="status"></p>
+  <div class="sec-title"><span class="bar"></span><span class="n">02</span>科室与专科<span class="hint">区分重点专科挂牌与科室映射；数量不代表医疗服务质量</span></div>
+  <div class="agrid ag-n5">
+    <div class="apanel"><h3>专科信息收录层级</h3><div class="achart" id="ch_feat"></div><p class="chart-reading">按已收录的科室信息分层，未分层单列，不代表医疗水平。</p></div>
+    <div class="apanel"><div class="detail-chart-heading"><h3>专科名单名称 TOP<span id="an_topn_lbl">10</span></h3><button class="btn ghost sm" type="button" id="an_topn">显示前10家 · 切换</button></div><div class="achart" id="ch_topsp"></div><p class="chart-reading">点击条目查看机构详情；完整机构名称可悬停查看。</p></div>
+    <div class="apanel"><h3>专科名单名称数量分档</h3><div class="achart" id="ch_spdist"></div><p class="chart-reading">横轴为专科名称数量档位，纵轴为机构记录数；只统计名称数大于零的记录。</p></div>
+    <div class="apanel"><h3>各等级的国家级与市级专科数</h3><div class="achart" id="ch_splv"></div><p class="chart-reading">同一等级并排比较国家级与市级名单名称条目；两层级可能含同名专科，不等于跨层级去重数。</p></div>
+    <div class="apanel"><h3>科室覆盖 TOP15</h3><div class="achart" id="ch_deptop"></div><p class="chart-reading">深色为有来源记录，浅色为名称或规则推断；两段合计为科室映射机构数。</p></div>
+  </div>
+
+</div>
+<div class="analysis-detail-panel" id="detail_spatial" data-detail-panel="spatial" role="region" aria-labelledby="detail_tab_spatial" hidden><p class="detail-finding" id="detail_finding_spatial" role="status"></p>
+  <div class="sec-title"><span class="bar"></span><span class="n">03</span>空间格局<span class="hint" id="hint_space">16 区资源密度与资源禀赋横向对比</span></div>
+  <div class="agrid ag-n4">
+    <div class="apanel"><h3>区域 × 等级 机构数矩阵</h3><div class="achart" id="ch_distlv"></div><p class="chart-reading">颜色辅助比较，格内数字为机构数；点击单元格按区域与等级查询。</p></div>
+    <div class="apanel"><h3>区域资源数量排名</h3><label class="chart-metric">比较指标 <select id="an_region_metric" aria-label="比较指标"><option value="total">机构总数</option><option value="l3">三级医院数</option><option value="specialty">专科名单名称数</option><option value="network">协作网络成员数</option></select></label><div class="achart" id="ch_distmx"></div><p class="chart-reading">一次只比较一个指标，各区域共用同一数量刻度。</p></div>
+  </div>
+
+</div>
+<div class="analysis-detail-panel" id="detail_network" data-detail-panel="network" role="region" aria-labelledby="detail_tab_network" hidden><p class="detail-finding" id="detail_finding_network" role="status"></p>
+  <div class="sec-title"><span class="bar"></span><span class="n">04</span>协作与数据整合<span class="hint">跨机构协同网络 · 合并来源深度 · 数据质量</span></div>
+  <div class="agrid">
+    <div class="apanel"><h3>各协作网络成员数量与等级</h3><div class="achart" id="ch_netlv"></div><p class="chart-reading">同一机构可参加多个网络，各网络数量不能直接相加。</p></div>
+    <div class="apanel"><h3>数据整合深度构成</h3><div class="achart" id="ch_srcmap"></div><p class="chart-reading">一个机构计一次，按合并的来源文件数量分档。</p></div>
+    <div class="apanel"><h3>坐标精度数量与占比</h3><div class="achart" id="ch_coord"></div><p class="chart-reading">环形展示精度构成，图例保留3条缺失记录；仅高精度坐标参与半径筛选。</p></div>
+  </div>
+</div>
+  </div>
+<details class="analysis-tools"><summary>范围概览与导出工具</summary>  <details class="analysis-context"><summary>查看当前范围概览</summary><div class="kpis" id="cards2">
     <div class="card"><div class="l">公立机构占比</div><div class="v" id="ak_pub">0</div><div class="s">占当前筛选结果比例</div></div>
-    <div class="card k2"><div class="l">三级医院占比</div><div class="v" id="ak_l3">0</div><div class="s">占当前筛选结果比例</div></div>
-    <div class="card k3"><div class="l">重点专科机构</div><div class="v" id="ak_feat">0</div><div class="s">含国家 / 市级重点专科</div></div>
+    <div class="card k2"><div class="l">三级机构占比</div><div class="v" id="ak_l3">0</div><div class="s">占当前筛选结果比例</div></div>
+    <div class="card k3"><div class="l">重点专科机构</div><div class="v" id="ak_feat">0</div><div class="s">国家／市级名单名称有记录</div></div>
     <div class="card k4"><div class="l">协作网络机构</div><div class="v" id="ak_net">0</div><div class="s">去重计数，可同属多个网络</div></div>
     <div class="card k5"><div class="l">覆盖区县</div><div class="v" id="ak_dist">0</div><div class="s">全市共 16 个区</div></div>
     <div class="card k6"><div class="l">多源整合机构</div><div class="v" id="ak_multi">0</div><div class="s">由 2 个及以上源文件合并</div></div>
-  </div>
+  </div></details>
 
   <div class="anbar">
     <span class="anbar-t">分析口径</span>
     <span class="muted" id="an_scope">—</span>
     <span class="anbar-sp"></span>
-    <button class="btn ghost sm" type="button" id="an_topn">专科 TOP 切换</button>
-    <button class="btn ghost sm" type="button" id="an_csv">导出分析数据</button>
-    <button class="btn ghost sm" type="button" id="an_copy">复制分析摘要</button>
-    <span class="anbar-tip">点击图表元素可回总览页按该维度筛选</span>
+    <button class="btn ghost sm" type="button" id="an_csv">导出全部分析数据</button>
+    <button class="btn ghost sm" type="button" id="an_copy">复制当前专题摘要</button>
+    <span class="anbar-tip">区域条形图及科室矩阵支持查看机构</span>
   </div>
+</details>
 
-  <div class="sec-title"><span class="bar"></span><span class="n">01</span>资源结构<span class="hint">谁在提供医疗服务 · 办别 / 等级 / 类型（两张构成条豁免本维度筛选）</span></div>
-  <div class="agrid ag-n3">
-    <div class="apanel"><h3>办别分布（公立 / 民营） <span class="tag">OWNERSHIP</span></h3><div class="achart" id="ch_own"></div></div>
-    <div class="apanel"><h3>等级 × 办别构成（仅参评机构） <span class="tag">100% 构成条 · 段长 = 占比</span></h3><div class="achart" id="ch_lvown"></div></div>
-    <div class="apanel"><h3>机构类型 × 办别构成 <span class="tag">100% 构成条 · 段长 = 占比</span></h3><div class="achart" id="ch_catown"></div></div>
-  </div>
-
-  <div class="sec-title"><span class="bar"></span><span class="n">02</span>专科能力<span class="hint">专科资源的厚度与集中在哪些机构</span></div>
-  <div class="agrid ag-n5">
-    <div class="apanel"><h3>重点专科分级 <span class="tag">BAR · FEATURE LEVEL</span></h3><div class="achart" id="ch_feat"></div></div>
-    <div class="apanel"><h3>专科能力 TOP<span id="an_topn_lbl">10</span> <span class="tag">KEY SPECIALTY</span></h3><div class="achart" id="ch_topsp"></div></div>
-    <div class="apanel"><h3>专科能力分档（仅挂牌重点专科） <span class="tag">PARETO · 累计占比</span></h3><div class="achart" id="ch_spdist"></div></div>
-    <div class="apanel"><h3>重点专科级别的等级分布 <span class="tag">100% STACKED · 等级 × 级别</span></h3><div class="achart" id="ch_splv"></div></div>
-    <div class="apanel"><h3>科室覆盖 TOP15 <span class="tag">44 类标准科室 · 含推导值</span></h3><div class="achart" id="ch_deptop"></div></div>
-  </div>
-
-  <div class="sec-title"><span class="bar"></span><span class="n">03</span>空间格局<span class="hint" id="hint_space">16 区资源密度与资源禀赋横向对比</span></div>
-  <div class="agrid ag-n4">
-    <div class="apanel"><h3>区域 × 等级 机构数矩阵 <span class="tag">HEATMAP · 色深 = 机构数 · 按三级机构数排序</span></h3><div class="achart" id="ch_distlv"></div></div>
-    <div class="apanel"><h3>区域资源禀赋矩阵 <span class="tag">MATRIX · 按三级机构数排序 · 列内归一 · 格内为原值</span></h3><div class="achart" id="ch_distmx"></div></div>
-  </div>
-
-  <div class="sec-title"><span class="bar"></span><span class="n">04</span>协作与数据整合<span class="hint">跨机构协同网络 · 合并来源深度 · 数据质量</span></div>
-  <div class="agrid">
-    <div class="apanel"><h3>协作网络 × 等级 <span class="tag">NETWORK × LEVEL · 100% 构成</span></h3><div class="achart" id="ch_netlv"></div></div>
-    <div class="apanel"><h3>数据整合深度构成 <span class="tag">BAR · 来源越多机构越少</span></h3><div class="achart" id="ch_srcmap"></div></div>
-    <div class="apanel"><h3>坐标精度覆盖率 <span class="tag">GAUGE · HIGH PRECISION</span></h3><div class="achart" id="ch_coord"></div></div>
-  </div>
 </section>
 
 <!-- ============================ 机构查询 ============================ -->
-<section id="view-institutions" class="view">
+<section id="view-institutions" class="view active">
   <!-- 结果概览：默认折叠。它只回答"这次筛出了什么"，完整资源分布看「医疗资源分析」页，
        两处都摆统计卡既是重复、也把结果列表挤到首屏以下。 -->
-  <details class="ovfold" id="inst_ovfold">
-    <summary><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V6l8-3 8 3v15M9 21v-4h6v4"/></svg>结果概览<span class="ovfold-hint">当前筛选口径下的统计 · 点击展开</span></summary>
-    <div class="kpis" id="inst-cards">
-      <div class="card hero"><div class="l">筛选结果</div><div class="v" id="v_match">0</div><div class="s">符合当前条件的机构</div></div>
-      <div class="card k2"><div class="l">三级医院</div><div class="v" id="v_l3">0</div><div class="s">筛选结果中的三级机构</div></div>
-      <div class="card k3"><div class="l">含坐标</div><div class="v" id="v_coord">0</div><div class="s">可参与距离排序与地图散点</div></div>
-      <div class="card k4"><div class="l">科室数已核实</div><div class="v" id="v_dept">0</div><div class="s">官网 / 百科在线核实到的机构数</div></div>
-      <div class="card k5"><div class="l">重点专科机构</div><div class="v" id="v_feat">0</div><div class="s">含国家 / 市级 / 院级重点专科</div></div>
-      <div class="card k6"><div class="l">协作网络覆盖</div><div class="v" id="v_net">0</div><div class="s">纳入任一市级协作网络</div></div>
-    </div>
-  </details>
+
 
   <div class="panel railcard" style="margin:var(--gap) var(--pad-x) 0">
-      <div class="fh railfh">
-      <span class="bar"></span><span class="t">多维筛选</span>
-      <span class="ftag" id="flt_count">—</span>
-      <span class="r" id="flt_meta" title="多维筛选 · 5 种排序 · 严格匹配（结果均满足全部条件，匹配度恒为 1）· Haversine 球面直线距离 · 快照为数据截止日（非实时）">快照 <b id="m_time2">—</b></span></div>
-
+      <div class="sr-only"><span id="flt_count">—</span><span id="flt_meta"><b id="m_time2">—</b></span></div>
       <!-- 常用筛选：默认展示，覆盖最高频的五个维度（关键词 / 行政区 / 类型 / 等级 / 科室） -->
+      <div class="ux-scope" id="ux_scope" hidden><span id="ux_scope_text"></span><button type="button" id="ux_scope_clear">在全市查询（保留当前条件）</button></div>
+      <div class="ux-form-error" id="ux_form_error" role="alert" hidden></div>
       <div class="filters">
         <div class="field wide2"><label for="f_kw">关键词</label>
           <div class="kwbox">
             <svg class="kwi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.4 16.4L21 21"/></svg>
             <input id="f_kw" type="text" autocomplete="off" spellcheck="false" placeholder="机构名 / 地址，如 协和"
-                   title="按机构名称或地址关键词检索，输入即联想">
-            <button class="kwx" id="btn_kw_clear" type="button" tabindex="-1" title="清空关键词" aria-label="清空关键词">×</button>
+                   title="按机构名称或地址关键词检索，输入即联想" role="combobox" aria-autocomplete="list" aria-controls="kw_ac" aria-expanded="false">
+            <button class="kwx" id="btn_kw_clear" type="button" title="清空关键词" aria-label="清空关键词">×</button>
             <div class="acbox" id="kw_ac" role="listbox" aria-label="关键词联想"></div>
           </div>
         </div>
         <div class="field"><label for="f_district">行政区</label><select id="f_district"><option value="">全部 16 区</option></select></div>
-        <div class="field"><label for="f_cat">机构类型</label><select id="f_cat"><option value="">全部类型</option></select></div>
+
         <div class="field"><label for="f_level">医院等级</label><select id="f_level"><option value="">全部等级</option></select></div>
         <!-- 科室提到常用行：它是本系统的核心筛选维度（科室证据 / 科室收录量），
              藏在二级折叠里要两次点击才能用。提上来后第二行正好三个字段填满整行，
@@ -1531,8 +1635,9 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
       <!-- 更多筛选：默认折叠，只留低频三项（等级等次 / 来源证据 / 协作网络），
            正好三个字段填满一行，展开后不再出现半截空行。 -->
       <details class="morefold" id="flt_more">
-        <summary><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M6 12h12M10 18h4"/></svg>更多筛选<span class="morefold-hint">等级等次 · 来源证据 · 协作网络</span></summary>
+        <summary><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M6 12h12M10 18h4"/></svg>更多条件<span class="morefold-hint">类型、距离及来源</span></summary>
         <div class="filters">
+        <div class="field"><label for="f_cat">机构类型</label><select id="f_cat"><option value="">全部类型</option></select></div>
           <div class="field"><label for="f_level_sub">等级等次</label>
             <select id="f_level_sub" title="医院等级等次（甲等 / 乙等 / 丙等）。三甲 = 三级且甲等的组合条件">
               <option value="">不限等次</option>
@@ -1554,10 +1659,10 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
             <option value="maternal">危重孕产妇救治 · 市级</option>
           </select></div>
         </div>
-      </details>
+
 
       <!-- 距离区：参考点、半径与定位操作集中在一处 -->
-      <div class="filters distgroup">
+      <p class="ux-distance-note" id="ux_base_status">距离参考点：天安门 · 直线距离</p><div class="filters distgroup">
         <div class="field distfield"><label for="f_base">距离参考点</label>
           <div class="rangebox">
             <input id="f_base" type="text" autocomplete="off" spellcheck="false" value=""
@@ -1573,8 +1678,9 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
                  title="距参考点的球面直线距离半径（0 – 200 km）。仅使用 high 精度坐标的机构，粗精度坐标不参与半径筛选">
         </div>
       </div>
+      </details>
       <div class="fltchips" id="flt_chips"></div>
-      <div class="presetbar" id="presetbar">
+<div class="query-secondary"><details class="query-tools"><summary>更多操作</summary>      <div class="presetbar" id="presetbar">
         <span class="plabel">快捷入口</span>
         <button class="preset" data-preset="l3" title="筛选医院等级 = 三级">三级医院</button>
         <button class="preset" data-preset="l2" title="筛选医院等级 = 二级">二级医院</button>
@@ -1585,13 +1691,33 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
         <button class="preset" data-preset="net" title="纳入卒中中心协作网络">卒中中心</button>
         <button class="preset" data-preset="depttop" title="按科室收录量排序：数值是数据集收录到的科室明细条数，不代表医疗能力或真实科室完整程度">科室收录量排序</button>
         <span class="preset-sp"></span>
-        <button class="btn ghost sm" id="btn_reset"
-          title="恢复默认视图：清空全部筛选条件、距离参考点回到天安门、排序回到默认">↺ 恢复默认视图</button>
+
       </div>
 
-      <div class="raildiv"></div>
+      <div class="ux-query-tools">
+
+        <div class="ux-query-actions"><button class="btn ghost sm" id="ux_save_toggle" type="button" aria-expanded="false" aria-controls="ux_save_form">保存筛选方案</button><button class="btn ghost sm" id="ux_copy" type="button">复制条件</button><button class="btn primary sm" id="ux_export" type="button">导出结果 CSV</button></div>
+      </div>
+      <form class="ux-save-form" id="ux_save_form" hidden>
+        <label for="ux_save_name">方案名称</label><input id="ux_save_name" maxlength="32" placeholder="例如：海淀区三甲医院" autocomplete="off"><button type="submit" class="btn primary sm">保存</button><button type="button" class="btn ghost sm" id="ux_save_cancel">取消</button><span id="ux_save_error" role="alert"></span>
+      </form>
+      <details class="ux-saved"><summary>常用筛选方案 <span id="ux_saved_count">0</span><small>仅保存于当前浏览器</small></summary><div id="ux_saved_list"></div></details>
+  <details class="ovfold" id="inst_ovfold">
+    <summary><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V6l8-3 8 3v15M9 21v-4h6v4"/></svg>结果概览<span class="ovfold-hint">当前筛选口径下的统计 · 点击展开</span></summary>
+    <div class="kpis" id="inst-cards">
+      <div class="card hero"><div class="l">筛选结果</div><div class="v" id="v_match">0</div><div class="s">符合当前条件的机构</div></div>
+      <div class="card k2"><div class="l">三级机构</div><div class="v" id="v_l3">0</div><div class="s">筛选结果中的三级机构</div></div>
+      <div class="card k3"><div class="l">含坐标</div><div class="v" id="v_coord">0</div><div class="s">可参与距离排序与地图散点</div></div>
+      <div class="card k4"><div class="l">科室数已核实</div><div class="v" id="v_dept">0</div><div class="s">官网 / 百科在线核实到的机构数</div></div>
+      <div class="card k5"><div class="l">重点专科机构</div><div class="v" id="v_feat">0</div><div class="s">国家／市级名单名称有记录</div></div>
+      <div class="card k6"><div class="l">协作网络覆盖</div><div class="v" id="v_net">0</div><div class="s">纳入任一市级协作网络</div></div>
+    </div>
+  </details></details>        <button class="btn ghost sm" id="btn_reset"
+          title="恢复默认视图：清空全部筛选条件、距离参考点回到天安门、排序回到默认">清空条件</button></div>
+      <p class="sr-only" id="ux_filter_status" role="status" aria-live="polite" aria-atomic="true"></p>
+
       <div class="railhead">
-        <h3>机构列表 <span class="tag" id="listTag">共 0 家</span></h3>
+        <h3><span id="ux_results_summary">正在准备机构数据</span><span class="sr-only" id="listTag">共 0 家</span></h3>
         <div class="pager">
           <span class="sortwrap">
             <select id="f_sort" class="sortsel" title="排序方式只改变结果顺序，不改变筛选条件">
@@ -1616,14 +1742,16 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
       </div>
       <div class="listhead">
       <div class="lh-l">
-          <span>点行看详情 · 悬停行可在地图定位 · <b style="color:var(--warn)">★</b> 收藏 · 左侧方块加入对比</span>
+          <span class="sr-only">点击机构名称查看详情，星标收藏，勾选后对比</span>
           <button class="favbtn" id="btn_favs" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6l2.62 5.31 5.86.86-4.24 4.13 1 5.84L12 17.02l-5.24 2.72 1-5.84L3.52 9.77l5.86-.86z"/></svg> 收藏夹 <b id="fav_n">0</b></button>
           <button class="favbtn" id="btn_clear_pick" type="button" title="清空已勾选的对比机构（保留筛选条件）"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg> 清空已选 <b id="pick_n">0</b></button>
           <button class="favbtn" id="btn_ov_sum" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 9h6v6H9zM4 10v4M20 10v4M10 4h4M10 20h4M6.5 7.5L4 9M17.5 7.5L20 9M6.5 16.5L4 15M17.5 16.5L20 15"/></svg> AI 总结当前结果</button>
         </div>
       </div>
       <div class="aibox ovsum" id="ov_sum" style="display:none"></div>
-      <div class="list" id="list"></div>
+      <div id="query_explain" aria-live="polite"></div>
+      <div class="list" id="list" aria-label="机构查询结果"></div>
+      <div class="ux-bottom-pager" id="ux_bottom_pager"><span id="ux_result_range"></span><div><button type="button" class="btn ghost sm" id="ux_prev">上一页</button><span id="ux_page_number"></span><button type="button" class="btn ghost sm" id="ux_next">下一页</button></div></div>
   </div>
 </section>
 
@@ -1633,42 +1761,39 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
      Agnes（/api/ai/chat）组织语言回答；后端不可达 / 未配密钥 / 限流时降级为本地模板，
      气泡明确标注。机构名与数字永远来自查询结果，模型不产出事实。 -->
 <section id="view-filter" class="view">
-  <div class="sec-title"><span class="bar"></span>智能问答
-    <span class="hint">Agnes AI · 只基于真实查询结果回答 · 不做疾病诊断与用药建议</span>
-    <button class="btn ghost sm" id="nlq_dock_close" type="button" title="收起面板（Esc）" style="margin-left:auto">收起 ×</button></div>
+
 
   <div class="panel railcard chatcard" style="margin:0 var(--pad-x)">
     <div class="chathead">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="8" width="14" height="11" rx="2.5"/><path d="M12 8V5M9.5 5h5M9 13h.01M15 13h.01M9.5 16.5h5"/></svg>
-      <div class="chatttl">AI 问答助手 <span class="tag">AGNES</span></div>
+      <div class="chatttl">医疗资源助手</div>
       <span class="chatdotwrap"><i class="chatdot" id="ai_dot"></i><span id="ai_status">连接检测中…</span></span>
-      <button class="btn ghost sm" id="ai_clear" type="button">清空对话</button>
+      <button class="btn ghost sm" id="ai_clear" type="button">清空对话</button><button class="btn ghost sm" id="nlq_dock_close" type="button" title="返回上一页（Esc）" style="margin-left:auto">返回上一页</button>
     </div>
 
-    <div class="chatlog" id="ai_log"></div>
+    <div class="chatlog" id="ai_log" role="log" aria-live="polite" aria-relevant="additions" aria-label="机构筛选对话"></div>
 
     <div class="nlqex" id="ai_ex">
       <button class="ex" type="button" data-q="海淀区的三级医院有哪些？">海淀区的三级医院有哪些？</button>
       <button class="ex" type="button" data-q="开设有骨科的机构，按距离从近到远">开设有骨科的机构，按距离从近到远</button>
       <button class="ex" type="button" data-q="按行政区统计三级医院的数量">按行政区统计三级医院的数量</button>
       <button class="ex" type="button" data-q="朝阳区的社区卫生服务中心">朝阳区的社区卫生服务中心</button>
-      <button class="ex" type="button" data-q="北京航空航天大学附近有医学影像科的机构">北航附近想拍核磁</button>
+      <button class="ex" type="button" data-q="北京航空航天大学附近有医学影像科的机构">北航附近有医学影像科的机构</button>
     </div>
 
     <div class="chatask">
-      <textarea id="ai_in" rows="2" placeholder="用一句话提问，例如：海淀区的三级医院有哪些？（Enter 发送，Shift+Enter 换行）"></textarea>
+      <label class="sr-only" for="ai_in">输入医疗资源查询问题</label><textarea id="ai_in" maxlength="500" rows="2" placeholder="输入区域、医院或科室，例如：协和有哪些心内科医生？" title="Enter 发送，Shift+Enter 换行"></textarea>
       <button class="btn primary" id="ai_send" type="button">发送</button>
     </div>
 
-    <div class="chatbound">
-      <strong>边界：</strong>AI 只回答<b>机构资源数据</b>相关的问题，症状、疾病、用药一律拒答；
-      回答中出现的机构名称与统计数字全部来自数据仓库的真实查询，AI 不生成、不补造。
-    </div>
+    <div class="chat-input-meta"><span>Enter 发送 · Shift+Enter 换行</span><span id="ai_count">0/500</span></div><p class="chatbound">基于公开数据快照查询 · 不提供诊断及用药建议</p>
   </div>
 </section>
 
+<div id="help_hub_tabs" class="help-hub-tabs" role="tablist" aria-label="帮助与数据说明栏目">
+<button type="button" role="tab" id="hub-tab-help" aria-controls="view-help" aria-selected="false" tabindex="-1" data-help-tab="help">使用指南</button><button type="button" role="tab" id="hub-tab-integration" aria-controls="view-integration" aria-selected="false" tabindex="-1" data-help-tab="integration">数据来源与更新</button><button type="button" role="tab" id="hub-tab-quality" aria-controls="view-quality" aria-selected="false" tabindex="-1" data-help-tab="quality">数据质量与覆盖</button><button type="button" role="tab" id="hub-tab-about" aria-controls="view-about" aria-selected="false" tabindex="-1" data-help-tab="about">关于系统</button></div>
 <!-- ============================ 数据整合 ============================ -->
-<section id="view-integration" class="view">
+<section id="view-integration" class="view" role="tabpanel" aria-labelledby="hub-tab-integration">
   <div class="sec-title"><span class="bar"></span>多源数据整合中心
     <span class="hint">Spark 数仓分层 ODS → DWD → DWS → ADS · 处理结果全部来自真实 ETL</span></div>
   <div class="integ-grid">
@@ -1676,10 +1801,9 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
       <h3>数据源 <span class="tag">SOURCES</span></h3>
       <div id="integration_sources" class="integ-list"></div>
     </div>
-    <div class="panel integ-col pipe">
-      <h3>数据处理流程 <span class="tag">PIPELINE</span></h3>
+    <details class="panel integ-col pipe"><summary>处理流程与技术细节</summary>
       <div id="integration_pipeline" class="timeline"></div>
-    </div>
+    </details>
     <div class="panel integ-col res">
       <h3>处理结果 <span class="tag">RESULTS</span></h3>
       <div id="integration_results" class="infogrid"></div>
@@ -1692,7 +1816,8 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 </section>
 
 <!-- ============================ 数据质量 ============================ -->
-<section id="view-quality" class="view">
+<section id="view-quality" class="view" role="tabpanel" aria-labelledby="hub-tab-quality">
+  <p class="help-related" style="margin:0 var(--pad-x) 18px">医生资料单独核验更新，入口覆盖不等于资料齐全。<button type="button" class="text-button" data-go-view="doctors">查看三级机构医生收录进度 →</button></p><div id="metric_ledger" class="panel metric-block"></div>
   <div class="sec-title"><span class="bar"></span>数据质量治理
     <span class="hint">字段完整率 · 去重统计 · 来源分布 · 全部由治理脚本真实计算</span></div>
   <div class="kpis k4">
@@ -1709,38 +1834,74 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   </div>
 </section>
 
-<!-- ============================ 关于 ============================ -->
-<section id="view-about" class="view">
-  <div class="about-grid">
-    <div class="panel" style="grid-column:1/-1">
-      <h3>系统定位与两种用法 <span class="tag">FILTER vs LOOKUP</span></h3>
-      <div class="notice">
-        本系统是<b>北京市医疗机构数据智能分析与筛选平台</b>，回答的是"北京有哪些医疗机构、资源怎么分布、按条件怎么筛出来"。<br>
-        ① <b>智能筛选（主入口）</b>：用自然语言描述条件（行政区 / 机构等级 / 机构类型 / 所有制 / 数据来源 / 排序），或直接组合条件 → 系统解析成结构化筛选条件 → 查询真实机构数据 → 统计概览 + 地理分布 + 机构列表 + 横向对比。<br>
-        ② <b>数据查阅</b>：数据总览 / 医疗资源分析 / 机构查询 / 数据整合 / 数据质量，把整合后的数据摊开供查阅。<br>
-        <b>需要明确的边界</b>：系统只处理<b>机构资源数据</b>，<b>不提供</b>疾病诊断、用药建议、挂号推荐，也不做医学知识问答——数据集里没有患者诊疗数据。自然语言模块的职责仅是把中文翻译成筛选条件；所有机构名称与统计数字都来自数据库的真实查询结果，不生成、不编造。
-      </div>
+<!-- ============================ 使用帮助 ============================ -->
+<section id="view-doctors" class="view">
+<div class="doctor-summary"><p id="doctor_summary">官方公开医生资料 · 部分收录</p><span>预约统一前往北京114</span></div>
+  <details class="doctor-data-note"><summary>资料范围、收录进度与预约说明</summary><p id="doctor_coverage"></p><p>当前为首批部分医院、部分科室的公开资料，不代表全市三级医院或某医院的全部医生。医生资料独立于机构快照更新；每条记录均标明官方来源和核验日期。行政区按医院机构地址筛选，院区显示的是医院级医生资料，不表示医生在该院区出诊。</p><p>预约统一进入北京114首页，请搜索医院、科室、医生；出诊院区、时间、费用和号源以114及医院实时公布为准。本站不接收挂号订单。</p>  <details class="doctor-coverage-details"><summary>查看全部180条三级机构的医生收录进度</summary><p>机构查询中标注三级的记录全部纳入，包含院区、旧称及其他机构类型。已收录仅表示有部分真实医生资料；待补录不代表该院没有医生。</p><div style="overflow-x:auto;max-height:420px"><table style="width:100%;text-align:left"><thead><tr><th>机构名称</th><th>机构类型</th><th>收录进度</th><th>操作</th></tr></thead><tbody id="doctor_coverage_list"></tbody></table></div></details>
+<p>若114显示503或暂时无法访问，可复制医生的预约信息，稍后在官方平台查询。打开入口不代表预约成功。</p></details>
+  <form id="doctor_filters" class="doctor-filters" role="search" aria-label="查找医生">
+    <label>医生姓名<input id="doctor_name" type="search" placeholder="输入姓名" maxlength="50"></label>
+    <label>行政区<select id="doctor_district"><option value="">全部行政区</option></select></label>
+    <label>医院 / 机构<select id="doctor_hospital"><option value="">全部三级机构</option></select></label>
+    <label>科室<select id="doctor_department"><option value="">全部科室</option></select></label>
+    <button class="btn" type="reset">重置</button>
+    <label class="doctor-aaa"><input id="doctor_aaa" type="checkbox">仅看三甲医院（三级甲等）</label>
+  </form>
+  <div class="doctor-result-bar"><h3 id="doctor_count" aria-live="polite"></h3><span>按姓名排序 · 仅展示已收录资料</span></div>
+  <div id="doctor_results" class="doctor-list"></div>
+  <div id="doctor_pager" class="doctor-pager"></div>
+
+</section>
+
+<section id="view-help" class="view" role="tabpanel" aria-labelledby="hub-tab-help">
+  <article class="help-page">
+    <div class="help-intro"><div><h3>先找到机构，再核对信息</h3><p>从一个区域或关键词开始，逐步添加条件。拿不准怎么描述时，可以用智能问答。</p></div><button type="button" class="btn ghost sm" id="ux_help_return">返回刚才页面</button></div>
+    <ol class="help-start">
+      <li><span aria-hidden="true">1</span><div><h4>设置条件</h4><p>输入机构名或地址，选择行政区、等级和科室，结果会自动更新。</p><button class="text-button" type="button" data-go-view="institutions">去查询机构 →</button></div></li>
+      <li><span aria-hidden="true">2</span><div><h4>核对信息</h4><p>点击机构名称看详情；分析页可比较区域分布、科室证据及协作网络。</p><button class="text-button" type="button" data-go-view="analytics">去查看分析 →</button></div></li>
+      <li><span aria-hidden="true">3</span><div><h4>保留结果</h4><p>星标收藏、选择 2–3 家对比，或在“更多操作”中保存方案、导出 CSV。</p><button class="text-button" type="button" data-go-view="filter">试试智能问答 →</button></div></li>
+    </ol>
+    <h3 class="help-section-title">按你要做的事查阅</h3>
+    <div class="help-topics">
+      <details open><summary>怎么组合筛选条件？</summary><div><p>常用条件直接显示。机构类型、等级等次、科室来源、协作网络和距离条件在“更多条件”中。多个条件需要同时满足，添加条件后结果通常会减少。</p><p>例如查找海淀区三级机构：选择“行政区 → 海淀区”和“医院等级 → 三级”。如果需要三甲，再在“更多条件”中选择“等级等次 → 甲等”。</p><p>已选条件会显示在筛选区下方，点击条件旁的 × 可单独取消；“清空条件”恢复默认查询。</p></div></details>
+      <details><summary>怎么阅读医疗资源分析图表？</summary><div><p>先选择区域集中度、基层服务结构、科室证据覆盖或协作网络覆盖。条长表示收录的机构数量，悬停可查看数值，“查看分析数据表”可读具体明细。</p><p>展开“详细图表分析”，再切换机构结构、科室与专科、区域对比、网络与数据。区域排名可选择比较指标；区域或科室图表支持进入对应机构列表，机构排名可打开详情。</p><p>分析使用当前查询条件。比较全市前请先清空筛选；机构数量和挂牌专科数量不代表服务质量。机构总数、参评等级机构数、有来源记录的机构数是不同口径。</p></div></details>
+      <details><summary>智能问答可以问什么？</summary><div><p>描述区域、机构类型、等级、科室或统计维度即可。系统先展示真实查询结果，再补充智能说明；模型繁忙时，仍可点击“查看完整结果”继续筛选。</p><div class="help-examples"><button type="button" data-help-question="海淀区的三级医院有哪些？">填入示例：海淀区三级医院</button><button type="button" data-help-question="按行政区统计三级医院的数量">填入示例：各区三级医院数量</button></div><p>示例只填入输入框，由你确认发送。本系统用于机构资源查询，不提供疾病诊断和用药建议。</p></div></details>
+      <details><summary>怎么收藏、对比和导出？</summary><div><p>点击机构行右侧星标可收藏，再点一次取消。选择左侧的对比按钮，选满 2–3 家后点击底部“开始对比”；表中展示的是公开数据收录值。</p><p>在“更多操作”中可保存当前筛选方案、复制条件或导出结果 CSV。导出包含全部匹配机构，而不只是当前页。专题分析还有单独的导出按钮。</p><p>收藏和筛选方案只保存在当前浏览器，清除浏览器数据后可能丢失，也不会自动同步到其他设备。</p></div></details>
+      <details><summary>怎么按距离查找机构？</summary><div><p>在“更多条件”中输入地址并点击“设置参考点”，或使用“我的位置”。默认参考点是天安门；定位需要浏览器授权和可用的定位服务。</p><p>直线半径支持大于 0、且不超过 200 千米，只统计高精度坐标机构。粗略坐标会显示“约”，不参与半径筛选。直线距离不是驾车距离或出行时间，实际路线请使用地图导航。</p></div></details>
     </div>
-  </div>
+    <details class="doctor-data-note"><summary>怎么找医生并预约？</summary><p>左侧“找医生”可按姓名、医院、科室及行政区筛选；医院详情的“医生”标签可以直接查看该院已收录资料。智能问答支持“北京协和医院有哪些心内科医生”。核对官网资料后，复制预约信息并前往北京114，搜索医院、科室、医生。当前为首批部分资料；没有收录不代表该院没有医生。</p><button class="text-button" type="button" data-go-view="doctors">打开找医生 →</button></details>
+    <h3 class="help-section-title">遇到问题时</h3>
+    <div class="help-topics">
+      <details><summary>没有结果，应该怎么办？</summary><div><p>先看“筛选依据”，其中“取消后命中”表示去掉这项条件、保留其余条件时的数量。优先取消能恢复结果的条件，或减少关键词、放宽等级和区域。</p><button type="button" class="text-button" id="ux_help_reset">清空条件并返回查询 →</button></div></details>
+      <details><summary>为什么有的科室、电话或地址显示未收录？</summary><div><p>公开来源覆盖范围不同，未收录不代表机构没有该项服务。“有来源记录”与“名称或规则推断”会分开说明；确认当前联系方式和科室服务时，请以机构官方信息为准。</p></div></details>
+      <details><summary>为什么问答显示本地查询结果？</summary><div><p>智能说明依赖模型服务，可能因网络、配置或限流暂时不可用。本地结果仍由机构快照真实筛选得到，可以继续打开完整列表、查看详情和导出。</p></div></details>
+      <details><summary>有哪些键盘操作？</summary><div><p><kbd>/</kbd> 或 <kbd>Ctrl / ⌘</kbd> + <kbd>K</kbd> 进入机构搜索；问答中 <kbd>Enter</kbd> 发送，<kbd>Shift</kbd> + <kbd>Enter</kbd> 换行；<kbd>Esc</kbd> 关闭弹窗或退出问答。图表分类可用左右方向键切换。</p></div></details>
+    </div>
+    <p class="help-related">想了解资料是否齐全？<button class="text-button" type="button" data-go-view="quality">查看数据质量与覆盖 →</button><button class="text-button" type="button" data-go-view="integration">查看数据来源与更新 →</button></p><p class="help-footer">页面顶部的“?”和左侧“帮助与数据说明”可随时回到这里。使用上方栏目查看数据来源、质量与系统范围。</p>
+  </article>
+</section>
+
+<!-- ============================ 关于 ============================ -->
+<section id="view-about" class="view" role="tabpanel" aria-labelledby="hub-tab-about">
   <div class="about-grid">
     <div class="panel">
       <h3>数据规模 <span class="tag">DATA SCALE</span></h3>
       <div class="infogrid" id="ab_counts"></div>
       <div class="notice" style="margin-top:13px">
-        与官方公布的 11,994 家差额 2,203 家，主要是<b>基层医疗机构口径缺口</b>（朝阳 / 海淀 / 通州等区的村卫生室与社区卫生服务站），
-        官方完整数据集需注册登录后下载，公开渠道无法匿名批量获取。
+        本数据集由当前可获得的公开来源整合，<b>不等同于官方实时全量名录</b>。不同来源的发布时间、覆盖范围和机构统计口径存在差异，跨批次比较前请先核对分母与来源。
       </div>
     </div>
     <div class="panel">
       <h3>更新时间 <span class="tag">VERSION</span></h3>
       <div class="infogrid">
         <div class="ibox"><div class="k">快照日期</div><div class="v" id="ab_snap">—</div></div>
-        <div class="ibox"><div class="k">页面版本</div><div class="v">v4.0</div></div>
+        <div class="ibox"><div class="k">页面版本</div><div class="v">v6.15 · 分析口径与交互优化</div></div>
       </div>
       <div class="blk"><h4><span class="bar"></span>更新日志</h4><div class="loglist" id="ab_log"></div></div>
     </div>
   </div>
 
+  <details class="help-technical"><summary>查看来源链接与技术架构</summary>
   <div class="sec-title"><span class="bar"></span>数据来源</div>
   <div class="about-grid" style="padding-top:var(--gap)">
     <div class="panel" style="grid-column:1/-1">
@@ -1773,15 +1934,16 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
       </div>
     </div>
   </div>
+  </details>
 </section>
 
-<div class="footer">
+<div class="footer"><p>机构信息为公开数据快照。电话、地址、科室和服务是否仍有效，请以机构官方信息为准。</p><details><summary>查看项目技术信息</summary>
   <div><b>技术栈：</b>Spark 3.5.3 (ARM64) · MySQL 8 · Flask · ECharts · Docker Compose &nbsp;|&nbsp;
     <b>数仓分层：</b>ODS → DWD → DWS → ADS &nbsp;|&nbsp;
     <b>筛选主表：</b><code>ads_inst_search</code> 9,678 行 &nbsp;|&nbsp;
     <b>治理列：</b>办别归属 · 类别细分 · 擅长科室三级分级</div>
   <div style="margin-top:6px">数据来源：北京市卫生健康委员会等公开渠道 · 本系统仅用于学术研究与毕业设计演示，不构成就医建议</div>
-</div>
+</details></div>
 
 <!-- 对比浮条 -->
 <div class="cmpbar" id="cmpbar">
@@ -1792,11 +1954,11 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 </div>
 
 <!-- 对比弹窗 -->
-<div class="cmpwrap" id="cmpwrap">
+<div class="cmpwrap" id="cmpwrap" role="dialog" aria-modal="true" aria-labelledby="cmp_title" aria-hidden="true">
   <div class="cmpbox">
     <div class="ch">
       <div>
-        <h2>机构横向对比</h2>
+        <h2 id="cmp_title">机构横向对比</h2>
         <div style="color:var(--ink-4);font-size:11px;margin-top:3px" id="cmp_sub">—</div>
       </div>
       <div class="r">
@@ -1806,8 +1968,8 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
     </div>
     <div class="cb"><table class="cmp" id="cmp_table"><thead></thead><tbody></tbody></table></div>
     <div class="cmpfoot">
-      <span class="legend"><span><span class="dot" style="background:#46c08a"></span>绿色为该行最优值</span></span>
-      <span style="margin-left:auto">对比距离以各自当前距离基准计算，保证横向可比 · 数据来自 <code style="color:var(--acc)">ads_inst_search</code></span>
+      <span class="legend"><span><span class="dot" style="background:#46c08a"></span>绿色标出该行较高计数或较近距离，不代表医疗质量</span></span>
+      <span style="margin-left:auto">对比距离均相对于当前参考点计算；仅表示直线距离，不代表出行时间</span>
     </div>
   </div>
 </div>
@@ -1817,11 +1979,11 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 </div>
 
 <!-- 收藏夹 -->
-<div class="cmpwrap" id="favwrap">
+<div class="cmpwrap" id="favwrap" role="dialog" aria-modal="true" aria-labelledby="fav_title" aria-hidden="true">
   <div class="cmpbox" style="max-width:780px">
     <div class="ch">
       <div>
-        <h2>我的收藏清单</h2>
+        <h2 id="fav_title">我的收藏清单</h2>
         <div style="color:var(--ink-4);font-size:11px;margin-top:3px" id="fav_sub">—</div>
       </div>
       <div class="r">
@@ -1839,25 +2001,27 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 
 <!-- 详情抽屉 -->
 <div class="scrim" id="scrim"></div>
-<aside class="drawer" id="drawer">
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dw_name" aria-hidden="true">
   <div class="dw-hd">
     <div style="flex:1;min-width:0">
       <div class="nm" id="dw_name">机构详情</div>
       <div class="mt" id="dw_meta"></div>
     </div>
-    <button class="x" id="dw_close">×</button>
+    <button class="x" id="dw_close" type="button" aria-label="关闭机构详情">×</button>
   </div>
-  <div class="dw-tabs">
-    <button class="dw-tab active" data-pane="ov">概览</button>
-    <button class="dw-tab" data-pane="contact">联系方式与导航</button>
-    <button class="dw-tab" data-pane="spec">重点专科</button>
-    <button class="dw-tab" data-pane="near" title="周边配套（地铁站 / 停车场 / 公交站）需要本地 Flask 服务与高德开放平台 Key；离线单文件形态不可用">周边配套 · 当前离线不可用</button>
+  <div class="dw-tabs" role="tablist" aria-label="机构详情内容">
+    <button class="dw-tab active" id="tab-ov" role="tab" aria-selected="true" aria-controls="pane-ov" data-pane="ov">概览</button>
+    <button class="dw-tab" id="tab-doctors" role="tab" aria-selected="false" aria-controls="pane-doctors" tabindex="-1" data-pane="doctors">医生</button>
+    <button class="dw-tab" id="tab-contact" role="tab" aria-selected="false" aria-controls="pane-contact" tabindex="-1" data-pane="contact">联系方式与导航</button>
+    <button class="dw-tab" id="tab-spec" role="tab" aria-selected="false" aria-controls="pane-spec" tabindex="-1" data-pane="spec">重点专科</button>
+    <button class="dw-tab" id="tab-near" role="tab" aria-selected="false" aria-controls="pane-near" tabindex="-1" data-pane="near" title="周边配套需联网查询；离线时可使用机构地址和地图导航。">周边配套</button>
   </div>
   <div class="dw-body">
-    <div class="dw-pane active" id="pane-ov"></div>
-    <div class="dw-pane" id="pane-contact"></div>
-    <div class="dw-pane" id="pane-spec"></div>
-    <div class="dw-pane" id="pane-near"></div>
+    <div class="dw-pane active" id="pane-ov" role="tabpanel" aria-labelledby="tab-ov"></div>
+    <div class="dw-pane" id="pane-doctors" role="tabpanel" aria-labelledby="tab-doctors"></div>
+    <div class="dw-pane" id="pane-contact" role="tabpanel" aria-labelledby="tab-contact"></div>
+    <div class="dw-pane" id="pane-spec" role="tabpanel" aria-labelledby="tab-spec"></div>
+    <div class="dw-pane" id="pane-near" role="tabpanel" aria-labelledby="tab-near"></div>
   </div>
   <div class="dw-ft">
     <button class="btn pri sm" id="dw_pick">＋ 加入对比</button>
@@ -1868,7 +2032,10 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
   </div>
 </aside>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+<div class="cmpwrap ux-copy-wrap" id="copywrap" role="dialog" aria-modal="true" aria-labelledby="ux_copy_title" aria-hidden="true"><div class="cmpbox"><div class="ch"><h2 id="ux_copy_title">手动复制</h2><button type="button" class="btn ghost" id="ux_copy_close">关闭</button></div><div class="cb"><p>浏览器暂不允许自动复制。内容已选中，可按 Ctrl+C 或 Command+C 复制。</p><textarea id="ux_copy_text" readonly aria-label="待复制内容"></textarea></div></div></div>
+<nav class="ux-mobile-nav" id="ux_mobile_nav" aria-label="常用页面"><button type="button" data-mobile-view="institutions"><span>⌕</span>机构查询</button><button type="button" data-mobile-view="overview"><span>◫</span>数据总览</button><button type="button" data-mobile-view="analytics"><span>▥</span>资源分析</button><button type="button" data-mobile-view="filter"><span>✧</span>智能问答</button></nav>
+<script src="app.query.js"></script>
 <script src="app.js"></script>
 <!-- 智能问答窗口的离线引擎与界面层（单文件形态不依赖任何服务）：
      ① app.nlq.js   —— 与 web/nlq.py 同源的解析 / 筛选 / 统计引擎；
@@ -1882,6 +2049,7 @@ input.listening{border-color:var(--crit)!important;box-shadow:0 0 0 3px rgba(var
 <script>/* 词表装载：构建产物里 __NLQ_LEX__ 已内联（外层 {meta, lex}，真正的词表在 .lex）；
        开发形态下 app.chat.js 所在页面的词表由 NLQ.init 注入，无词表时聊天走拒答兜底 */
 if (window.__NLQ_LEX__ && window.NLQ) { var _nlqLex = window.__NLQ_LEX__; NLQ.init(_nlqLex.lex || _nlqLex); }</script>
+<script src="app.doctors.js"></script>
 <script src="app.chat.js"></script>
 
 <!-- 机构证据增强（院区/挂牌证据 · 官方预约入口 · 出发点与地图导航）：
@@ -1890,6 +2058,7 @@ if (window.__NLQ_LEX__ && window.NLQ) { var _nlqLex = window.__NLQ_LEX__; NLQ.in
      构建时内联为 window.__CAMPUS__；开发形态回退读同目录 campus_evidence.json。
      该模块只渲染「有据可查」的链接与证据，绝不生成号源、排班或院专属挂号链接。 -->
 <script src="app.evidence.js"></script>
+<script src="app.ux.js"></script>
 
 <!-- ===================== 智能筛选悬浮球：机器人图标 ===================== -->
 <button class="fab pulse" id="fab_nlq" type="button" title="智能筛选：用一句话找机构" aria-label="智能筛选">

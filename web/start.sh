@@ -23,4 +23,4 @@ echo "  旧 /spa/ 路径已下线，会自动 302 跳转回 /"
 echo "  注意：定位功能需要 http:// 协议，file:// 协议下浏览器拒绝授权"
 echo "  停止服务: Ctrl+C"
 echo ""
-exec /Users/brooke/.workbuddy/binaries/python/envs/default/bin/python web/app.py
+exec "${PYTHON_BIN:-python3}" web/app.py

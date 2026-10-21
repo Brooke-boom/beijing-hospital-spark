@@ -83,3 +83,13 @@ spark/.ivy2/
 
 # 另一 IDE（Trae）的规划文档目录，非项目代码；且其中题目与定版不一致，不入库
 .trae/
+
+# 最终学位材料与本地构建、历史备份
+答辩材料/
+backups/
+*同步前备份*/
+*PPT-build/
+_backup_*
+
+# 本地历史回归批次产物
+data/validation/

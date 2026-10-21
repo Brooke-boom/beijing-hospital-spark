@@ -1,0 +1,219 @@
+{
+  "date": "2026-10-19",
+  "version": "v6.7-browser-audit-20261019",
+  "desktopCharts": [
+    {
+      "group": "机构结构",
+      "dom": {
+        "charts": [
+          {
+            "canvas": true,
+            "height": 360,
+            "id": "ch_own",
+            "width": 530
+          },
+          {
+            "canvas": true,
+            "height": 360,
+            "id": "ch_lvown",
+            "width": 530
+          },
+          {
+            "canvas": true,
+            "height": 440,
+            "id": "ch_catown",
+            "width": 1122
+          }
+        ],
+        "overflow": false
+      }
+    },
+    {
+      "group": "科室与专科",
+      "dom": {
+        "charts": [
+          {
+            "canvas": true,
+            "height": 360,
+            "id": "ch_feat",
+            "width": 530
+          },
+          {
+            "canvas": true,
+            "height": 400,
+            "id": "ch_topsp",
+            "width": 530
+          },
+          {
+            "canvas": true,
+            "height": 360,
+            "id": "ch_spdist",
+            "width": 530
+          },
+          {
+            "canvas": true,
+            "height": 360,
+            "id": "ch_splv",
+            "width": 530
+          },
+          {
+            "canvas": true,
+            "height": 530,
+            "id": "ch_deptop",
+            "width": 1122
+          }
+        ],
+        "overflow": false
+      }
+    },
+    {
+      "group": "区域对比",
+      "dom": {
+        "charts": [
+          {
+            "canvas": true,
+            "height": 550,
+            "id": "ch_distlv",
+            "width": 530
+          },
+          {
+            "canvas": true,
+            "height": 550,
+            "id": "ch_distmx",
+            "width": 530
+          }
+        ],
+        "overflow": false
+      }
+    },
+    {
+      "group": "网络与数据",
+      "dom": {
+        "charts": [
+          {
+            "canvas": true,
+            "height": 360,
+            "id": "ch_netlv",
+            "width": 530
+          },
+          {
+            "canvas": true,
+            "height": 360,
+            "id": "ch_srcmap",
+            "width": 530
+          },
+          {
+            "canvas": true,
+            "height": 360,
+            "id": "ch_coord",
+            "width": 530
+          }
+        ],
+        "overflow": false
+      }
+    }
+  ],
+  "desktopPages": [
+    {
+      "page": "数据总览",
+      "check": {
+        "activeNav": [
+          "数据总览"
+        ],
+        "drawer": "hidden",
+        "heading": "数据总览",
+        "overflow": false
+      }
+    },
+    {
+      "page": "数据整合",
+      "check": {
+        "activeNav": [
+          "数据整合"
+        ],
+        "drawer": "hidden",
+        "heading": "数据整合",
+        "overflow": false
+      }
+    },
+    {
+      "page": "数据质量",
+      "check": {
+        "activeNav": [
+          "数据质量"
+        ],
+        "drawer": "hidden",
+        "heading": "数据质量",
+        "overflow": false
+      }
+    },
+    {
+      "page": "系统说明",
+      "check": {
+        "activeNav": [
+          "系统说明"
+        ],
+        "drawer": "hidden",
+        "heading": "系统说明",
+        "overflow": false
+      }
+    }
+  ],
+  "mobilePages": [
+    {
+      "page": "机构查询",
+      "dom": {
+        "heading": "机构查询",
+        "menuOpen": false,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "page": "数据总览",
+      "dom": {
+        "heading": "数据总览",
+        "menuOpen": false,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "page": "医疗资源分析",
+      "dom": {
+        "heading": "医疗资源分析",
+        "menuOpen": false,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "page": "数据整合",
+      "dom": {
+        "heading": "数据整合",
+        "menuOpen": false,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "page": "数据质量",
+      "dom": {
+        "heading": "数据质量",
+        "menuOpen": false,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "page": "系统说明",
+      "dom": {
+        "heading": "系统说明",
+        "menuOpen": false,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    }
+  ],
+  "finalBrowserWarnings": []
+}

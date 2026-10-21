@@ -211,10 +211,10 @@ def main():
             print("  ✓ %s：词表 + 引擎 + 界面层齐备，无下线模块残留" % rel)
 
     # ---- Vue 构建产物（前后端分离形态，Flask 挂在 /spa/）----
-    print("\n▶ web/vue/dist（Vue 3 构建产物，由 Flask 挂载在 /spa/）")
+    print("\n▶ web/vue/dist（历史技术栈展示，/spa/ 当前跳转至主入口）")
     vue_dist = os.path.join(BASE, "web", "vue", "dist")
     if not os.path.isdir(vue_dist):
-        print("  ⚠ 未构建（/spa/ 会返回 503）。构建：bash web/vue/build.sh")
+        print("  · Vue 展示产物未构建，跳过；当前用户入口为单文件大屏。")
     else:
         idx = os.path.join(vue_dist, "index.html")
         if not os.path.exists(idx):
@@ -287,7 +287,7 @@ def main():
             print("  ✓ 构建产物不旧于源码")
 
     print("\n" + "=" * 70)
-    print("  %s" % ("✅ 三份产物 + Vue 产物校验通过" if ok else "❌ 存在未通过项，见上方 ✗ 标记"))
+    print("  %s" % ("✅ 三份单文件产物通过（Vue 展示产物仅在存在时检查）" if ok else "❌ 存在未通过项，见上方 ✗ 标记"))
     print("=" * 70)
     return 0 if ok else 1
 

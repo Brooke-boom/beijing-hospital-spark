@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "metrics": {
+    "institutions": {
+      "label": "机构记录总数",
+      "rule": {
+        "op": "all"
+      },
+      "definition": "当前快照唯一机构ID记录数，包含院区和旧名，不等于去重医院数"
+    },
+    "hospitals": {
+      "label": "医院类型机构记录",
+      "rule": {
+        "field": "category",
+        "op": "in",
+        "value": [
+          "医院",
+          "综合医院",
+          "专科医院",
+          "中医医院"
+        ]
+      },
+      "definition": "按机构类别统计医院类型，含归一类别及原类别，不按机构名称推断"
+    },
+    "community": {
+      "label": "社区卫生服务机构记录",
+      "rule": {
+        "field": "category",
+        "op": "in",
+        "value": [
+          "社区卫生服务中心",
+          "社区卫生服务站"
+        ]
+      },
+      "definition": "category为社区卫生服务中心或社区卫生服务站；按机构ID计数，不按名称正则匹配"
+    },
+    "tertiary": {
+      "label": "三级机构记录",
+      "rule": {
+        "field": "level",
+        "op": "eq",
+        "value": "三级"
+      },
+      "definition": "level=三级，包含全部机构类型，不限医院类别"
+    },
+    "coordinates": {
+      "label": "有坐标机构",
+      "rule": {
+        "op": "all_present",
+        "fields": [
+          "lng",
+          "lat"
+        ]
+      },
+      "definition": "经纬度均非空，不代表高精度"
+    },
+    "dept_covered": {
+      "label": "有科室映射机构",
+      "rule": {
+        "field": "depts",
+        "op": "nonempty"
+      },
+      "definition": "至少一条非空科室映射，含名称及规则推断"
+    },
+    "dept_recorded": {
+      "label": "有科室来源记录机构",
+      "rule": {
+        "field": "recorded_depts",
+        "op": "nonempty"
+      },
+      "definition": "至少一条有来源科室记录，不代表当前在营确认"
+    },
+    "specialty_named_institutions": {
+      "label": "重点专科名单名称覆盖机构记录",
+      "rule": {
+        "op": "any_nonempty",
+        "fields": [
+          "national_specialty",
+          "municipal_specialty"
+        ]
+      },
+      "definition": "国家或市级名单名称字段有记录，不使用历史专科汇总字段"
+    },
+    "coord_high": {
+      "label": "高精度坐标",
+      "rule": {
+        "field": "coord_precision",
+        "op": "eq",
+        "value": "high"
+      },
+      "definition": "coord_precision=high"
+    },
+    "coord_rough": {
+      "label": "粗精度坐标",
+      "rule": {
+        "field": "coord_precision",
+        "op": "eq",
+        "value": "rough"
+      },
+      "definition": "coord_precision=rough"
+    },
+    "coord_missing": {
+      "label": "缺失坐标",
+      "rule": {
+        "field": "coord_precision",
+        "op": "eq",
+        "value": "missing"
+      },
+      "definition": "coord_precision=missing"
+    }
+  }
+}

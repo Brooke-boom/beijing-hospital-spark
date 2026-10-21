@@ -40,7 +40,7 @@ import re
 import sys
 from collections import defaultdict
 
-BASE = os.path.expanduser("~/Desktop/毕设")
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MASTER = os.path.join(BASE, "data/processed/master_institutions.csv")
 ALIAS = os.path.join(BASE, "data/processed/alias_map.csv")
 OUT = os.path.join(BASE, "web/campus_evidence.json")

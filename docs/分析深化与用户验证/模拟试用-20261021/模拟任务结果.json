@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-21",
+  "type": "AI_browser_task_walkthrough",
+  "real_participants": 0,
+  "human_duration_seconds": null,
+  "satisfaction": null,
+  "tasks": [
+    {
+      "id": "T1",
+      "outcome": "completed_in_app",
+      "observations": [
+        "tertiary 180",
+        "Haidian tertiary 28"
+      ]
+    },
+    {
+      "id": "T2",
+      "outcome": "evidence_found",
+      "observations": [
+        "three districts tied at 28",
+        "limits visible"
+      ]
+    },
+    {
+      "id": "T3",
+      "outcome": "evidence_found",
+      "observations": [
+        "mapped 6745",
+        "source-backed 772"
+      ]
+    },
+    {
+      "id": "T4",
+      "outcome": "partial_external_handoff_blocked",
+      "observations": [
+        "301 no collected doctors",
+        "changed hospital: Peking University Third Hospital, 7 records",
+        "114 tab title 503; detailed inspection timed out"
+      ]
+    },
+    {
+      "id": "T5",
+      "outcome": "evidence_found",
+      "observations": [
+        "pediatric 44",
+        "stroke 67",
+        "intersection 22",
+        "union 89"
+      ]
+    }
+  ],
+  "issues_status": "observed_not_fixed",
+  "real_trial_records_untouched": true
+}

@@ -1,0 +1,4020 @@
+{
+  "meta": {
+    "snapshot_date": "2026-10-18",
+    "fingerprint": "3825eec57b0e26b4c3d0b28e4f9fc9cd8c7294b685709db7c0dde878f4557980",
+    "institution_count": 9678,
+    "snapshot_sha256": "54596b09d06cdd17a9d208afe70efbc501a756a5d25df2efac5cc71d01cfbc83",
+    "engine": "Spark 3.5.3",
+    "master": "local[2]",
+    "input_layer": "frozen ADS application snapshot",
+    "upstream_rerun": false,
+    "elapsed_seconds": 20.17,
+    "checks": {
+      "district_sum": 9678,
+      "grade_sum": 9678,
+      "coordinate_sum": 9678
+    }
+  },
+  "overlap": [
+    {
+      "left": "pediatric",
+      "right": "pediatric",
+      "count": 44
+    },
+    {
+      "left": "pediatric",
+      "right": "stroke",
+      "count": 22
+    },
+    {
+      "left": "pediatric",
+      "right": "neonatal",
+      "count": 3
+    },
+    {
+      "left": "pediatric",
+      "right": "maternal",
+      "count": 7
+    },
+    {
+      "left": "stroke",
+      "right": "pediatric",
+      "count": 22
+    },
+    {
+      "left": "stroke",
+      "right": "stroke",
+      "count": 67
+    },
+    {
+      "left": "stroke",
+      "right": "neonatal",
+      "count": 3
+    },
+    {
+      "left": "stroke",
+      "right": "maternal",
+      "count": 16
+    },
+    {
+      "left": "neonatal",
+      "right": "pediatric",
+      "count": 3
+    },
+    {
+      "left": "neonatal",
+      "right": "stroke",
+      "count": 3
+    },
+    {
+      "left": "neonatal",
+      "right": "neonatal",
+      "count": 7
+    },
+    {
+      "left": "neonatal",
+      "right": "maternal",
+      "count": 3
+    },
+    {
+      "left": "maternal",
+      "right": "pediatric",
+      "count": 7
+    },
+    {
+      "left": "maternal",
+      "right": "stroke",
+      "count": 16
+    },
+    {
+      "left": "maternal",
+      "right": "neonatal",
+      "count": 3
+    },
+    {
+      "left": "maternal",
+      "right": "maternal",
+      "count": 18
+    }
+  ],
+  "tables": {
+    "district": [
+      {
+        "district": "东城区",
+        "total": 419,
+        "tertiary": 17,
+        "recorded": 32,
+        "network": 9
+      },
+      {
+        "district": "丰台区",
+        "total": 527,
+        "tertiary": 20,
+        "recorded": 29,
+        "network": 13
+      },
+      {
+        "district": "大兴区",
+        "total": 877,
+        "tertiary": 10,
+        "recorded": 8,
+        "network": 4
+      },
+      {
+        "district": "密云区",
+        "total": 674,
+        "tertiary": 3,
+        "recorded": 10,
+        "network": 2
+      },
+      {
+        "district": "平谷区",
+        "total": 348,
+        "tertiary": 2,
+        "recorded": 5,
+        "network": 1
+      },
+      {
+        "district": "延庆区",
+        "total": 233,
+        "tertiary": 1,
+        "recorded": 3,
+        "network": 1
+      },
+      {
+        "district": "怀柔区",
+        "total": 364,
+        "tertiary": 3,
+        "recorded": 7,
+        "network": 2
+      },
+      {
+        "district": "房山区",
+        "total": 1074,
+        "tertiary": 6,
+        "recorded": 8,
+        "network": 6
+      },
+      {
+        "district": "昌平区",
+        "total": 1309,
+        "tertiary": 12,
+        "recorded": 489,
+        "network": 6
+      },
+      {
+        "district": "朝阳区",
+        "total": 1163,
+        "tertiary": 28,
+        "recorded": 63,
+        "network": 12
+      },
+      {
+        "district": "海淀区",
+        "total": 685,
+        "tertiary": 28,
+        "recorded": 34,
+        "network": 12
+      },
+      {
+        "district": "石景山区",
+        "total": 111,
+        "tertiary": 6,
+        "recorded": 6,
+        "network": 3
+      },
+      {
+        "district": "西城区",
+        "total": 718,
+        "tertiary": 28,
+        "recorded": 48,
+        "network": 11
+      },
+      {
+        "district": "通州区",
+        "total": 179,
+        "tertiary": 6,
+        "recorded": 7,
+        "network": 4
+      },
+      {
+        "district": "门头沟区",
+        "total": 50,
+        "tertiary": 2,
+        "recorded": 3,
+        "network": 3
+      },
+      {
+        "district": "顺义区",
+        "total": 947,
+        "tertiary": 8,
+        "recorded": 20,
+        "network": 3
+      }
+    ],
+    "grade": [
+      {
+        "district": "大兴区",
+        "level": "未定级",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "level": "三级",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "level": "未定级",
+        "count": 1
+      },
+      {
+        "district": "石景山区",
+        "level": "未定级",
+        "count": 1
+      },
+      {
+        "district": "通州区",
+        "level": "未定级",
+        "count": 1
+      },
+      {
+        "district": "顺义区",
+        "level": "未定级",
+        "count": 1
+      },
+      {
+        "district": "大兴区",
+        "level": "三级",
+        "count": 10
+      },
+      {
+        "district": "房山区",
+        "level": "不适用医院分级",
+        "count": 1035
+      },
+      {
+        "district": "朝阳区",
+        "level": "不适用医院分级",
+        "count": 1052
+      },
+      {
+        "district": "昌平区",
+        "level": "不适用医院分级",
+        "count": 1199
+      },
+      {
+        "district": "昌平区",
+        "level": "三级",
+        "count": 12
+      },
+      {
+        "district": "通州区",
+        "level": "一级",
+        "count": 12
+      },
+      {
+        "district": "西城区",
+        "level": "二级",
+        "count": 15
+      },
+      {
+        "district": "通州区",
+        "level": "不适用医院分级",
+        "count": 154
+      },
+      {
+        "district": "东城区",
+        "level": "三级",
+        "count": 17
+      },
+      {
+        "district": "昌平区",
+        "level": "二级",
+        "count": 17
+      },
+      {
+        "district": "平谷区",
+        "level": "一级",
+        "count": 18
+      },
+      {
+        "district": "西城区",
+        "level": "一级",
+        "count": 18
+      },
+      {
+        "district": "海淀区",
+        "level": "一级",
+        "count": 19
+      },
+      {
+        "district": "平谷区",
+        "level": "三级",
+        "count": 2
+      },
+      {
+        "district": "昌平区",
+        "level": "未定级",
+        "count": 2
+      },
+      {
+        "district": "西城区",
+        "level": "未定级",
+        "count": 2
+      },
+      {
+        "district": "门头沟区",
+        "level": "一级",
+        "count": 2
+      },
+      {
+        "district": "门头沟区",
+        "level": "三级",
+        "count": 2
+      },
+      {
+        "district": "丰台区",
+        "level": "三级",
+        "count": 20
+      },
+      {
+        "district": "延庆区",
+        "level": "一级",
+        "count": 20
+      },
+      {
+        "district": "延庆区",
+        "level": "不适用医院分级",
+        "count": 207
+      },
+      {
+        "district": "房山区",
+        "level": "一级",
+        "count": 21
+      },
+      {
+        "district": "怀柔区",
+        "level": "一级",
+        "count": 22
+      },
+      {
+        "district": "丰台区",
+        "level": "二级",
+        "count": 24
+      },
+      {
+        "district": "海淀区",
+        "level": "二级",
+        "count": 25
+      },
+      {
+        "district": "朝阳区",
+        "level": "三级",
+        "count": 28
+      },
+      {
+        "district": "海淀区",
+        "level": "三级",
+        "count": 28
+      },
+      {
+        "district": "西城区",
+        "level": "三级",
+        "count": 28
+      },
+      {
+        "district": "密云区",
+        "level": "三级",
+        "count": 3
+      },
+      {
+        "district": "密云区",
+        "level": "二级",
+        "count": 3
+      },
+      {
+        "district": "怀柔区",
+        "level": "三级",
+        "count": 3
+      },
+      {
+        "district": "密云区",
+        "level": "一级",
+        "count": 32
+      },
+      {
+        "district": "平谷区",
+        "level": "不适用医院分级",
+        "count": 324
+      },
+      {
+        "district": "朝阳区",
+        "level": "一级",
+        "count": 33
+      },
+      {
+        "district": "怀柔区",
+        "level": "不适用医院分级",
+        "count": 333
+      },
+      {
+        "district": "东城区",
+        "level": "不适用医院分级",
+        "count": 350
+      },
+      {
+        "district": "东城区",
+        "level": "一级",
+        "count": 39
+      },
+      {
+        "district": "平谷区",
+        "level": "二级",
+        "count": 4
+      },
+      {
+        "district": "延庆区",
+        "level": "二级",
+        "count": 4
+      },
+      {
+        "district": "朝阳区",
+        "level": "未定级",
+        "count": 4
+      },
+      {
+        "district": "门头沟区",
+        "level": "二级",
+        "count": 4
+      },
+      {
+        "district": "门头沟区",
+        "level": "不适用医院分级",
+        "count": 42
+      },
+      {
+        "district": "丰台区",
+        "level": "不适用医院分级",
+        "count": 430
+      },
+      {
+        "district": "朝阳区",
+        "level": "二级",
+        "count": 46
+      },
+      {
+        "district": "东城区",
+        "level": "未定级",
+        "count": 5
+      },
+      {
+        "district": "房山区",
+        "level": "二级",
+        "count": 5
+      },
+      {
+        "district": "石景山区",
+        "level": "二级",
+        "count": 5
+      },
+      {
+        "district": "大兴区",
+        "level": "一级",
+        "count": 51
+      },
+      {
+        "district": "丰台区",
+        "level": "一级",
+        "count": 53
+      },
+      {
+        "district": "顺义区",
+        "level": "一级",
+        "count": 53
+      },
+      {
+        "district": "怀柔区",
+        "level": "二级",
+        "count": 6
+      },
+      {
+        "district": "房山区",
+        "level": "三级",
+        "count": 6
+      },
+      {
+        "district": "石景山区",
+        "level": "三级",
+        "count": 6
+      },
+      {
+        "district": "通州区",
+        "level": "三级",
+        "count": 6
+      },
+      {
+        "district": "通州区",
+        "level": "二级",
+        "count": 6
+      },
+      {
+        "district": "海淀区",
+        "level": "不适用医院分级",
+        "count": 613
+      },
+      {
+        "district": "密云区",
+        "level": "不适用医院分级",
+        "count": 636
+      },
+      {
+        "district": "西城区",
+        "level": "不适用医院分级",
+        "count": 655
+      },
+      {
+        "district": "房山区",
+        "level": "未定级",
+        "count": 7
+      },
+      {
+        "district": "昌平区",
+        "level": "一级",
+        "count": 79
+      },
+      {
+        "district": "东城区",
+        "level": "二级",
+        "count": 8
+      },
+      {
+        "district": "石景山区",
+        "level": "一级",
+        "count": 8
+      },
+      {
+        "district": "顺义区",
+        "level": "三级",
+        "count": 8
+      },
+      {
+        "district": "顺义区",
+        "level": "二级",
+        "count": 8
+      },
+      {
+        "district": "大兴区",
+        "level": "不适用医院分级",
+        "count": 806
+      },
+      {
+        "district": "顺义区",
+        "level": "不适用医院分级",
+        "count": 877
+      },
+      {
+        "district": "大兴区",
+        "level": "二级",
+        "count": 9
+      },
+      {
+        "district": "石景山区",
+        "level": "不适用医院分级",
+        "count": 91
+      }
+    ],
+    "department": [
+      {
+        "district": "延庆区",
+        "department": "中医内科",
+        "count": 1
+      },
+      {
+        "district": "大兴区",
+        "department": "中医骨伤科",
+        "count": 1
+      },
+      {
+        "district": "平谷区",
+        "department": "中医骨伤科",
+        "count": 1
+      },
+      {
+        "district": "怀柔区",
+        "department": "中医骨伤科",
+        "count": 1
+      },
+      {
+        "district": "房山区",
+        "department": "中医骨伤科",
+        "count": 1
+      },
+      {
+        "district": "石景山区",
+        "department": "中医骨伤科",
+        "count": 1
+      },
+      {
+        "district": "通州区",
+        "department": "中医骨伤科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "中医骨伤科",
+        "count": 1
+      },
+      {
+        "district": "顺义区",
+        "department": "中医骨伤科",
+        "count": 1
+      },
+      {
+        "district": "大兴区",
+        "department": "临床营养科",
+        "count": 1
+      },
+      {
+        "district": "平谷区",
+        "department": "临床营养科",
+        "count": 1
+      },
+      {
+        "district": "石景山区",
+        "department": "临床营养科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "乳腺外科",
+        "count": 1
+      },
+      {
+        "district": "怀柔区",
+        "department": "乳腺外科",
+        "count": 1
+      },
+      {
+        "district": "昌平区",
+        "department": "乳腺外科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "介入血管外科",
+        "count": 1
+      },
+      {
+        "district": "房山区",
+        "department": "介入血管外科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "介入血管外科",
+        "count": 1
+      },
+      {
+        "district": "大兴区",
+        "department": "全科医疗科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "全科医疗科",
+        "count": 1
+      },
+      {
+        "district": "石景山区",
+        "department": "全科医疗科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "内分泌科",
+        "count": 1
+      },
+      {
+        "district": "怀柔区",
+        "department": "内分泌科",
+        "count": 1
+      },
+      {
+        "district": "平谷区",
+        "department": "医学影像科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "医学影像科",
+        "count": 1
+      },
+      {
+        "district": "大兴区",
+        "department": "医学检验科",
+        "count": 1
+      },
+      {
+        "district": "平谷区",
+        "department": "医学检验科",
+        "count": 1
+      },
+      {
+        "district": "石景山区",
+        "department": "医学检验科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "呼吸内科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "呼吸内科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "呼吸内科",
+        "count": 1
+      },
+      {
+        "district": "丰台区",
+        "department": "小儿外科",
+        "count": 1
+      },
+      {
+        "district": "昌平区",
+        "department": "小儿外科",
+        "count": 1
+      },
+      {
+        "district": "通州区",
+        "department": "小儿外科",
+        "count": 1
+      },
+      {
+        "district": "顺义区",
+        "department": "小儿外科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "心胸外科",
+        "count": 1
+      },
+      {
+        "district": "平谷区",
+        "department": "心胸外科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "心胸外科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "心血管内科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "心血管内科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "心血管内科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "急诊科",
+        "count": 1
+      },
+      {
+        "district": "平谷区",
+        "department": "急诊科",
+        "count": 1
+      },
+      {
+        "district": "平谷区",
+        "department": "感染科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "感染科",
+        "count": 1
+      },
+      {
+        "district": "怀柔区",
+        "department": "感染科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "整形外科",
+        "count": 1
+      },
+      {
+        "district": "平谷区",
+        "department": "普内科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "普内科",
+        "count": 1
+      },
+      {
+        "district": "大兴区",
+        "department": "核医学科",
+        "count": 1
+      },
+      {
+        "district": "顺义区",
+        "department": "核医学科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "泌尿外科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "泌尿外科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "泌尿外科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "消化内科",
+        "count": 1
+      },
+      {
+        "district": "平谷区",
+        "department": "病理科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "病理科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "皮肤科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "眼科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "神经内科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "神经外科",
+        "count": 1
+      },
+      {
+        "district": "平谷区",
+        "department": "神经外科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "神经外科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "神经外科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "精神心理科",
+        "count": 1
+      },
+      {
+        "district": "平谷区",
+        "department": "精神心理科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "精神心理科",
+        "count": 1
+      },
+      {
+        "district": "房山区",
+        "department": "精神心理科",
+        "count": 1
+      },
+      {
+        "district": "大兴区",
+        "department": "老年病科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "老年病科",
+        "count": 1
+      },
+      {
+        "district": "平谷区",
+        "department": "老年病科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "老年病科",
+        "count": 1
+      },
+      {
+        "district": "房山区",
+        "department": "老年病科",
+        "count": 1
+      },
+      {
+        "district": "顺义区",
+        "department": "老年病科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "耳鼻咽喉科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "耳鼻咽喉科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "耳鼻咽喉科",
+        "count": 1
+      },
+      {
+        "district": "大兴区",
+        "department": "肛肠外科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "肛肠外科",
+        "count": 1
+      },
+      {
+        "district": "平谷区",
+        "department": "肛肠外科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "肛肠外科",
+        "count": 1
+      },
+      {
+        "district": "房山区",
+        "department": "肛肠外科",
+        "count": 1
+      },
+      {
+        "district": "通州区",
+        "department": "肛肠外科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "肛肠外科",
+        "count": 1
+      },
+      {
+        "district": "大兴区",
+        "department": "肝病科",
+        "count": 1
+      },
+      {
+        "district": "西城区",
+        "department": "肝病科",
+        "count": 1
+      },
+      {
+        "district": "通州区",
+        "department": "肝病科",
+        "count": 1
+      },
+      {
+        "district": "大兴区",
+        "department": "肾内科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "肾内科",
+        "count": 1
+      },
+      {
+        "district": "平谷区",
+        "department": "肾内科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "肾内科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "肿瘤科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "肿瘤科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "血液内科",
+        "count": 1
+      },
+      {
+        "district": "怀柔区",
+        "department": "血液内科",
+        "count": 1
+      },
+      {
+        "district": "房山区",
+        "department": "血液内科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "超声医学科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "超声医学科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "超声医学科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "重症医学科",
+        "count": 1
+      },
+      {
+        "district": "房山区",
+        "department": "重症医学科",
+        "count": 1
+      },
+      {
+        "district": "通州区",
+        "department": "重症医学科",
+        "count": 1
+      },
+      {
+        "district": "平谷区",
+        "department": "针灸推拿科",
+        "count": 1
+      },
+      {
+        "district": "怀柔区",
+        "department": "针灸推拿科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "针灸推拿科",
+        "count": 1
+      },
+      {
+        "district": "大兴区",
+        "department": "风湿免疫科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "风湿免疫科",
+        "count": 1
+      },
+      {
+        "district": "平谷区",
+        "department": "风湿免疫科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "风湿免疫科",
+        "count": 1
+      },
+      {
+        "district": "怀柔区",
+        "department": "风湿免疫科",
+        "count": 1
+      },
+      {
+        "district": "通州区",
+        "department": "风湿免疫科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "风湿免疫科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "骨科",
+        "count": 1
+      },
+      {
+        "district": "门头沟区",
+        "department": "骨科",
+        "count": 1
+      },
+      {
+        "district": "密云区",
+        "department": "麻醉科",
+        "count": 1
+      },
+      {
+        "district": "延庆区",
+        "department": "麻醉科",
+        "count": 1
+      },
+      {
+        "district": "房山区",
+        "department": "麻醉科",
+        "count": 1
+      },
+      {
+        "district": "昌平区",
+        "department": "儿科",
+        "count": 10
+      },
+      {
+        "district": "东城区",
+        "department": "全科医疗科",
+        "count": 10
+      },
+      {
+        "district": "东城区",
+        "department": "医学影像科",
+        "count": 10
+      },
+      {
+        "district": "海淀区",
+        "department": "医学影像科",
+        "count": 10
+      },
+      {
+        "district": "丰台区",
+        "department": "康复医学科",
+        "count": 10
+      },
+      {
+        "district": "朝阳区",
+        "department": "心胸外科",
+        "count": 10
+      },
+      {
+        "district": "海淀区",
+        "department": "心血管内科",
+        "count": 10
+      },
+      {
+        "district": "西城区",
+        "department": "心血管内科",
+        "count": 10
+      },
+      {
+        "district": "西城区",
+        "department": "急诊科",
+        "count": 10
+      },
+      {
+        "district": "西城区",
+        "department": "泌尿外科",
+        "count": 10
+      },
+      {
+        "district": "海淀区",
+        "department": "消化内科",
+        "count": 10
+      },
+      {
+        "district": "海淀区",
+        "department": "病理科",
+        "count": 10
+      },
+      {
+        "district": "丰台区",
+        "department": "神经外科",
+        "count": 10
+      },
+      {
+        "district": "海淀区",
+        "department": "神经外科",
+        "count": 10
+      },
+      {
+        "district": "西城区",
+        "department": "老年病科",
+        "count": 10
+      },
+      {
+        "district": "丰台区",
+        "department": "肿瘤科",
+        "count": 10
+      },
+      {
+        "district": "东城区",
+        "department": "血液内科",
+        "count": 10
+      },
+      {
+        "district": "海淀区",
+        "department": "超声医学科",
+        "count": 10
+      },
+      {
+        "district": "朝阳区",
+        "department": "重症医学科",
+        "count": 10
+      },
+      {
+        "district": "东城区",
+        "department": "风湿免疫科",
+        "count": 10
+      },
+      {
+        "district": "朝阳区",
+        "department": "临床营养科",
+        "count": 11
+      },
+      {
+        "district": "朝阳区",
+        "department": "乳腺外科",
+        "count": 11
+      },
+      {
+        "district": "顺义区",
+        "department": "全科医疗科",
+        "count": 11
+      },
+      {
+        "district": "海淀区",
+        "department": "康复医学科",
+        "count": 11
+      },
+      {
+        "district": "丰台区",
+        "department": "急诊科",
+        "count": 11
+      },
+      {
+        "district": "朝阳区",
+        "department": "感染科",
+        "count": 11
+      },
+      {
+        "district": "海淀区",
+        "department": "整形外科",
+        "count": 11
+      },
+      {
+        "district": "东城区",
+        "department": "泌尿外科",
+        "count": 11
+      },
+      {
+        "district": "海淀区",
+        "department": "泌尿外科",
+        "count": 11
+      },
+      {
+        "district": "海淀区",
+        "department": "耳鼻咽喉科",
+        "count": 11
+      },
+      {
+        "district": "朝阳区",
+        "department": "肾内科",
+        "count": 11
+      },
+      {
+        "district": "朝阳区",
+        "department": "血液内科",
+        "count": 11
+      },
+      {
+        "district": "东城区",
+        "department": "超声医学科",
+        "count": 11
+      },
+      {
+        "district": "朝阳区",
+        "department": "超声医学科",
+        "count": 11
+      },
+      {
+        "district": "西城区",
+        "department": "麻醉科",
+        "count": 11
+      },
+      {
+        "district": "昌平区",
+        "department": "口腔科",
+        "count": 111
+      },
+      {
+        "district": "丰台区",
+        "department": "儿科",
+        "count": 12
+      },
+      {
+        "district": "西城区",
+        "department": "医学影像科",
+        "count": 12
+      },
+      {
+        "district": "丰台区",
+        "department": "呼吸内科",
+        "count": 12
+      },
+      {
+        "district": "海淀区",
+        "department": "呼吸内科",
+        "count": 12
+      },
+      {
+        "district": "西城区",
+        "department": "呼吸内科",
+        "count": 12
+      },
+      {
+        "district": "朝阳区",
+        "department": "急诊科",
+        "count": 12
+      },
+      {
+        "district": "丰台区",
+        "department": "普内科",
+        "count": 12
+      },
+      {
+        "district": "丰台区",
+        "department": "眼科",
+        "count": 12
+      },
+      {
+        "district": "东城区",
+        "department": "神经内科",
+        "count": 12
+      },
+      {
+        "district": "朝阳区",
+        "department": "神经外科",
+        "count": 12
+      },
+      {
+        "district": "西城区",
+        "department": "精神心理科",
+        "count": 12
+      },
+      {
+        "district": "朝阳区",
+        "department": "耳鼻咽喉科",
+        "count": 12
+      },
+      {
+        "district": "西城区",
+        "department": "耳鼻咽喉科",
+        "count": 12
+      },
+      {
+        "district": "海淀区",
+        "department": "肿瘤科",
+        "count": 12
+      },
+      {
+        "district": "昌平区",
+        "department": "全科医疗科",
+        "count": 123
+      },
+      {
+        "district": "东城区",
+        "department": "乳腺外科",
+        "count": 13
+      },
+      {
+        "district": "朝阳区",
+        "department": "内分泌科",
+        "count": 13
+      },
+      {
+        "district": "西城区",
+        "department": "内分泌科",
+        "count": 13
+      },
+      {
+        "district": "朝阳区",
+        "department": "康复医学科",
+        "count": 13
+      },
+      {
+        "district": "东城区",
+        "department": "心血管内科",
+        "count": 13
+      },
+      {
+        "district": "朝阳区",
+        "department": "心血管内科",
+        "count": 13
+      },
+      {
+        "district": "东城区",
+        "department": "急诊科",
+        "count": 13
+      },
+      {
+        "district": "丰台区",
+        "department": "消化内科",
+        "count": 13
+      },
+      {
+        "district": "西城区",
+        "department": "消化内科",
+        "count": 13
+      },
+      {
+        "district": "西城区",
+        "department": "皮肤科",
+        "count": 13
+      },
+      {
+        "district": "海淀区",
+        "department": "眼科",
+        "count": 13
+      },
+      {
+        "district": "西城区",
+        "department": "眼科",
+        "count": 13
+      },
+      {
+        "district": "丰台区",
+        "department": "神经内科",
+        "count": 13
+      },
+      {
+        "district": "朝阳区",
+        "department": "神经内科",
+        "count": 13
+      },
+      {
+        "district": "海淀区",
+        "department": "神经内科",
+        "count": 13
+      },
+      {
+        "district": "西城区",
+        "department": "神经内科",
+        "count": 13
+      },
+      {
+        "district": "朝阳区",
+        "department": "精神心理科",
+        "count": 13
+      },
+      {
+        "district": "海淀区",
+        "department": "精神心理科",
+        "count": 13
+      },
+      {
+        "district": "东城区",
+        "department": "老年病科",
+        "count": 13
+      },
+      {
+        "district": "东城区",
+        "department": "耳鼻咽喉科",
+        "count": 13
+      },
+      {
+        "district": "东城区",
+        "department": "肿瘤科",
+        "count": 13
+      },
+      {
+        "district": "东城区",
+        "department": "骨科",
+        "count": 13
+      },
+      {
+        "district": "海淀区",
+        "department": "麻醉科",
+        "count": 13
+      },
+      {
+        "district": "东城区",
+        "department": "内分泌科",
+        "count": 14
+      },
+      {
+        "district": "朝阳区",
+        "department": "医学影像科",
+        "count": 14
+      },
+      {
+        "district": "东城区",
+        "department": "口腔科",
+        "count": 14
+      },
+      {
+        "district": "丰台区",
+        "department": "口腔科",
+        "count": 14
+      },
+      {
+        "district": "东城区",
+        "department": "呼吸内科",
+        "count": 14
+      },
+      {
+        "district": "昌平区",
+        "department": "妇产科",
+        "count": 14
+      },
+      {
+        "district": "西城区",
+        "department": "康复医学科",
+        "count": 14
+      },
+      {
+        "district": "东城区",
+        "department": "普内科",
+        "count": 14
+      },
+      {
+        "district": "朝阳区",
+        "department": "普内科",
+        "count": 14
+      },
+      {
+        "district": "海淀区",
+        "department": "普内科",
+        "count": 14
+      },
+      {
+        "district": "丰台区",
+        "department": "泌尿外科",
+        "count": 14
+      },
+      {
+        "district": "东城区",
+        "department": "眼科",
+        "count": 14
+      },
+      {
+        "district": "丰台区",
+        "department": "骨科",
+        "count": 14
+      },
+      {
+        "district": "海淀区",
+        "department": "骨科",
+        "count": 14
+      },
+      {
+        "district": "东城区",
+        "department": "麻醉科",
+        "count": 14
+      },
+      {
+        "district": "朝阳区",
+        "department": "麻醉科",
+        "count": 14
+      },
+      {
+        "district": "海淀区",
+        "department": "中医内科",
+        "count": 15
+      },
+      {
+        "district": "海淀区",
+        "department": "急诊科",
+        "count": 15
+      },
+      {
+        "district": "东城区",
+        "department": "普通外科",
+        "count": 15
+      },
+      {
+        "district": "丰台区",
+        "department": "普通外科",
+        "count": 15
+      },
+      {
+        "district": "朝阳区",
+        "department": "泌尿外科",
+        "count": 15
+      },
+      {
+        "district": "东城区",
+        "department": "消化内科",
+        "count": 15
+      },
+      {
+        "district": "朝阳区",
+        "department": "针灸推拿科",
+        "count": 15
+      },
+      {
+        "district": "西城区",
+        "department": "骨科",
+        "count": 15
+      },
+      {
+        "district": "西城区",
+        "department": "妇产科",
+        "count": 16
+      },
+      {
+        "district": "昌平区",
+        "department": "普通外科",
+        "count": 16
+      },
+      {
+        "district": "朝阳区",
+        "department": "消化内科",
+        "count": 16
+      },
+      {
+        "district": "丰台区",
+        "department": "皮肤科",
+        "count": 16
+      },
+      {
+        "district": "海淀区",
+        "department": "皮肤科",
+        "count": 16
+      },
+      {
+        "district": "朝阳区",
+        "department": "肿瘤科",
+        "count": 16
+      },
+      {
+        "district": "东城区",
+        "department": "针灸推拿科",
+        "count": 16
+      },
+      {
+        "district": "朝阳区",
+        "department": "介入血管外科",
+        "count": 17
+      },
+      {
+        "district": "西城区",
+        "department": "全科医疗科",
+        "count": 17
+      },
+      {
+        "district": "昌平区",
+        "department": "医学检验科",
+        "count": 17
+      },
+      {
+        "district": "西城区",
+        "department": "普通外科",
+        "count": 17
+      },
+      {
+        "district": "东城区",
+        "department": "皮肤科",
+        "count": 17
+      },
+      {
+        "district": "东城区",
+        "department": "儿科",
+        "count": 18
+      },
+      {
+        "district": "西城区",
+        "department": "儿科",
+        "count": 18
+      },
+      {
+        "district": "朝阳区",
+        "department": "全科医疗科",
+        "count": 18
+      },
+      {
+        "district": "西城区",
+        "department": "口腔科",
+        "count": 18
+      },
+      {
+        "district": "朝阳区",
+        "department": "呼吸内科",
+        "count": 18
+      },
+      {
+        "district": "丰台区",
+        "department": "妇产科",
+        "count": 18
+      },
+      {
+        "district": "海淀区",
+        "department": "妇产科",
+        "count": 18
+      },
+      {
+        "district": "西城区",
+        "department": "普内科",
+        "count": 18
+      },
+      {
+        "district": "昌平区",
+        "department": "普内科",
+        "count": 183
+      },
+      {
+        "district": "朝阳区",
+        "department": "眼科",
+        "count": 19
+      },
+      {
+        "district": "平谷区",
+        "department": "中医内科",
+        "count": 2
+      },
+      {
+        "district": "门头沟区",
+        "department": "中医内科",
+        "count": 2
+      },
+      {
+        "district": "丰台区",
+        "department": "中医骨伤科",
+        "count": 2
+      },
+      {
+        "district": "密云区",
+        "department": "中医骨伤科",
+        "count": 2
+      },
+      {
+        "district": "通州区",
+        "department": "临床营养科",
+        "count": 2
+      },
+      {
+        "district": "密云区",
+        "department": "乳腺外科",
+        "count": 2
+      },
+      {
+        "district": "平谷区",
+        "department": "乳腺外科",
+        "count": 2
+      },
+      {
+        "district": "石景山区",
+        "department": "乳腺外科",
+        "count": 2
+      },
+      {
+        "district": "怀柔区",
+        "department": "介入血管外科",
+        "count": 2
+      },
+      {
+        "district": "密云区",
+        "department": "儿科",
+        "count": 2
+      },
+      {
+        "district": "延庆区",
+        "department": "儿科",
+        "count": 2
+      },
+      {
+        "district": "门头沟区",
+        "department": "儿科",
+        "count": 2
+      },
+      {
+        "district": "怀柔区",
+        "department": "全科医疗科",
+        "count": 2
+      },
+      {
+        "district": "房山区",
+        "department": "全科医疗科",
+        "count": 2
+      },
+      {
+        "district": "通州区",
+        "department": "全科医疗科",
+        "count": 2
+      },
+      {
+        "district": "平谷区",
+        "department": "内分泌科",
+        "count": 2
+      },
+      {
+        "district": "房山区",
+        "department": "内分泌科",
+        "count": 2
+      },
+      {
+        "district": "门头沟区",
+        "department": "内分泌科",
+        "count": 2
+      },
+      {
+        "district": "密云区",
+        "department": "医学影像科",
+        "count": 2
+      },
+      {
+        "district": "延庆区",
+        "department": "医学影像科",
+        "count": 2
+      },
+      {
+        "district": "怀柔区",
+        "department": "医学影像科",
+        "count": 2
+      },
+      {
+        "district": "房山区",
+        "department": "医学影像科",
+        "count": 2
+      },
+      {
+        "district": "怀柔区",
+        "department": "医学检验科",
+        "count": 2
+      },
+      {
+        "district": "通州区",
+        "department": "医学检验科",
+        "count": 2
+      },
+      {
+        "district": "密云区",
+        "department": "口腔科",
+        "count": 2
+      },
+      {
+        "district": "门头沟区",
+        "department": "口腔科",
+        "count": 2
+      },
+      {
+        "district": "平谷区",
+        "department": "呼吸内科",
+        "count": 2
+      },
+      {
+        "district": "延庆区",
+        "department": "康复医学科",
+        "count": 2
+      },
+      {
+        "district": "怀柔区",
+        "department": "康复医学科",
+        "count": 2
+      },
+      {
+        "district": "房山区",
+        "department": "康复医学科",
+        "count": 2
+      },
+      {
+        "district": "怀柔区",
+        "department": "心胸外科",
+        "count": 2
+      },
+      {
+        "district": "平谷区",
+        "department": "心血管内科",
+        "count": 2
+      },
+      {
+        "district": "怀柔区",
+        "department": "心血管内科",
+        "count": 2
+      },
+      {
+        "district": "昌平区",
+        "department": "心血管内科",
+        "count": 2
+      },
+      {
+        "district": "延庆区",
+        "department": "急诊科",
+        "count": 2
+      },
+      {
+        "district": "怀柔区",
+        "department": "急诊科",
+        "count": 2
+      },
+      {
+        "district": "门头沟区",
+        "department": "急诊科",
+        "count": 2
+      },
+      {
+        "district": "大兴区",
+        "department": "感染科",
+        "count": 2
+      },
+      {
+        "district": "房山区",
+        "department": "感染科",
+        "count": 2
+      },
+      {
+        "district": "大兴区",
+        "department": "整形外科",
+        "count": 2
+      },
+      {
+        "district": "通州区",
+        "department": "整形外科",
+        "count": 2
+      },
+      {
+        "district": "延庆区",
+        "department": "普通外科",
+        "count": 2
+      },
+      {
+        "district": "门头沟区",
+        "department": "普通外科",
+        "count": 2
+      },
+      {
+        "district": "通州区",
+        "department": "核医学科",
+        "count": 2
+      },
+      {
+        "district": "平谷区",
+        "department": "泌尿外科",
+        "count": 2
+      },
+      {
+        "district": "怀柔区",
+        "department": "泌尿外科",
+        "count": 2
+      },
+      {
+        "district": "平谷区",
+        "department": "消化内科",
+        "count": 2
+      },
+      {
+        "district": "延庆区",
+        "department": "消化内科",
+        "count": 2
+      },
+      {
+        "district": "怀柔区",
+        "department": "病理科",
+        "count": 2
+      },
+      {
+        "district": "房山区",
+        "department": "病理科",
+        "count": 2
+      },
+      {
+        "district": "平谷区",
+        "department": "皮肤科",
+        "count": 2
+      },
+      {
+        "district": "延庆区",
+        "department": "皮肤科",
+        "count": 2
+      },
+      {
+        "district": "密云区",
+        "department": "眼科",
+        "count": 2
+      },
+      {
+        "district": "平谷区",
+        "department": "眼科",
+        "count": 2
+      },
+      {
+        "district": "平谷区",
+        "department": "神经内科",
+        "count": 2
+      },
+      {
+        "district": "通州区",
+        "department": "神经内科",
+        "count": 2
+      },
+      {
+        "district": "门头沟区",
+        "department": "神经内科",
+        "count": 2
+      },
+      {
+        "district": "怀柔区",
+        "department": "神经外科",
+        "count": 2
+      },
+      {
+        "district": "房山区",
+        "department": "神经外科",
+        "count": 2
+      },
+      {
+        "district": "通州区",
+        "department": "神经外科",
+        "count": 2
+      },
+      {
+        "district": "通州区",
+        "department": "精神心理科",
+        "count": 2
+      },
+      {
+        "district": "石景山区",
+        "department": "老年病科",
+        "count": 2
+      },
+      {
+        "district": "通州区",
+        "department": "老年病科",
+        "count": 2
+      },
+      {
+        "district": "平谷区",
+        "department": "耳鼻咽喉科",
+        "count": 2
+      },
+      {
+        "district": "怀柔区",
+        "department": "耳鼻咽喉科",
+        "count": 2
+      },
+      {
+        "district": "怀柔区",
+        "department": "肛肠外科",
+        "count": 2
+      },
+      {
+        "district": "昌平区",
+        "department": "肛肠外科",
+        "count": 2
+      },
+      {
+        "district": "石景山区",
+        "department": "肛肠外科",
+        "count": 2
+      },
+      {
+        "district": "顺义区",
+        "department": "肛肠外科",
+        "count": 2
+      },
+      {
+        "district": "东城区",
+        "department": "肝病科",
+        "count": 2
+      },
+      {
+        "district": "海淀区",
+        "department": "肝病科",
+        "count": 2
+      },
+      {
+        "district": "顺义区",
+        "department": "肝病科",
+        "count": 2
+      },
+      {
+        "district": "怀柔区",
+        "department": "肾内科",
+        "count": 2
+      },
+      {
+        "district": "房山区",
+        "department": "肾内科",
+        "count": 2
+      },
+      {
+        "district": "通州区",
+        "department": "肾内科",
+        "count": 2
+      },
+      {
+        "district": "延庆区",
+        "department": "肿瘤科",
+        "count": 2
+      },
+      {
+        "district": "怀柔区",
+        "department": "肿瘤科",
+        "count": 2
+      },
+      {
+        "district": "昌平区",
+        "department": "肿瘤科",
+        "count": 2
+      },
+      {
+        "district": "通州区",
+        "department": "肿瘤科",
+        "count": 2
+      },
+      {
+        "district": "平谷区",
+        "department": "血液内科",
+        "count": 2
+      },
+      {
+        "district": "通州区",
+        "department": "血液内科",
+        "count": 2
+      },
+      {
+        "district": "平谷区",
+        "department": "超声医学科",
+        "count": 2
+      },
+      {
+        "district": "平谷区",
+        "department": "重症医学科",
+        "count": 2
+      },
+      {
+        "district": "石景山区",
+        "department": "重症医学科",
+        "count": 2
+      },
+      {
+        "district": "大兴区",
+        "department": "针灸推拿科",
+        "count": 2
+      },
+      {
+        "district": "延庆区",
+        "department": "针灸推拿科",
+        "count": 2
+      },
+      {
+        "district": "房山区",
+        "department": "针灸推拿科",
+        "count": 2
+      },
+      {
+        "district": "房山区",
+        "department": "风湿免疫科",
+        "count": 2
+      },
+      {
+        "district": "昌平区",
+        "department": "风湿免疫科",
+        "count": 2
+      },
+      {
+        "district": "平谷区",
+        "department": "骨科",
+        "count": 2
+      },
+      {
+        "district": "延庆区",
+        "department": "骨科",
+        "count": 2
+      },
+      {
+        "district": "怀柔区",
+        "department": "骨科",
+        "count": 2
+      },
+      {
+        "district": "房山区",
+        "department": "骨科",
+        "count": 2
+      },
+      {
+        "district": "平谷区",
+        "department": "麻醉科",
+        "count": 2
+      },
+      {
+        "district": "怀柔区",
+        "department": "麻醉科",
+        "count": 2
+      },
+      {
+        "district": "门头沟区",
+        "department": "麻醉科",
+        "count": 2
+      },
+      {
+        "district": "丰台区",
+        "department": "中医内科",
+        "count": 20
+      },
+      {
+        "district": "海淀区",
+        "department": "口腔科",
+        "count": 20
+      },
+      {
+        "district": "海淀区",
+        "department": "普通外科",
+        "count": 20
+      },
+      {
+        "district": "朝阳区",
+        "department": "皮肤科",
+        "count": 20
+      },
+      {
+        "district": "朝阳区",
+        "department": "骨科",
+        "count": 20
+      },
+      {
+        "district": "朝阳区",
+        "department": "儿科",
+        "count": 21
+      },
+      {
+        "district": "东城区",
+        "department": "妇产科",
+        "count": 21
+      },
+      {
+        "district": "东城区",
+        "department": "中医内科",
+        "count": 22
+      },
+      {
+        "district": "西城区",
+        "department": "中医内科",
+        "count": 22
+      },
+      {
+        "district": "海淀区",
+        "department": "儿科",
+        "count": 22
+      },
+      {
+        "district": "朝阳区",
+        "department": "妇产科",
+        "count": 22
+      },
+      {
+        "district": "朝阳区",
+        "department": "口腔科",
+        "count": 26
+      },
+      {
+        "district": "朝阳区",
+        "department": "普通外科",
+        "count": 27
+      },
+      {
+        "district": "昌平区",
+        "department": "中医骨伤科",
+        "count": 3
+      },
+      {
+        "district": "朝阳区",
+        "department": "中医骨伤科",
+        "count": 3
+      },
+      {
+        "district": "海淀区",
+        "department": "中医骨伤科",
+        "count": 3
+      },
+      {
+        "district": "顺义区",
+        "department": "临床营养科",
+        "count": 3
+      },
+      {
+        "district": "大兴区",
+        "department": "介入血管外科",
+        "count": 3
+      },
+      {
+        "district": "昌平区",
+        "department": "介入血管外科",
+        "count": 3
+      },
+      {
+        "district": "石景山区",
+        "department": "介入血管外科",
+        "count": 3
+      },
+      {
+        "district": "通州区",
+        "department": "介入血管外科",
+        "count": 3
+      },
+      {
+        "district": "平谷区",
+        "department": "儿科",
+        "count": 3
+      },
+      {
+        "district": "大兴区",
+        "department": "内分泌科",
+        "count": 3
+      },
+      {
+        "district": "密云区",
+        "department": "内分泌科",
+        "count": 3
+      },
+      {
+        "district": "石景山区",
+        "department": "内分泌科",
+        "count": 3
+      },
+      {
+        "district": "通州区",
+        "department": "内分泌科",
+        "count": 3
+      },
+      {
+        "district": "顺义区",
+        "department": "医学检验科",
+        "count": 3
+      },
+      {
+        "district": "平谷区",
+        "department": "口腔科",
+        "count": 3
+      },
+      {
+        "district": "延庆区",
+        "department": "口腔科",
+        "count": 3
+      },
+      {
+        "district": "大兴区",
+        "department": "呼吸内科",
+        "count": 3
+      },
+      {
+        "district": "怀柔区",
+        "department": "呼吸内科",
+        "count": 3
+      },
+      {
+        "district": "房山区",
+        "department": "呼吸内科",
+        "count": 3
+      },
+      {
+        "district": "通州区",
+        "department": "呼吸内科",
+        "count": 3
+      },
+      {
+        "district": "密云区",
+        "department": "妇产科",
+        "count": 3
+      },
+      {
+        "district": "平谷区",
+        "department": "妇产科",
+        "count": 3
+      },
+      {
+        "district": "延庆区",
+        "department": "妇产科",
+        "count": 3
+      },
+      {
+        "district": "门头沟区",
+        "department": "妇产科",
+        "count": 3
+      },
+      {
+        "district": "大兴区",
+        "department": "康复医学科",
+        "count": 3
+      },
+      {
+        "district": "平谷区",
+        "department": "康复医学科",
+        "count": 3
+      },
+      {
+        "district": "石景山区",
+        "department": "康复医学科",
+        "count": 3
+      },
+      {
+        "district": "大兴区",
+        "department": "心胸外科",
+        "count": 3
+      },
+      {
+        "district": "昌平区",
+        "department": "心胸外科",
+        "count": 3
+      },
+      {
+        "district": "石景山区",
+        "department": "心胸外科",
+        "count": 3
+      },
+      {
+        "district": "通州区",
+        "department": "心胸外科",
+        "count": 3
+      },
+      {
+        "district": "顺义区",
+        "department": "心胸外科",
+        "count": 3
+      },
+      {
+        "district": "房山区",
+        "department": "心血管内科",
+        "count": 3
+      },
+      {
+        "district": "顺义区",
+        "department": "心血管内科",
+        "count": 3
+      },
+      {
+        "district": "房山区",
+        "department": "急诊科",
+        "count": 3
+      },
+      {
+        "district": "通州区",
+        "department": "急诊科",
+        "count": 3
+      },
+      {
+        "district": "昌平区",
+        "department": "感染科",
+        "count": 3
+      },
+      {
+        "district": "石景山区",
+        "department": "感染科",
+        "count": 3
+      },
+      {
+        "district": "通州区",
+        "department": "感染科",
+        "count": 3
+      },
+      {
+        "district": "顺义区",
+        "department": "感染科",
+        "count": 3
+      },
+      {
+        "district": "昌平区",
+        "department": "整形外科",
+        "count": 3
+      },
+      {
+        "district": "石景山区",
+        "department": "整形外科",
+        "count": 3
+      },
+      {
+        "district": "顺义区",
+        "department": "整形外科",
+        "count": 3
+      },
+      {
+        "district": "延庆区",
+        "department": "普内科",
+        "count": 3
+      },
+      {
+        "district": "石景山区",
+        "department": "普内科",
+        "count": 3
+      },
+      {
+        "district": "密云区",
+        "department": "普通外科",
+        "count": 3
+      },
+      {
+        "district": "平谷区",
+        "department": "普通外科",
+        "count": 3
+      },
+      {
+        "district": "丰台区",
+        "department": "核医学科",
+        "count": 3
+      },
+      {
+        "district": "昌平区",
+        "department": "核医学科",
+        "count": 3
+      },
+      {
+        "district": "石景山区",
+        "department": "核医学科",
+        "count": 3
+      },
+      {
+        "district": "房山区",
+        "department": "泌尿外科",
+        "count": 3
+      },
+      {
+        "district": "密云区",
+        "department": "消化内科",
+        "count": 3
+      },
+      {
+        "district": "怀柔区",
+        "department": "消化内科",
+        "count": 3
+      },
+      {
+        "district": "房山区",
+        "department": "消化内科",
+        "count": 3
+      },
+      {
+        "district": "大兴区",
+        "department": "病理科",
+        "count": 3
+      },
+      {
+        "district": "石景山区",
+        "department": "病理科",
+        "count": 3
+      },
+      {
+        "district": "通州区",
+        "department": "病理科",
+        "count": 3
+      },
+      {
+        "district": "顺义区",
+        "department": "病理科",
+        "count": 3
+      },
+      {
+        "district": "大兴区",
+        "department": "皮肤科",
+        "count": 3
+      },
+      {
+        "district": "密云区",
+        "department": "皮肤科",
+        "count": 3
+      },
+      {
+        "district": "房山区",
+        "department": "皮肤科",
+        "count": 3
+      },
+      {
+        "district": "房山区",
+        "department": "眼科",
+        "count": 3
+      },
+      {
+        "district": "门头沟区",
+        "department": "眼科",
+        "count": 3
+      },
+      {
+        "district": "密云区",
+        "department": "神经内科",
+        "count": 3
+      },
+      {
+        "district": "怀柔区",
+        "department": "神经内科",
+        "count": 3
+      },
+      {
+        "district": "房山区",
+        "department": "神经内科",
+        "count": 3
+      },
+      {
+        "district": "昌平区",
+        "department": "神经外科",
+        "count": 3
+      },
+      {
+        "district": "大兴区",
+        "department": "精神心理科",
+        "count": 3
+      },
+      {
+        "district": "石景山区",
+        "department": "精神心理科",
+        "count": 3
+      },
+      {
+        "district": "大兴区",
+        "department": "耳鼻咽喉科",
+        "count": 3
+      },
+      {
+        "district": "房山区",
+        "department": "耳鼻咽喉科",
+        "count": 3
+      },
+      {
+        "district": "顺义区",
+        "department": "耳鼻咽喉科",
+        "count": 3
+      },
+      {
+        "district": "东城区",
+        "department": "肛肠外科",
+        "count": 3
+      },
+      {
+        "district": "昌平区",
+        "department": "肾内科",
+        "count": 3
+      },
+      {
+        "district": "石景山区",
+        "department": "肾内科",
+        "count": 3
+      },
+      {
+        "district": "顺义区",
+        "department": "肾内科",
+        "count": 3
+      },
+      {
+        "district": "房山区",
+        "department": "肿瘤科",
+        "count": 3
+      },
+      {
+        "district": "大兴区",
+        "department": "血液内科",
+        "count": 3
+      },
+      {
+        "district": "石景山区",
+        "department": "血液内科",
+        "count": 3
+      },
+      {
+        "district": "大兴区",
+        "department": "超声医学科",
+        "count": 3
+      },
+      {
+        "district": "通州区",
+        "department": "超声医学科",
+        "count": 3
+      },
+      {
+        "district": "顺义区",
+        "department": "超声医学科",
+        "count": 3
+      },
+      {
+        "district": "大兴区",
+        "department": "重症医学科",
+        "count": 3
+      },
+      {
+        "district": "昌平区",
+        "department": "重症医学科",
+        "count": 3
+      },
+      {
+        "district": "通州区",
+        "department": "针灸推拿科",
+        "count": 3
+      },
+      {
+        "district": "石景山区",
+        "department": "风湿免疫科",
+        "count": 3
+      },
+      {
+        "district": "顺义区",
+        "department": "麻醉科",
+        "count": 3
+      },
+      {
+        "district": "朝阳区",
+        "department": "中医内科",
+        "count": 33
+      },
+      {
+        "district": "大兴区",
+        "department": "中医内科",
+        "count": 4
+      },
+      {
+        "district": "石景山区",
+        "department": "中医内科",
+        "count": 4
+      },
+      {
+        "district": "昌平区",
+        "department": "临床营养科",
+        "count": 4
+      },
+      {
+        "district": "大兴区",
+        "department": "乳腺外科",
+        "count": 4
+      },
+      {
+        "district": "丰台区",
+        "department": "介入血管外科",
+        "count": 4
+      },
+      {
+        "district": "顺义区",
+        "department": "介入血管外科",
+        "count": 4
+      },
+      {
+        "district": "怀柔区",
+        "department": "儿科",
+        "count": 4
+      },
+      {
+        "district": "房山区",
+        "department": "儿科",
+        "count": 4
+      },
+      {
+        "district": "昌平区",
+        "department": "内分泌科",
+        "count": 4
+      },
+      {
+        "district": "大兴区",
+        "department": "医学影像科",
+        "count": 4
+      },
+      {
+        "district": "顺义区",
+        "department": "医学影像科",
+        "count": 4
+      },
+      {
+        "district": "东城区",
+        "department": "医学检验科",
+        "count": 4
+      },
+      {
+        "district": "丰台区",
+        "department": "医学检验科",
+        "count": 4
+      },
+      {
+        "district": "怀柔区",
+        "department": "口腔科",
+        "count": 4
+      },
+      {
+        "district": "房山区",
+        "department": "口腔科",
+        "count": 4
+      },
+      {
+        "district": "昌平区",
+        "department": "呼吸内科",
+        "count": 4
+      },
+      {
+        "district": "石景山区",
+        "department": "呼吸内科",
+        "count": 4
+      },
+      {
+        "district": "怀柔区",
+        "department": "妇产科",
+        "count": 4
+      },
+      {
+        "district": "房山区",
+        "department": "妇产科",
+        "count": 4
+      },
+      {
+        "district": "顺义区",
+        "department": "妇产科",
+        "count": 4
+      },
+      {
+        "district": "西城区",
+        "department": "小儿外科",
+        "count": 4
+      },
+      {
+        "district": "通州区",
+        "department": "康复医学科",
+        "count": 4
+      },
+      {
+        "district": "顺义区",
+        "department": "康复医学科",
+        "count": 4
+      },
+      {
+        "district": "大兴区",
+        "department": "心血管内科",
+        "count": 4
+      },
+      {
+        "district": "石景山区",
+        "department": "心血管内科",
+        "count": 4
+      },
+      {
+        "district": "通州区",
+        "department": "心血管内科",
+        "count": 4
+      },
+      {
+        "district": "大兴区",
+        "department": "急诊科",
+        "count": 4
+      },
+      {
+        "district": "顺义区",
+        "department": "急诊科",
+        "count": 4
+      },
+      {
+        "district": "丰台区",
+        "department": "整形外科",
+        "count": 4
+      },
+      {
+        "district": "密云区",
+        "department": "普内科",
+        "count": 4
+      },
+      {
+        "district": "怀柔区",
+        "department": "普内科",
+        "count": 4
+      },
+      {
+        "district": "房山区",
+        "department": "普内科",
+        "count": 4
+      },
+      {
+        "district": "房山区",
+        "department": "普通外科",
+        "count": 4
+      },
+      {
+        "district": "海淀区",
+        "department": "核医学科",
+        "count": 4
+      },
+      {
+        "district": "石景山区",
+        "department": "泌尿外科",
+        "count": 4
+      },
+      {
+        "district": "通州区",
+        "department": "泌尿外科",
+        "count": 4
+      },
+      {
+        "district": "大兴区",
+        "department": "消化内科",
+        "count": 4
+      },
+      {
+        "district": "怀柔区",
+        "department": "皮肤科",
+        "count": 4
+      },
+      {
+        "district": "通州区",
+        "department": "皮肤科",
+        "count": 4
+      },
+      {
+        "district": "怀柔区",
+        "department": "眼科",
+        "count": 4
+      },
+      {
+        "district": "通州区",
+        "department": "眼科",
+        "count": 4
+      },
+      {
+        "district": "大兴区",
+        "department": "神经内科",
+        "count": 4
+      },
+      {
+        "district": "石景山区",
+        "department": "神经外科",
+        "count": 4
+      },
+      {
+        "district": "昌平区",
+        "department": "老年病科",
+        "count": 4
+      },
+      {
+        "district": "石景山区",
+        "department": "耳鼻咽喉科",
+        "count": 4
+      },
+      {
+        "district": "通州区",
+        "department": "耳鼻咽喉科",
+        "count": 4
+      },
+      {
+        "district": "西城区",
+        "department": "肛肠外科",
+        "count": 4
+      },
+      {
+        "district": "丰台区",
+        "department": "肝病科",
+        "count": 4
+      },
+      {
+        "district": "朝阳区",
+        "department": "肝病科",
+        "count": 4
+      },
+      {
+        "district": "丰台区",
+        "department": "肾内科",
+        "count": 4
+      },
+      {
+        "district": "顺义区",
+        "department": "肿瘤科",
+        "count": 4
+      },
+      {
+        "district": "昌平区",
+        "department": "血液内科",
+        "count": 4
+      },
+      {
+        "district": "房山区",
+        "department": "超声医学科",
+        "count": 4
+      },
+      {
+        "district": "石景山区",
+        "department": "超声医学科",
+        "count": 4
+      },
+      {
+        "district": "顺义区",
+        "department": "重症医学科",
+        "count": 4
+      },
+      {
+        "district": "昌平区",
+        "department": "针灸推拿科",
+        "count": 4
+      },
+      {
+        "district": "石景山区",
+        "department": "针灸推拿科",
+        "count": 4
+      },
+      {
+        "district": "顺义区",
+        "department": "风湿免疫科",
+        "count": 4
+      },
+      {
+        "district": "昌平区",
+        "department": "骨科",
+        "count": 4
+      },
+      {
+        "district": "大兴区",
+        "department": "麻醉科",
+        "count": 4
+      },
+      {
+        "district": "石景山区",
+        "department": "麻醉科",
+        "count": 4
+      },
+      {
+        "district": "通州区",
+        "department": "麻醉科",
+        "count": 4
+      },
+      {
+        "district": "密云区",
+        "department": "中医内科",
+        "count": 5
+      },
+      {
+        "district": "怀柔区",
+        "department": "中医内科",
+        "count": 5
+      },
+      {
+        "district": "房山区",
+        "department": "中医内科",
+        "count": 5
+      },
+      {
+        "district": "西城区",
+        "department": "中医骨伤科",
+        "count": 5
+      },
+      {
+        "district": "丰台区",
+        "department": "临床营养科",
+        "count": 5
+      },
+      {
+        "district": "海淀区",
+        "department": "临床营养科",
+        "count": 5
+      },
+      {
+        "district": "通州区",
+        "department": "乳腺外科",
+        "count": 5
+      },
+      {
+        "district": "石景山区",
+        "department": "儿科",
+        "count": 5
+      },
+      {
+        "district": "顺义区",
+        "department": "儿科",
+        "count": 5
+      },
+      {
+        "district": "密云区",
+        "department": "全科医疗科",
+        "count": 5
+      },
+      {
+        "district": "海淀区",
+        "department": "全科医疗科",
+        "count": 5
+      },
+      {
+        "district": "顺义区",
+        "department": "内分泌科",
+        "count": 5
+      },
+      {
+        "district": "石景山区",
+        "department": "医学影像科",
+        "count": 5
+      },
+      {
+        "district": "通州区",
+        "department": "医学影像科",
+        "count": 5
+      },
+      {
+        "district": "大兴区",
+        "department": "口腔科",
+        "count": 5
+      },
+      {
+        "district": "顺义区",
+        "department": "口腔科",
+        "count": 5
+      },
+      {
+        "district": "顺义区",
+        "department": "呼吸内科",
+        "count": 5
+      },
+      {
+        "district": "通州区",
+        "department": "妇产科",
+        "count": 5
+      },
+      {
+        "district": "昌平区",
+        "department": "急诊科",
+        "count": 5
+      },
+      {
+        "district": "石景山区",
+        "department": "急诊科",
+        "count": 5
+      },
+      {
+        "district": "东城区",
+        "department": "感染科",
+        "count": 5
+      },
+      {
+        "district": "大兴区",
+        "department": "普内科",
+        "count": 5
+      },
+      {
+        "district": "大兴区",
+        "department": "普通外科",
+        "count": 5
+      },
+      {
+        "district": "怀柔区",
+        "department": "普通外科",
+        "count": 5
+      },
+      {
+        "district": "大兴区",
+        "department": "泌尿外科",
+        "count": 5
+      },
+      {
+        "district": "昌平区",
+        "department": "泌尿外科",
+        "count": 5
+      },
+      {
+        "district": "顺义区",
+        "department": "泌尿外科",
+        "count": 5
+      },
+      {
+        "district": "石景山区",
+        "department": "消化内科",
+        "count": 5
+      },
+      {
+        "district": "通州区",
+        "department": "消化内科",
+        "count": 5
+      },
+      {
+        "district": "昌平区",
+        "department": "病理科",
+        "count": 5
+      },
+      {
+        "district": "昌平区",
+        "department": "皮肤科",
+        "count": 5
+      },
+      {
+        "district": "大兴区",
+        "department": "眼科",
+        "count": 5
+      },
+      {
+        "district": "石景山区",
+        "department": "眼科",
+        "count": 5
+      },
+      {
+        "district": "顺义区",
+        "department": "眼科",
+        "count": 5
+      },
+      {
+        "district": "昌平区",
+        "department": "神经内科",
+        "count": 5
+      },
+      {
+        "district": "石景山区",
+        "department": "神经内科",
+        "count": 5
+      },
+      {
+        "district": "顺义区",
+        "department": "神经内科",
+        "count": 5
+      },
+      {
+        "district": "大兴区",
+        "department": "神经外科",
+        "count": 5
+      },
+      {
+        "district": "顺义区",
+        "department": "神经外科",
+        "count": 5
+      },
+      {
+        "district": "顺义区",
+        "department": "精神心理科",
+        "count": 5
+      },
+      {
+        "district": "丰台区",
+        "department": "老年病科",
+        "count": 5
+      },
+      {
+        "district": "昌平区",
+        "department": "耳鼻咽喉科",
+        "count": 5
+      },
+      {
+        "district": "西城区",
+        "department": "肾内科",
+        "count": 5
+      },
+      {
+        "district": "大兴区",
+        "department": "肿瘤科",
+        "count": 5
+      },
+      {
+        "district": "石景山区",
+        "department": "肿瘤科",
+        "count": 5
+      },
+      {
+        "district": "昌平区",
+        "department": "超声医学科",
+        "count": 5
+      },
+      {
+        "district": "大兴区",
+        "department": "骨科",
+        "count": 5
+      },
+      {
+        "district": "石景山区",
+        "department": "骨科",
+        "count": 5
+      },
+      {
+        "district": "通州区",
+        "department": "骨科",
+        "count": 5
+      },
+      {
+        "district": "昌平区",
+        "department": "麻醉科",
+        "count": 5
+      },
+      {
+        "district": "昌平区",
+        "department": "中医内科",
+        "count": 57
+      },
+      {
+        "district": "东城区",
+        "department": "中医骨伤科",
+        "count": 6
+      },
+      {
+        "district": "丰台区",
+        "department": "乳腺外科",
+        "count": 6
+      },
+      {
+        "district": "海淀区",
+        "department": "乳腺外科",
+        "count": 6
+      },
+      {
+        "district": "大兴区",
+        "department": "儿科",
+        "count": 6
+      },
+      {
+        "district": "通州区",
+        "department": "儿科",
+        "count": 6
+      },
+      {
+        "district": "昌平区",
+        "department": "医学影像科",
+        "count": 6
+      },
+      {
+        "district": "石景山区",
+        "department": "口腔科",
+        "count": 6
+      },
+      {
+        "district": "通州区",
+        "department": "口腔科",
+        "count": 6
+      },
+      {
+        "district": "大兴区",
+        "department": "妇产科",
+        "count": 6
+      },
+      {
+        "district": "石景山区",
+        "department": "妇产科",
+        "count": 6
+      },
+      {
+        "district": "昌平区",
+        "department": "康复医学科",
+        "count": 6
+      },
+      {
+        "district": "丰台区",
+        "department": "心胸外科",
+        "count": 6
+      },
+      {
+        "district": "西城区",
+        "department": "整形外科",
+        "count": 6
+      },
+      {
+        "district": "通州区",
+        "department": "普内科",
+        "count": 6
+      },
+      {
+        "district": "顺义区",
+        "department": "普内科",
+        "count": 6
+      },
+      {
+        "district": "石景山区",
+        "department": "普通外科",
+        "count": 6
+      },
+      {
+        "district": "通州区",
+        "department": "普通外科",
+        "count": 6
+      },
+      {
+        "district": "顺义区",
+        "department": "普通外科",
+        "count": 6
+      },
+      {
+        "district": "朝阳区",
+        "department": "核医学科",
+        "count": 6
+      },
+      {
+        "district": "昌平区",
+        "department": "消化内科",
+        "count": 6
+      },
+      {
+        "district": "顺义区",
+        "department": "消化内科",
+        "count": 6
+      },
+      {
+        "district": "石景山区",
+        "department": "皮肤科",
+        "count": 6
+      },
+      {
+        "district": "顺义区",
+        "department": "皮肤科",
+        "count": 6
+      },
+      {
+        "district": "丰台区",
+        "department": "肛肠外科",
+        "count": 6
+      },
+      {
+        "district": "海淀区",
+        "department": "肾内科",
+        "count": 6
+      },
+      {
+        "district": "顺义区",
+        "department": "血液内科",
+        "count": 6
+      },
+      {
+        "district": "丰台区",
+        "department": "超声医学科",
+        "count": 6
+      },
+      {
+        "district": "丰台区",
+        "department": "重症医学科",
+        "count": 6
+      },
+      {
+        "district": "海淀区",
+        "department": "重症医学科",
+        "count": 6
+      },
+      {
+        "district": "丰台区",
+        "department": "风湿免疫科",
+        "count": 6
+      },
+      {
+        "district": "顺义区",
+        "department": "骨科",
+        "count": 6
+      },
+      {
+        "district": "通州区",
+        "department": "中医内科",
+        "count": 7
+      },
+      {
+        "district": "顺义区",
+        "department": "中医内科",
+        "count": 7
+      },
+      {
+        "district": "西城区",
+        "department": "乳腺外科",
+        "count": 7
+      },
+      {
+        "district": "海淀区",
+        "department": "介入血管外科",
+        "count": 7
+      },
+      {
+        "district": "海淀区",
+        "department": "医学检验科",
+        "count": 7
+      },
+      {
+        "district": "东城区",
+        "department": "整形外科",
+        "count": 7
+      },
+      {
+        "district": "朝阳区",
+        "department": "整形外科",
+        "count": 7
+      },
+      {
+        "district": "东城区",
+        "department": "核医学科",
+        "count": 7
+      },
+      {
+        "district": "西城区",
+        "department": "核医学科",
+        "count": 7
+      },
+      {
+        "district": "昌平区",
+        "department": "眼科",
+        "count": 7
+      },
+      {
+        "district": "西城区",
+        "department": "神经外科",
+        "count": 7
+      },
+      {
+        "district": "丰台区",
+        "department": "精神心理科",
+        "count": 7
+      },
+      {
+        "district": "海淀区",
+        "department": "老年病科",
+        "count": 7
+      },
+      {
+        "district": "东城区",
+        "department": "重症医学科",
+        "count": 7
+      },
+      {
+        "district": "丰台区",
+        "department": "针灸推拿科",
+        "count": 7
+      },
+      {
+        "district": "海淀区",
+        "department": "风湿免疫科",
+        "count": 7
+      },
+      {
+        "district": "东城区",
+        "department": "临床营养科",
+        "count": 8
+      },
+      {
+        "district": "西城区",
+        "department": "临床营养科",
+        "count": 8
+      },
+      {
+        "district": "东城区",
+        "department": "介入血管外科",
+        "count": 8
+      },
+      {
+        "district": "丰台区",
+        "department": "医学影像科",
+        "count": 8
+      },
+      {
+        "district": "朝阳区",
+        "department": "医学检验科",
+        "count": 8
+      },
+      {
+        "district": "海淀区",
+        "department": "心胸外科",
+        "count": 8
+      },
+      {
+        "district": "海淀区",
+        "department": "感染科",
+        "count": 8
+      },
+      {
+        "district": "西城区",
+        "department": "感染科",
+        "count": 8
+      },
+      {
+        "district": "丰台区",
+        "department": "病理科",
+        "count": 8
+      },
+      {
+        "district": "东城区",
+        "department": "神经外科",
+        "count": 8
+      },
+      {
+        "district": "昌平区",
+        "department": "精神心理科",
+        "count": 8
+      },
+      {
+        "district": "朝阳区",
+        "department": "老年病科",
+        "count": 8
+      },
+      {
+        "district": "朝阳区",
+        "department": "肛肠外科",
+        "count": 8
+      },
+      {
+        "district": "海淀区",
+        "department": "肛肠外科",
+        "count": 8
+      },
+      {
+        "district": "东城区",
+        "department": "肾内科",
+        "count": 8
+      },
+      {
+        "district": "丰台区",
+        "department": "血液内科",
+        "count": 8
+      },
+      {
+        "district": "西城区",
+        "department": "超声医学科",
+        "count": 8
+      },
+      {
+        "district": "海淀区",
+        "department": "针灸推拿科",
+        "count": 8
+      },
+      {
+        "district": "丰台区",
+        "department": "麻醉科",
+        "count": 8
+      },
+      {
+        "district": "西城区",
+        "department": "介入血管外科",
+        "count": 9
+      },
+      {
+        "district": "丰台区",
+        "department": "全科医疗科",
+        "count": 9
+      },
+      {
+        "district": "丰台区",
+        "department": "内分泌科",
+        "count": 9
+      },
+      {
+        "district": "海淀区",
+        "department": "内分泌科",
+        "count": 9
+      },
+      {
+        "district": "西城区",
+        "department": "医学检验科",
+        "count": 9
+      },
+      {
+        "district": "东城区",
+        "department": "康复医学科",
+        "count": 9
+      },
+      {
+        "district": "东城区",
+        "department": "心胸外科",
+        "count": 9
+      },
+      {
+        "district": "西城区",
+        "department": "心胸外科",
+        "count": 9
+      },
+      {
+        "district": "丰台区",
+        "department": "心血管内科",
+        "count": 9
+      },
+      {
+        "district": "丰台区",
+        "department": "感染科",
+        "count": 9
+      },
+      {
+        "district": "东城区",
+        "department": "病理科",
+        "count": 9
+      },
+      {
+        "district": "朝阳区",
+        "department": "病理科",
+        "count": 9
+      },
+      {
+        "district": "西城区",
+        "department": "病理科",
+        "count": 9
+      },
+      {
+        "district": "东城区",
+        "department": "精神心理科",
+        "count": 9
+      },
+      {
+        "district": "丰台区",
+        "department": "耳鼻咽喉科",
+        "count": 9
+      },
+      {
+        "district": "西城区",
+        "department": "肿瘤科",
+        "count": 9
+      },
+      {
+        "district": "海淀区",
+        "department": "血液内科",
+        "count": 9
+      },
+      {
+        "district": "西城区",
+        "department": "血液内科",
+        "count": 9
+      },
+      {
+        "district": "西城区",
+        "department": "重症医学科",
+        "count": 9
+      },
+      {
+        "district": "西城区",
+        "department": "针灸推拿科",
+        "count": 9
+      },
+      {
+        "district": "朝阳区",
+        "department": "风湿免疫科",
+        "count": 9
+      },
+      {
+        "district": "西城区",
+        "department": "风湿免疫科",
+        "count": 9
+      }
+    ],
+    "network": [
+      {
+        "district": "东城区",
+        "count": 1,
+        "network": "neonatal"
+      },
+      {
+        "district": "丰台区",
+        "count": 1,
+        "network": "maternal"
+      },
+      {
+        "district": "丰台区",
+        "count": 1,
+        "network": "neonatal"
+      },
+      {
+        "district": "密云区",
+        "count": 1,
+        "network": "stroke"
+      },
+      {
+        "district": "平谷区",
+        "count": 1,
+        "network": "pediatric"
+      },
+      {
+        "district": "平谷区",
+        "count": 1,
+        "network": "stroke"
+      },
+      {
+        "district": "延庆区",
+        "count": 1,
+        "network": "pediatric"
+      },
+      {
+        "district": "延庆区",
+        "count": 1,
+        "network": "stroke"
+      },
+      {
+        "district": "怀柔区",
+        "count": 1,
+        "network": "maternal"
+      },
+      {
+        "district": "海淀区",
+        "count": 1,
+        "network": "neonatal"
+      },
+      {
+        "district": "石景山区",
+        "count": 1,
+        "network": "pediatric"
+      },
+      {
+        "district": "顺义区",
+        "count": 1,
+        "network": "pediatric"
+      },
+      {
+        "district": "丰台区",
+        "count": 10,
+        "network": "stroke"
+      },
+      {
+        "district": "朝阳区",
+        "count": 10,
+        "network": "stroke"
+      },
+      {
+        "district": "东城区",
+        "count": 2,
+        "network": "pediatric"
+      },
+      {
+        "district": "大兴区",
+        "count": 2,
+        "network": "pediatric"
+      },
+      {
+        "district": "密云区",
+        "count": 2,
+        "network": "pediatric"
+      },
+      {
+        "district": "怀柔区",
+        "count": 2,
+        "network": "pediatric"
+      },
+      {
+        "district": "怀柔区",
+        "count": 2,
+        "network": "stroke"
+      },
+      {
+        "district": "朝阳区",
+        "count": 2,
+        "network": "neonatal"
+      },
+      {
+        "district": "西城区",
+        "count": 2,
+        "network": "neonatal"
+      },
+      {
+        "district": "通州区",
+        "count": 2,
+        "network": "pediatric"
+      },
+      {
+        "district": "通州区",
+        "count": 2,
+        "network": "stroke"
+      },
+      {
+        "district": "门头沟区",
+        "count": 2,
+        "network": "stroke"
+      },
+      {
+        "district": "顺义区",
+        "count": 2,
+        "network": "stroke"
+      },
+      {
+        "district": "丰台区",
+        "count": 3,
+        "network": "pediatric"
+      },
+      {
+        "district": "大兴区",
+        "count": 3,
+        "network": "stroke"
+      },
+      {
+        "district": "房山区",
+        "count": 3,
+        "network": "stroke"
+      },
+      {
+        "district": "昌平区",
+        "count": 3,
+        "network": "pediatric"
+      },
+      {
+        "district": "朝阳区",
+        "count": 3,
+        "network": "maternal"
+      },
+      {
+        "district": "石景山区",
+        "count": 3,
+        "network": "stroke"
+      },
+      {
+        "district": "门头沟区",
+        "count": 3,
+        "network": "pediatric"
+      },
+      {
+        "district": "昌平区",
+        "count": 4,
+        "network": "stroke"
+      },
+      {
+        "district": "朝阳区",
+        "count": 4,
+        "network": "pediatric"
+      },
+      {
+        "district": "海淀区",
+        "count": 4,
+        "network": "maternal"
+      },
+      {
+        "district": "西城区",
+        "count": 4,
+        "network": "maternal"
+      },
+      {
+        "district": "东城区",
+        "count": 5,
+        "network": "maternal"
+      },
+      {
+        "district": "房山区",
+        "count": 5,
+        "network": "pediatric"
+      },
+      {
+        "district": "海淀区",
+        "count": 5,
+        "network": "pediatric"
+      },
+      {
+        "district": "东城区",
+        "count": 7,
+        "network": "stroke"
+      },
+      {
+        "district": "西城区",
+        "count": 7,
+        "network": "pediatric"
+      },
+      {
+        "district": "西城区",
+        "count": 7,
+        "network": "stroke"
+      },
+      {
+        "district": "海淀区",
+        "count": 9,
+        "network": "stroke"
+      }
+    ],
+    "quality": [
+      {
+        "coord_precision": "high",
+        "count": 3865
+      },
+      {
+        "coord_precision": "missing",
+        "count": 3
+      },
+      {
+        "coord_precision": "rough",
+        "count": 5810
+      }
+    ]
+  },
+  "validation": {
+    "checks": 24,
+    "all_passed": true,
+    "query": [
+      {
+        "mode": "existing_indexes",
+        "warmups": 5,
+        "samples": 30,
+        "concurrency": 1,
+        "median_ms": 0.481,
+        "p95_ms": 0.851
+      },
+      {
+        "mode": "ignore_secondary_indexes",
+        "warmups": 5,
+        "samples": 30,
+        "concurrency": 1,
+        "median_ms": 8.731,
+        "p95_ms": 32.047
+      }
+    ],
+    "cluster_runs": 8,
+    "cluster_note": "16区、k=2至5、种子7和42；分组对随机种子敏感，仅作结构探索。"
+  }
+}

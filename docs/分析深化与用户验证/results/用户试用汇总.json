@@ -1,0 +1,58 @@
+{
+  "status": "pending",
+  "participants": 0,
+  "completed_rows": 0,
+  "tasks": {
+    "T1": {
+      "n": 0,
+      "success": 0,
+      "assisted": 0,
+      "fail": 0,
+      "success_rate": null,
+      "median_seconds": null,
+      "errors": 0,
+      "helps": 0
+    },
+    "T2": {
+      "n": 0,
+      "success": 0,
+      "assisted": 0,
+      "fail": 0,
+      "success_rate": null,
+      "median_seconds": null,
+      "errors": 0,
+      "helps": 0
+    },
+    "T3": {
+      "n": 0,
+      "success": 0,
+      "assisted": 0,
+      "fail": 0,
+      "success_rate": null,
+      "median_seconds": null,
+      "errors": 0,
+      "helps": 0
+    },
+    "T4": {
+      "n": 0,
+      "success": 0,
+      "assisted": 0,
+      "fail": 0,
+      "success_rate": null,
+      "median_seconds": null,
+      "errors": 0,
+      "helps": 0
+    },
+    "T5": {
+      "n": 0,
+      "success": 0,
+      "assisted": 0,
+      "fail": 0,
+      "success_rate": null,
+      "median_seconds": null,
+      "errors": 0,
+      "helps": 0
+    }
+  },
+  "limitation": "self-reported real trial records; convenience sample, no population inference"
+}

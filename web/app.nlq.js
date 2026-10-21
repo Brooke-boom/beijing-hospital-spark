@@ -852,6 +852,7 @@ var NLQ = (function () {
     parse: parse,
     describe: describe,
     matches: matches,
+    resolveNearBase: resolveNearBase,
     matchScore: matchScore,
     runFilter: runFilter,
     explain: explain,

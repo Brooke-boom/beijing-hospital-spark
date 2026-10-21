@@ -94,8 +94,13 @@ for _r in _dept_rows:
     _dmap.setdefault(_hid, []).append(_r['dept_name'])
     if _r['source'] in ('specialty', 'online', 'key_depts'):
         _recorded_map.setdefault(_hid, []).append(_r['dept_name'])
+_evidence_map = {}
+for _r in _dept_rows:
+    _evidence_map.setdefault(str(_r['hospital_id']).strip(), {}).setdefault(_r['dept_name'], set()).add(_r['source'])
 _n_dept = 0
 for r in rows:
+    r['dept_evidence'] = {d: sorted(s) for d, s in _evidence_map.get(r['id'], {}).items()}
+    r['dept_evidence_origin'] = 'database'
     _ds = _dmap.get(r['id'])
     r['depts'] = ';'.join(sorted(_ds)) if _ds else ''
     r['recorded_depts'] = ';'.join(sorted(set(_recorded_map.get(r['id'], []))))
@@ -261,6 +266,9 @@ conn.close()
 PYEOF
 fi
 
+echo "=== 2. 生成同批次指标与科室证据 ==="
+"$PYTHON_BIN" etl/export_project_metrics.py
+
 echo "=== 2. 刷新自然语言筛选词表 + 院区证据 ==="
 # 词表只有一份真源：web/nlq.py。这里把它导出成 web/nlq_lexicon.json，
 # 再内联进单文件产物 —— 单文件形态的解析结果因此与后端逐字段一致
@@ -277,6 +285,8 @@ from pathlib import Path
 data = open('web/snapshot_data.json', encoding='utf-8').read()
 html = open('web/dashboard.html', encoding='utf-8').read()
 js = open('web/app.js', encoding='utf-8').read()
+research_path=Path('web/analysis_batch.json')
+research_json=research_path.read_text(encoding='utf-8') if research_path.exists() else 'null'
 
 # 智能筛选页的词表 + 解析引擎 + 界面层。
 # 单文件形态原本只带查阅能力，智能筛选要跳 /spa/（在线形态）——在 GitHub Pages 上那是 404。
@@ -289,6 +299,16 @@ lex_json = lex_path.read_text(encoding='utf-8')
 nlq_js = open('web/app.nlq.js', encoding='utf-8').read()
 chat_js = open('web/app.chat.js', encoding='utf-8').read()
 ev_js = open('web/app.evidence.js', encoding='utf-8').read()
+query_js = open('web/app.query.js', encoding='utf-8').read()
+ux_js = open('web/app.ux.js', encoding='utf-8').read()
+doctor_js = open('web/app.doctors.js', encoding='utf-8').read()
+doctor_json = open('web/doctors_data.json', encoding='utf-8').read()
+import sys
+sys.path.insert(0, str(Path('web').resolve()))
+import doctors
+doctors.load_directory()  # Reject invalid associations / unreviewed source domains before shipping.
+ux_css = open('web/ux.css', encoding='utf-8').read()
+html = html.replace('<link rel="stylesheet" href="ux.css">', '<style>' + ux_css + '</style>')
 
 # 院区 / 挂牌证据：让详情页与对比表能说清「这块牌子是院区还是旧称」。
 campus_path = Path('web/campus_evidence.json')
@@ -310,10 +330,15 @@ assert '<script src="app.js"></script>' in html, '产物拼装失败：未找到
 html = html.replace('<script src="app.js"></script>',
                     f'<script>window.__SNAPSHOT__ = {inline(data)};</script>\n'
                     f'<script>window.__NLQ_LEX__ = {inline(lex_json)};</script>\n'
+                    f'<script>window.__RESEARCH__ = {inline(research_json)};</script>\n'
                     f'<script>window.__CAMPUS__ = {inline(campus_json)};</script>\n'
+                    f'<script>window.__DOCTORS__ = {inline(doctor_json)};</script>\n'
                     f'<script>\n{inline(js)}\n</script>')
 # 词表装载脚本（开发形态回退读 nlq_lexicon.json）在产物里已由 __NLQ_LEX__ 覆盖，原样保留即可
-for tag, code in (('<script src="app.nlq.js"></script>', nlq_js),
+for tag, code in (('<script src="app.doctors.js"></script>', doctor_js),
+                  ('<script src="app.ux.js"></script>', ux_js),
+                  ('<script src="app.query.js"></script>', query_js),
+                  ('<script src="app.nlq.js"></script>', nlq_js),
                   ('<script src="app.chat.js"></script>', chat_js),
                   ('<script src="app.evidence.js"></script>', ev_js)):
     if html.count(tag) != 1:

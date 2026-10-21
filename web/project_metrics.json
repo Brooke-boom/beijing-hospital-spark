@@ -1,0 +1,325 @@
+{
+  "schema_version": 1,
+  "snapshot_date": "2026-10-18",
+  "generated_at_utc": "2026-10-21T14:23:13.794833+00:00",
+  "fingerprint": "3825eec57b0e26b4c3d0b28e4f9fc9cd8c7294b685709db7c0dde878f4557980",
+  "evidence_status": "csv_verified_against_snapshot",
+  "definitions": {
+    "institutions": {
+      "label": "机构记录总数",
+      "rule": {
+        "op": "all"
+      },
+      "definition": "当前快照唯一机构ID记录数，包含院区和旧名，不等于去重医院数"
+    },
+    "hospitals": {
+      "label": "医院类型机构记录",
+      "rule": {
+        "field": "category",
+        "op": "in",
+        "value": [
+          "医院",
+          "综合医院",
+          "专科医院",
+          "中医医院"
+        ]
+      },
+      "definition": "按机构类别统计医院类型，含归一类别及原类别，不按机构名称推断"
+    },
+    "community": {
+      "label": "社区卫生服务机构记录",
+      "rule": {
+        "field": "category",
+        "op": "in",
+        "value": [
+          "社区卫生服务中心",
+          "社区卫生服务站"
+        ]
+      },
+      "definition": "category为社区卫生服务中心或社区卫生服务站；按机构ID计数，不按名称正则匹配"
+    },
+    "tertiary": {
+      "label": "三级机构记录",
+      "rule": {
+        "field": "level",
+        "op": "eq",
+        "value": "三级"
+      },
+      "definition": "level=三级，包含全部机构类型，不限医院类别"
+    },
+    "coordinates": {
+      "label": "有坐标机构",
+      "rule": {
+        "op": "all_present",
+        "fields": [
+          "lng",
+          "lat"
+        ]
+      },
+      "definition": "经纬度均非空，不代表高精度"
+    },
+    "dept_covered": {
+      "label": "有科室映射机构",
+      "rule": {
+        "field": "depts",
+        "op": "nonempty"
+      },
+      "definition": "至少一条非空科室映射，含名称及规则推断"
+    },
+    "dept_recorded": {
+      "label": "有科室来源记录机构",
+      "rule": {
+        "field": "recorded_depts",
+        "op": "nonempty"
+      },
+      "definition": "至少一条有来源科室记录，不代表当前在营确认"
+    },
+    "specialty_named_institutions": {
+      "label": "重点专科名单名称覆盖机构记录",
+      "rule": {
+        "op": "any_nonempty",
+        "fields": [
+          "national_specialty",
+          "municipal_specialty"
+        ]
+      },
+      "definition": "国家或市级名单名称字段有记录，不使用历史专科汇总字段"
+    },
+    "coord_high": {
+      "label": "高精度坐标",
+      "rule": {
+        "field": "coord_precision",
+        "op": "eq",
+        "value": "high"
+      },
+      "definition": "coord_precision=high"
+    },
+    "coord_rough": {
+      "label": "粗精度坐标",
+      "rule": {
+        "field": "coord_precision",
+        "op": "eq",
+        "value": "rough"
+      },
+      "definition": "coord_precision=rough"
+    },
+    "coord_missing": {
+      "label": "缺失坐标",
+      "rule": {
+        "field": "coord_precision",
+        "op": "eq",
+        "value": "missing"
+      },
+      "definition": "coord_precision=missing"
+    }
+  },
+  "metrics": [
+    {
+      "key": "institutions",
+      "label": "机构记录总数",
+      "value": 9678,
+      "denominator": 9678,
+      "percentage": 100.0,
+      "definition": "当前快照唯一机构ID记录数，包含院区和旧名，不等于去重医院数",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "specialty_named_institutions",
+      "label": "重点专科名单名称覆盖机构记录",
+      "value": 90,
+      "denominator": 9678,
+      "percentage": 0.93,
+      "definition": "国家或市级名单名称字段有记录，不使用历史专科汇总字段",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "specialty_legacy_institutions",
+      "label": "历史专科汇总字段非零机构记录",
+      "value": 77,
+      "denominator": 9678,
+      "percentage": 0.8,
+      "definition": "历史汇总字段口径，独立保留，不与名单名称覆盖数混用",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "coordinates",
+      "label": "有坐标机构",
+      "value": 9675,
+      "denominator": 9678,
+      "percentage": 99.97,
+      "definition": "经纬度均非空，不代表高精度",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "coord_high",
+      "label": "高精度坐标",
+      "value": 3865,
+      "denominator": 9678,
+      "percentage": 39.94,
+      "definition": "coord_precision=high",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "coord_rough",
+      "label": "粗精度坐标",
+      "value": 5810,
+      "denominator": 9678,
+      "percentage": 60.03,
+      "definition": "coord_precision=rough",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "coord_missing",
+      "label": "缺失坐标",
+      "value": 3,
+      "denominator": 9678,
+      "percentage": 0.03,
+      "definition": "coord_precision=missing",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "grade_applicable",
+      "label": "等级适用机构",
+      "value": 874,
+      "denominator": 9678,
+      "percentage": 9.03,
+      "definition": "按当前快照等级适用范围统计",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "grade_known",
+      "label": "适用范围内等级非空",
+      "value": 849,
+      "denominator": 874,
+      "percentage": 97.14,
+      "definition": "一级 / 二级 / 三级；分母为等级适用机构",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "dept_dictionary",
+      "label": "筛选科室词表条目",
+      "value": 44,
+      "denominator": null,
+      "percentage": null,
+      "definition": "当前筛选下拉词表条目数，不是任一医院科室总数",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "dept_covered",
+      "label": "有科室映射机构",
+      "value": 6745,
+      "denominator": 9678,
+      "percentage": 69.69,
+      "definition": "至少一条非空科室映射，含名称及规则推断",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "dept_recorded",
+      "label": "有科室来源记录机构",
+      "value": 772,
+      "denominator": 9678,
+      "percentage": 7.98,
+      "definition": "至少一条有来源科室记录，不代表当前在营确认",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "dept_pairs",
+      "label": "机构与科室唯一组合",
+      "value": 11419,
+      "denominator": null,
+      "percentage": null,
+      "definition": "每个机构内科室去重后的组合数，不等于来源记录行数",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "dept_source_records",
+      "label": "科室来源去重记录数",
+      "value": 11419,
+      "denominator": null,
+      "percentage": null,
+      "definition": "按机构 ID / 科室 / 来源三元组去重",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "dept_source_key_depts",
+      "label": "科室来源 · key_depts",
+      "value": 475,
+      "denominator": 11419,
+      "percentage": 4.16,
+      "definition": "按机构 ID / 科室 / 来源三元组去重",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "dept_source_name",
+      "label": "科室来源 · name",
+      "value": 3747,
+      "denominator": 11419,
+      "percentage": 32.81,
+      "definition": "按机构 ID / 科室 / 来源三元组去重",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "dept_source_online",
+      "label": "科室来源 · online",
+      "value": 3320,
+      "denominator": 11419,
+      "percentage": 29.07,
+      "definition": "按机构 ID / 科室 / 来源三元组去重",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "dept_source_rule",
+      "label": "科室来源 · rule",
+      "value": 3630,
+      "denominator": 11419,
+      "percentage": 31.79,
+      "definition": "按机构 ID / 科室 / 来源三元组去重",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "dept_source_specialty",
+      "label": "科室来源 · specialty",
+      "value": 247,
+      "denominator": 11419,
+      "percentage": 2.16,
+      "definition": "按机构 ID / 科室 / 来源三元组去重",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "local_relation_rows",
+      "label": "本地科室 CSV 行数",
+      "value": 11419,
+      "denominator": null,
+      "percentage": null,
+      "definition": "本地文件行数，已逐机构核对科室集合；与去重组合口径分别记录",
+      "source": "data/processed/hospital_depts.csv"
+    },
+    {
+      "key": "hospitals",
+      "label": "医院类型机构记录",
+      "value": 681,
+      "denominator": 9678,
+      "percentage": 7.04,
+      "definition": "按机构类别统计医院类型，含归一类别及原类别，不按机构名称推断",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "community",
+      "label": "社区卫生服务机构记录",
+      "value": 1455,
+      "denominator": 9678,
+      "percentage": 15.03,
+      "definition": "category为社区卫生服务中心或社区卫生服务站；按机构ID计数，不按名称正则匹配",
+      "source": "web/snapshot_data.json"
+    },
+    {
+      "key": "tertiary",
+      "label": "三级机构记录",
+      "value": 180,
+      "denominator": 9678,
+      "percentage": 1.86,
+      "definition": "level=三级，包含全部机构类型，不限医院类别",
+      "source": "web/snapshot_data.json"
+    }
+  ]
+}

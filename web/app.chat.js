@@ -17,6 +17,7 @@
 
 var CHAT = (function () {
   var INITE = false, ENTERED = false, BUSY = false;
+  var MODEL_COOLDOWN=0;
   var AI_ON = null;            // null=未探测 / true=Agnes 可用 / false=走本地模板
   var HISTORY = [];            // {role, content} 最近 6 条随请求带给模型
   var LOG = null;
@@ -68,27 +69,28 @@ var CHAT = (function () {
     return addMsg('ai wait', '<span class="chatdots"><i></i><i></i><i></i></span> 正在查询真实数据…', '…');
   }
   function welcome() {
-    addMsg('sys',
-      '在这里用一句话提问，AI 会基于平台<b>真实查询结果</b>回答机构分布、等级、科室等问题。<br>' +
-      '系统只提供机构资源数据：不做疾病诊断、症状推断与用药建议。', '边界说明');
-    addMsg('ai', '你好，我是本平台的 AI 问答助手（Agnes）。试试下面的问题，或直接输入你想找的机构条件。', 'AI');
+    LOG.setAttribute('data-empty','true');
+    addMsg('sys','<div class="chat-start"><span class="chat-start-icon" aria-hidden="true">✦</span><h3>想了解哪里的医疗资源？</h3><p>输入区域、医院或科室，查询机构、医生，或比较资源分布。</p><div class="chat-start-grid">'+[
+      ['找医院','海淀区的三级医院有哪些？'],['看分布','按行政区统计三级医院的数量'],['找医生','北京协和医院有哪些心内科医生？'],['查科室','朝阳区有哪些开设骨科的机构？']
+    ].map(function(x){return '<button type="button" data-q="'+x[1]+'"><strong>'+x[0]+'</strong><span>'+x[1]+'</span><i aria-hidden="true">↗</i></button>';}).join('')+'</div><small>点击示例即可查询，也可以直接输入自己的问题。</small></div>','');
   }
 
   function setStatus() {
     var dot = el('ai_dot'), txt = el('ai_status');
     if (!dot || !txt) return;
-    if (AI_ON === true) { txt.textContent = 'Agnes 已连接'; dot.className = 'chatdot on'; }
-    else if (AI_ON === false) { txt.textContent = '离线模板 · 未接入大模型'; dot.className = 'chatdot off'; }
+    if (AI_ON === true) { txt.textContent = '智能说明已启用'; dot.className = 'chatdot on'; }
+    else if (AI_ON === false) { txt.textContent = '本地查询可用'; dot.className = 'chatdot off'; }
     else { txt.textContent = '连接检测中…'; dot.className = 'chatdot'; }
   }
 
   // Agnes 探活：不发起真实推理（?probe=1 才会），只问密钥与开关状态。
   // file:// 下 fetch 直接失败 → 离线模板，与旧版门禁行为一致。
   function probe() {
+    if(Date.now()<MODEL_COOLDOWN){AI_ON=false;setStatus();return Promise.resolve(false);}
     // 注意：ENV.api 是布尔且**异步**才就绪 —— init 时可能还没完成，所以 ask()
     // 前会重探一次（/api/ai/health 是轻接口，无推理开销）。file:// 直接离线。
-    if (!httpPage()) { AI_ON = false; setStatus(); return Promise.resolve(false); }
-    return fetch('/api/ai/health')
+    if (!httpPage() || !window.ENV || !ENV.backend) { AI_ON = false; setStatus(); return Promise.resolve(false); }
+    return UX.request('/api/ai/health',{},4000)
       .then(function (r) { return r.json(); })
       .then(function (j) { AI_ON = !!(j && j.ok && j.llm_enabled); setStatus(); return AI_ON; })
       .catch(function () { AI_ON = false; setStatus(); return false; });
@@ -112,9 +114,20 @@ var CHAT = (function () {
     return { intent: 'filter', parsed: parsed, r: r, total: r.total || 0 };
   }
 
+  function scopeNote(res) {
+    var cond=res.parsed.conditions||{},chips=window.NLQ.describe(cond)||[];
+    var text='本次筛选条件：'+chips.map(function(x){return x.label+'：'+(x.text||(x.values||[]).join('、'));}).join('；')+'。';
+    if((cond.level||[]).includes('三级')){
+      var only=(cond.category||[]).length===1&&cond.category[0]==='医院';
+      text+='本次口径：'+(only?'仅医院类型的三级记录':'当前类型条件下的三级记录（未限类型时包含院区、旧名及其他类型）')+'。';
+      if(only){var all=Object.assign({},cond);delete all.category;var result=window.NLQ.runStats(DATA.institutions,all,'district',basePoint());text+='对照口径：保持其他条件，取消机构类型限制，全部三级机构记录为'+result.rows.filter(function(x){return x.cnt;}).map(function(x){return x.name+' '+x.cnt+' 条';}).join('、')+'。两者可能不同，不等同去重医院数。若要查全部记录，请将问题中的“三级医院”改为“三级机构”。';}
+    }
+    return text;
+  }
+
   // facts 文本（服务端截断在 4000 字符，前端控制在 ~2600 以内）
   function buildFacts(res) {
-    var lines = [];
+    var lines = [scopeNote(res)];
     // 解析说明（检查词映射 / 就近参照）与参照点基准先交给模型，让它如实转述
     if (res.parsed && res.parsed.notice) lines.push(res.parsed.notice);
     if (res.r && res.r.near_note) lines.push(res.r.near_note);
@@ -155,7 +168,7 @@ var CHAT = (function () {
       var valid = res.st.rows.filter(function (r) { return r.cnt; });
       var rows = valid.slice(0, 8)
         .map(function (r) { return ((r.name || r.label || r.key)) + ' ' + r.cnt + ' 家'; }).join('，');
-      return head + (s ? s + '\n' : '') + '明细：' + rows +
+      return head + (condTxt?'按条件（'+condTxt+'）统计。\n':'') + (s ? s + '\n' : '') + '明细：' + rows +
         (valid.length > 8 ? ' 等。' : '。') +
         '\n以上数字来自平台对真实数据的本次查询。';
     }
@@ -169,80 +182,81 @@ var CHAT = (function () {
     }).join('　');
     return head + '按' + (condTxt ? '条件（' + condTxt + '）' : '你的描述') + '共命中 ' + res.total + ' 家。' +
       (res.r.sort && res.r.sort.indexOf('dist') === 0 ? '按距离从近到远，' : '') +
-      '排名靠前的有：' + top + '。\n以上数字与机构名来自平台真实查询，完整列表可在「机构查询」页按相同条件查看。';
+      '按当前排序列出的有：' + top + '。\n以上数字与机构名来自平台真实查询，可点击下方按钮打开完整结果。';
   }
 
   // --------------------------------------------------------------------------
   //  主流程：提问 → 拒答/查询 → Agnes 或模板
   // --------------------------------------------------------------------------
+  function setBusy(on){
+    BUSY=on;
+    var send=el('ai_send'),clear=el('ai_clear');
+    if(send){send.disabled=on;send.textContent=on?'查询中…':'发送';}
+    if(clear)clear.disabled=on;
+    if(LOG)LOG.setAttribute('aria-busy',String(on));
+    var box=el('ai_ex');if(box)box.querySelectorAll('button').forEach(function(b){b.disabled=on;});
+  }
+  var conversationEpoch=0;
   function ask(q) {
-    q = String(q || '').trim().slice(0, 500);
-    if (!q || BUSY) return Promise.resolve(null);
-    addMsg('user', multiline(q));
-    BUSY = true;
-    var send = el('ai_send'); if (send) { send.disabled = true; }
-
-    // 每次提问前重探：ENV.api 是异步就绪的，enter() 那次探测可能还没轮到
-    var ready = httpPage() ? probe() : Promise.resolve(AI_ON = false);
-    return ready.then(function () {
-      var res;
-      try { res = localRun(q); }
-      catch (e) {
-        BUSY = false; if (send) send.disabled = false;
-        addMsg('sys', '本地查询出错：' + hesc(e && e.message || e));
-        return null;
-      }
-      if (res.refuse) {                                   // ① 病征 / 空条件：本地拒答，不进模型
-        BUSY = false; if (send) send.disabled = false;
-        addMsg('refuse', multiline(res.message), '边界拒答');
-        if (window.updateFabBadge) updateFabBadge(null);
-        return null;
-      }
-      var facts = buildFacts(res);
-      var t = typing();
-      var done = function (html, meta) {
-        if (t && t.parentNode) t.parentNode.removeChild(t);
-        addMsg('ai', html, meta);
-        BUSY = false; if (send) send.disabled = false;
-        if (window.updateFabBadge) updateFabBadge(res.total);
-      };
-      if (AI_ON !== true) {                               // ③ 离线 / 未配密钥：本地模板兜底
-        var la = localAnswer(res);
-        done(multiline(la), '离线模板 · 未接入大模型');
-        HISTORY.push({ role: 'user', content: q }, { role: 'assistant', content: la });
-        HISTORY = HISTORY.slice(-6);
-        return null;
-      }
-      return jsonPost('/api/ai/chat', {
-        mode: 'data', question: q, facts: facts, history: HISTORY,
-      }).then(function (j) {
-        if (j && j.ok && j.reply) {
-          done(multiline(j.reply),
-            hesc(j.model || 'Agnes') + (j.cached ? ' · 缓存' : '') + ' · 仅基于真实查询结果');
-          HISTORY.push({ role: 'user', content: q }, { role: 'assistant', content: j.reply });
-          HISTORY = HISTORY.slice(-6);
-          return j;
+    q=String(q||'').trim().slice(0,500);
+    if(!q||BUSY)return Promise.resolve(null);
+    if(LOG.getAttribute&&LOG.getAttribute('data-empty')==='true')LOG.innerHTML='';
+    LOG.setAttribute('data-empty','false');
+    addMsg('user',multiline(q));setBusy(true);
+    if(window.Doctors){var doctorReply=Doctors.answer(q);if(doctorReply){addMsg('ai',doctorReply,'医生资料查询 · 医院官网');setBusy(false);return Promise.resolve({intent:'doctors'});}}
+    var res;
+    try{res=localRun(q);}catch(e){setBusy(false);addMsg('sys','暂时无法执行查询，请调整条件后重试。');return Promise.resolve(null);}
+    if(res.refuse){setBusy(false);addMsg('refuse',multiline(res.message),'查询范围说明');if(window.updateFabBadge)updateFabBadge(null);return Promise.resolve(null);}
+    var epoch=conversationEpoch,historySnapshot=HISTORY.slice();
+    var answer=localAnswer(res),message=null;
+    var historyReply={role:'assistant',content:answer};
+    HISTORY.push({role:'user',content:q},historyReply);HISTORY=HISTORY.slice(-6);
+    var scopeHTML='<details class="chat-query-scope"><summary>查看本次查询条件与统计口径</summary><p class="chat-scope-note">'+multiline(scopeNote(res))+'</p></details>';
+    function paint(html,meta){
+      if(epoch!==conversationEpoch)return;
+      var follow=LOG&&(LOG.scrollHeight-LOG.scrollTop-LOG.clientHeight<100);
+      if(message){message.querySelector('.chatbody').innerHTML=scopeHTML+html;message.querySelector('.chatwho').textContent=meta;}
+      else{
+        message=addMsg('ai',scopeHTML+html,meta);
+        if(message&&res.intent==='filter'&&res.r&&!res.r.unsupported){
+          var actions=document.createElement('div');actions.className='chat-actions';
+          var button=document.createElement('button');button.type='button';button.className='btn primary sm';button.textContent='查看完整结果（'+res.total+' 家）';
+          button.addEventListener('click',function(){if(window.useSmartResults)useSmartResults(res);});actions.appendChild(button);message.appendChild(actions);
+          var preview=document.createElement('div');preview.className='chat-results-list';
+          (res.r.items||[]).slice(0,3).forEach(function(row){var link=document.createElement('button');link.type='button';link.textContent=row.name+' · 查看详情';link.addEventListener('click',function(){openDrawer(row.id);});preview.appendChild(link);});message.appendChild(preview);
         }
-        if (j && j.reason === 'llm_rate_limited') {
-          done('Agnes 免费额度限流（约 1 次 / 30 秒），稍等片刻再试；相同问题命中缓存后秒回。<br>' +
-            '<b>本次的真实查询结果：</b><br>' + multiline(localAnswer(res)), '限流提示 · 附本地结果');
-          return j;
-        }
-        done(multiline(localAnswer(res)),
-          '离线模板 · ' + ((j && j.hint) ? hesc(j.hint) : 'AI 暂不可用'));   // llm_disabled 等
+      }
+      if(LOG&&follow)LOG.scrollTop=LOG.scrollHeight;
+    }
+    function finish(reply,meta){
+      if(epoch!==conversationEpoch)return;
+      paint(multiline(reply),meta);
+      historyReply.content=reply;
+    }
+    // Data results are immediately usable; language generation never blocks the result handoff.
+    paint(multiline(answer),'真实查询结果 · 正在检查智能说明');
+    setBusy(false); // 本地结果已完成，智能说明仅更新本条消息。
+    if(window.updateFabBadge)updateFabBadge(res.total);
+    var ready=httpPage()?probe():Promise.resolve(AI_ON=false);
+    return ready.then(function(){
+      if(epoch!==conversationEpoch)return null;
+      if(AI_ON!==true){finish(answer,'本地查询结果');return null;}
+      paint(multiline(answer),'真实查询结果 · 正在补充智能说明');
+      return jsonPost('/api/ai/chat',{mode:'data',question:q,facts:buildFacts(res),history:historySnapshot}).then(function(j){
+        if(j&&j.ok&&j.reply){finish(j.reply,'智能说明'+(j.cached?' · 已缓存':'')+' · 基于真实查询结果');return j;}
+        AI_ON=false;setStatus();
+        if(j&&j.reason==='llm_rate_limited'){MODEL_COOLDOWN=Date.now()+30000;finish(answer,'本地查询结果 · 智能服务繁忙');}
+        else finish(answer,'本地查询结果 · 智能说明暂不可用');
         return j;
-      }).catch(function (e) {
-        done(multiline(localAnswer(res)), '离线模板 · AI 连接失败');
-        return null;
-      });
-    });
+      }).catch(function(){AI_ON=false;setStatus();finish(answer,'本地查询结果 · 智能说明连接失败');return null;});
+    }).catch(function(){AI_ON=false;setStatus();finish(answer,'本地查询结果');return null;});
   }
 
   function jsonPost(url, body) {
-    return fetch(url, {
+    return UX.request(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body || {}),
-    }).then(function (r) { return r.json().catch(function () { return null; }); });
+    },18000).then(function (r) { return r.json().catch(function () { return null; }); });
   }
 
   // --------------------------------------------------------------------------
@@ -253,11 +267,15 @@ var CHAT = (function () {
     LOG = el('ai_log');
     var input = el('ai_in'), send = el('ai_send');
     welcome();
+    function updateInput(){var n=input.value.length;if(el('ai_count'))el('ai_count').textContent=n+'/500';input.style&&(input.style.height='auto');if(input.style)input.style.height=Math.min(160,Math.max(62,input.scrollHeight||62))+'px';}
+    if(input)input.addEventListener('input',updateInput);
+    if(LOG)LOG.addEventListener('click',function(e){var b=e.target&&e.target.closest?e.target.closest('[data-q]'):null;if(b)ask(b.getAttribute('data-q'));});
     if (send) send.addEventListener('click', function () {
-      var v = input.value; input.value = ''; ask(v).then(function(){ input.focus(); });
+      if(BUSY)return;var v = input.value;if(!v.trim()){input.focus();return;}input.value='';updateInput();ask(v);input.focus();
     });
     if (input) input.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); var v = input.value; input.value = ''; ask(v); }
+      if(e.isComposing||e.keyCode===229)return;
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault();if(BUSY)return; var v = input.value;if(!v.trim())return;input.value='';updateInput();ask(v); }
     });
     var box = el('ai_ex');
     if (box) box.addEventListener('click', function (e) {
@@ -266,7 +284,7 @@ var CHAT = (function () {
     });
     var clr = el('ai_clear');
     if (clr) clr.addEventListener('click', function () {
-      LOG.innerHTML = ''; HISTORY = []; welcome();
+      if(BUSY)return;conversationEpoch++;LOG.innerHTML = ''; HISTORY = []; welcome();
       if (window.updateFabBadge) updateFabBadge(null);
     });
     probe();
@@ -276,7 +294,7 @@ var CHAT = (function () {
     if (!INITE) init();
     ENTERED = true;
     var input = el('ai_in');
-    setTimeout(function () { if (input) input.focus(); }, 80);
+    setTimeout(function () { if (input && !(window.matchMedia && window.matchMedia('(max-width:700px)').matches)) input.focus(); }, 80);
   }
 
   window.__CHAT__ = { enter: enter, ask: ask, clear: function () { if (el('ai_clear')) el('ai_clear').click(); } };

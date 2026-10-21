@@ -1,0 +1,64 @@
+{
+  "scope": "fresh MySQL volume, copied web source, existing Python packages; no upstream ETL rebuild, no clean dependency installation",
+  "checks": [
+    {
+      "name": "database_export",
+      "passed": true,
+      "detail": {
+        "bytes": 12344179,
+        "sha256": "ecb08c47297a3d57e80f8c1a3e90507dd549ae26b211fef9c91b164e335d5210"
+      }
+    },
+    {
+      "name": "fresh_database_health",
+      "passed": true,
+      "detail": {
+        "institutions": 9678,
+        "status": "ok"
+      }
+    },
+    {
+      "name": "tertiary_filter",
+      "passed": true,
+      "detail": {
+        "total": 180
+      }
+    },
+    {
+      "name": "district_grade_filter",
+      "passed": true,
+      "detail": {
+        "total": 28
+      }
+    },
+    {
+      "name": "doctor_api",
+      "passed": true,
+      "detail": {
+        "total": 309
+      }
+    },
+    {
+      "name": "homepage",
+      "passed": true,
+      "detail": {
+        "bytes": 11213604
+      }
+    },
+    {
+      "name": "restart_persistence",
+      "passed": true,
+      "detail": {
+        "institutions": 9678,
+        "status": "ok"
+      }
+    }
+  ],
+  "python": "3.13.12 (main, Feb  4 2026, 00:05:32) [Clang 21.1.4 ]",
+  "packages": {
+    "flask": "3.1.3",
+    "pymysql": "1.2.0",
+    "requests": "2.34.2"
+  },
+  "cleanup": "only uniquely named verification container and volume removed"
+}

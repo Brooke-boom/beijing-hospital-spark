@@ -100,6 +100,43 @@ def spa(sub=""):
     return redirect("/", code=302)
 
 
+# Reviewed doctor records are independent of the institution snapshot / MySQL tables.
+@app.route("/api/doctors")
+def api_doctors():
+    import doctors
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+        size = min(50, max(1, int(request.args.get("page_size", 12))))
+    except (ValueError, TypeError):
+        return jsonify({"ok": False, "message": "分页参数必须为整数"}), 400
+    rows, meta = doctors.search(request.args)
+    return jsonify({"ok": True, "total": len(rows), "page": page, "page_size": size,
+                    "items": rows[(page-1)*size:page*size], "scope": meta["scope"],
+                    "verified_on": meta["verified_on"], "booking_url": doctors.BOOKING})
+
+
+@app.route("/api/inst/<inst_id>/doctors")
+def api_institution_doctors(inst_id):
+    import doctors
+    _, hospitals = doctors.load_directory()
+    if inst_id not in hospitals:
+        return jsonify({"ok": False, "message": "机构不存在"}), 404
+    rows, meta = doctors.search({"hospital": inst_id, "department": request.args.get("department", "")})
+    return jsonify({"ok": True, "items": rows, "total": len(rows), "scope": meta["scope"],
+                    "verified_on": meta["verified_on"], "booking_url": doctors.BOOKING,
+                    "note": "医院级资料；具体出诊院区、时间和号源请到北京114核实"})
+
+
+@app.route("/api/doctors/coverage")
+def api_doctor_coverage():
+    import doctors
+    rows = doctors.coverage()
+    return jsonify({"ok": True, "target_records": len(rows),
+                    "records_with_doctors": sum(r["doctor_count"] > 0 for r in rows),
+                    "missing_records": sum(r["doctor_count"] == 0 for r in rows),
+                    "items": rows, "booking_url": doctors.BOOKING})
+
+
 # ============== API：多维筛选与排序 ==============
 @app.route("/api/institutions")
 def api_institutions():
@@ -293,7 +330,7 @@ def api_detail(inst_id):
         "SELECT id, name, district, category, category AS category_fine, category_norm, category_sub,"
         " level, level_sub, level_norm,"
         " grade_scope, ownership, ownership_basis, feature, feature_level,"
-        " addr, phone, postal, key_depts,"
+        " addr, phone, postal, key_depts, dept_count_src, category,"
         " net_pediatric, net_stroke, net_neonatal, net_maternal,"
         " lng, lat, coord_formatted, coord_precision, coord_source,"
         " src_count_int, source_files, dept_count, dept_count_src, key_specialty_count"
@@ -954,7 +991,7 @@ def api_inst_detail(inst_id):
     r = query(
         "SELECT id, name, district, category_norm, category_sub, level_norm, level_sub,"
         " grade_scope, ownership, ownership_basis, feature, feature_level,"
-        " addr, phone, postal, key_depts,"
+        " addr, phone, postal, key_depts, dept_count_src, category,"
         " national_specialty, national_specialty_count,"
         " municipal_specialty, municipal_specialty_count, key_specialty_count, dept_count,"
         " net_pediatric, net_stroke, net_neonatal, net_maternal,"
@@ -1062,7 +1099,7 @@ def api_inst_compare():
                               if r["distance_km"] is not None else "—")
         r["level"] = r.pop("level_norm")
         r["category"] = r.pop("category_norm")
-        r["networks_text"] = "、".join(_net_list(r)) or "未纳入"
+        r["networks_text"] = "、".join(_net_list(r)) or "未收录／未核实"
         for k in ("feature", "national_specialty", "municipal_specialty", "addr", "phone"):
             r[k] = (r.get(k) or "").strip()
     return jsonify({"ok": True, "fields": COMPARE_FIELDS, "items": rows})

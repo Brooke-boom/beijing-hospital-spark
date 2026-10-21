@@ -291,7 +291,7 @@ var EV = (function () {
     // dept_count_src 非空 = 在线逐家核实的真实值；否则是按「名称 / 机构类型职能」推导的值。
     // 两种口径不能并列成「科室多/少」，所以对比表里这一行给的是**证据强度**，不是数量高低。
     var src = String(r.dept_count_src || '');
-    if (src) return { text: '在线逐家核实', detail: '来源：' + src, strong: true };
+    if (src) { var names={haodf_claim:'好大夫科室数量记录',haodf_list:'好大夫科室列表',baike_claim:'百科科室数量记录',baike_table:'百科科室表格'};return { text:'科室数量有来源记录',detail:'来源：'+(names[src]||'公开来源记录'),strong:true }; }
     if (Number(r.dept_count || 0) > 0) {
       return { text: '规则推导（未核实）', detail: '按「机构名称 / 机构类型职能」推导，不作为事实展示', strong: false };
     }

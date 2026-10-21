@@ -1,0 +1,68 @@
+{
+  "scope": "fresh MySQL volume + copied final web source + newly installed isolated Python dependencies; no upstream ETL rebuild",
+  "checks": [
+    {
+      "name": "database_export",
+      "passed": true,
+      "detail": {
+        "bytes": 12344179,
+        "sha256": "c17e5be49b41dc8a9d3e6ec0782532cf4e920eb931285179843bcde733d510b5"
+      }
+    },
+    {
+      "name": "fresh_database_health",
+      "passed": true,
+      "detail": {
+        "institutions": 9678,
+        "status": "ok"
+      }
+    },
+    {
+      "name": "tertiary_filter",
+      "passed": true,
+      "detail": {
+        "total": 180
+      }
+    },
+    {
+      "name": "district_grade_filter",
+      "passed": true,
+      "detail": {
+        "total": 28
+      }
+    },
+    {
+      "name": "doctor_api",
+      "passed": true,
+      "detail": {
+        "total": 309
+      }
+    },
+    {
+      "name": "homepage",
+      "passed": true,
+      "detail": {
+        "bytes": 11217396
+      }
+    },
+    {
+      "name": "restart_persistence",
+      "passed": true,
+      "detail": {
+        "institutions": 9678,
+        "status": "ok"
+      }
+    }
+  ],
+  "python": "3.13.12 (main, Feb  4 2026, 00:05:32) [Clang 21.1.4 ]",
+  "packages": {
+    "flask": "3.1.3",
+    "pymysql": "1.2.0",
+    "requests": "2.34.2"
+  },
+  "cleanup": "only uniquely named verification container and volume removed",
+  "isolated_python": true,
+  "python_prefix": "/private/tmp/thesis-verify-venv",
+  "dependency_install": "python -m venv, followed by pip install Flask==3.1.3 PyMySQL==1.2.0 requests==2.34.2; successful clean registry installation",
+  "dependency_lock_sha256": "36064fecdc95a38ee1835db6a87b2236cf958b67851d1f4cce1d3bb30e12dfad"
+}
