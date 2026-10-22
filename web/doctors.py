@@ -52,7 +52,7 @@ def coverage():
 
 def department_parts(value):
     parts = [part.strip() for part in re.split('[、；;]', value)]
-    return parts if len(parts)>1 and all(re.search('科|部|中心|门诊|病房', part) for part in parts) else [value]
+    return parts if len(parts)>1 and all(re.search('科|部|中心|门诊|病房|病区|研究所', part) for part in parts) else [value]
 
 
 def search(params):

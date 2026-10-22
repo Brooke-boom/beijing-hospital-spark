@@ -8,7 +8,7 @@ from app import app
 assert len(doctors.search({})[0]) == len(doctors.load_directory()[0]['doctors'])
 with app.test_client() as client:
     for path, count in [('/api/doctors', len(doctors.load_directory()[0]['doctors'])), ('/api/doctors?hospital=1498&department=泌尿外科', 3),
-                        ('/api/inst/1547/doctors', 4), ('/api/inst/1303/doctors', len(doctors.search({'hospital':'1303'})[0]))]:
+                        ('/api/inst/1547/doctors', len(doctors.search({'hospital':'1150'})[0])), ('/api/inst/1303/doctors', len(doctors.search({'hospital':'1303'})[0]))]:
         response = client.get(path)
         assert response.status_code == 200
         assert response.json['total'] == count
@@ -37,3 +37,8 @@ with app.test_client() as client:
         assert response.status_code==200
         assert response.json['total']==h['doctor_count']
 print('PASS 全部180条三级机构医生入口与覆盖状态逐项一致')
+
+assert len(doctors.search({'hospital':'1473'})[0])==45
+assert len(doctors.search({'hospital':'1595'})[0])==50
+assert len(doctors.search({'hospital':'188'})[0])==29
+assert any(x['name']=='杨新健' for x in doctors.search({'hospital':'1245','department':'神经外科学中心'})[0])

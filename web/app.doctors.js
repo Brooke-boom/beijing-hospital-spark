@@ -7,7 +7,7 @@
   const id=x=>document.getElementById(x);
   const escape=x=>String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const norm=x=>String(x||'').trim().replace(/心血管内科|心血管科|心脏科|心内科/g,'心内科');
-  function departments(value){const parts=String(value||'').split(/[、；;]/).map(x=>x.trim());return parts.length>1&&parts.every(x=>/科|部|中心|门诊|病房/.test(x))?parts:[String(value||'')];}
+  function departments(value){const parts=String(value||'').split(/[、；;]/).map(x=>x.trim());return parts.length>1&&parts.every(x=>/科|部|中心|门诊|病房|病区|研究所/.test(x))?parts:[String(value||'')];}
   function institutions(){return typeof DATA!=='undefined'&&DATA?DATA.institutions||[]:[];}
   let hospitalRows=null,hospitalIndex=new Map();
   function hospital(h){const rows=institutions();if(rows!==hospitalRows){hospitalRows=rows;hospitalIndex=new Map(rows.map(r=>[String(r.id),r]));}return hospitalIndex.get(String(h));}
@@ -28,7 +28,7 @@
     id('doctor_district').replaceChildren(option('','全部行政区'));[...new Set(hs.map(h=>h.district).filter(Boolean))].sort().forEach(d=>id('doctor_district').appendChild(option(d,d)));
     id('doctor_department').replaceChildren(option('','全部科室'));[...new Set(records().flatMap(d=>departments(d.department).map(norm)))].sort().forEach(d=>id('doctor_department').appendChild(option(d,d==='心内科'?'心内科 / 心血管内科':d)));
     const summary=id('doctor_summary');if(summary)summary.textContent='已收录 '+records().length+' 条医生资料 · '+hs.filter(h=>filter({hospital:String(h.id)}).length>0).length+' 条机构已有部分资料，'+hs.filter(h=>!filter({hospital:String(h.id)}).length).length+' 条待补录';
-    id('doctor_coverage').textContent='目标 '+hs.length+' 条三级机构记录，与机构查询一致；其中 '+hs.filter(h=>filter({hospital:String(h.id)}).length>0).length+' 条已有部分医生资料，'+hs.filter(h=>!filter({hospital:String(h.id)}).length).length+' 条待补录。已收录 '+records().length+' 条医生资料 · 核验 '+directory.verified_on+'。';
+    id('doctor_coverage').textContent='目标 '+hs.length+' 条三级机构记录，与机构查询一致；其中 '+hs.filter(h=>filter({hospital:String(h.id)}).length>0).length+' 条已有部分医生资料，'+hs.filter(h=>!filter({hospital:String(h.id)}).length).length+' 条待补录。已收录 '+records().length+' 条医生资料 · 目录更新 '+(directory.updated_on||directory.verified_on)+'；单条核验日期见来源。';
   }
   function coverageRows(){return institutions().filter(h=>h.level==='三级').map(h=>({institution_id:String(h.id),name:h.name,category:h.category,doctor_count:filter({hospital:String(h.id)}).length}));}
   function renderCoverage(){const target=id('doctor_coverage_list');if(!target)return;target.innerHTML=coverageRows().sort((a,b)=>a.name.localeCompare(b.name,'zh-CN')).map(h=>'<tr><td>'+escape(h.name)+'</td><td>'+escape(h.category)+'</td><td>'+(h.doctor_count?h.doctor_count+'条 · 部分资料':'待补录')+'</td><td><button class="btn sm" type="button" data-doctor-open="'+escape(h.institution_id)+'" >'+escape(entryLabel(h.institution_id))+'</button></td></tr>').join('');}

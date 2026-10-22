@@ -4,14 +4,16 @@ const snapshot=JSON.parse(fs.readFileSync('web/snapshot_data.json','utf8'));
 const ctx={window:null,DATA:snapshot,__DOCTORS__:directory,document:{readyState:'loading',addEventListener(){}},URL,URLSearchParams,location:{hash:""},Date,console};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('web/app.doctors.js','utf8'),ctx);
 const d=ctx.Doctors;
 assert.equal(d.filter().length,directory.doctors.filter(x=>x.status==='published').length);
-assert.equal(d.filter({hospital:'1150',department:'心血管内科'}).length,4);
+const pumchHeart=directory.doctors.filter(x=>x.status==='published'&&x.institution_id==='1150'&&/^(心内科|心血管内科|心血管科|心脏科)$/.test(x.department));
+assert.ok(pumchHeart.length>=4);
+assert.deepEqual(Array.from(d.filter({hospital:'1150',department:'心血管内科'}),x=>x.id).sort(),pumchHeart.map(x=>x.id).sort());
 assert.equal(d.filter({hospital:'1498',department:'泌尿外科',district:'海淀区'}).length,3);
 assert.equal(d.filter({hospital:'1498',district:'东城区'}).length,0);
-assert.equal(d.filter({hospital:'1547',district:'西城区'}).length,4);
+assert.equal(d.filter({hospital:'1547',district:'西城区'}).length,directory.doctors.filter(x=>x.status==='published'&&x.institution_id==='1150').length);
 assert.ok(d.filter({hospital:'1303'}).length>0); // Independently sourced Yanqing records, never copied from Peking University Third Hospital.
 assert.equal(d.filter({name:'张洪宪'}).length,1);
 assert.equal(d.filter({name:'<img>'}).length,0);
-for(const q of ['北京协和医院有哪些心内科医生','协和的心血管内科医生','中国医学科学院北京协和医院有哪些心内科医生']){const c=d.parseQuestion(q);assert.equal(c.hospital,'1150');assert.equal(c.department,'心内科');assert.equal(d.filter(c).length,4);}
+for(const q of ['北京协和医院有哪些心内科医生','协和的心血管内科医生','中国医学科学院北京协和医院有哪些心内科医生']){const c=d.parseQuestion(q);assert.equal(c.hospital,'1150');assert.equal(c.department,'心内科');assert.equal(d.filter(c).length,pumchHeart.length);}
 assert.ok(d.filter(d.parseQuestion('海淀区有哪些心内科医生')).every(x=>snapshot.institutions.find(h=>h.id===x.institution_id).district==='海淀区'));
 assert.equal(d.parseQuestion('北医三院有哪些泌尿外科医生').department,'泌尿外科');
 assert.equal(d.parseQuestion('不存在的医院有哪些心内科医生').unknownHospital,true);
@@ -43,3 +45,8 @@ assert.equal(d.filter({hospital:'1474',department:'三区'}).length,0);
 assert.ok(d.filter({hospital:'1474',department:'冠心病外科中心一区、三区'}).length>0);
 
 assert.match(d.entryLabel('1476'),/待补录/);assert.match(d.entryLabel('1498'),/已收录/);console.log('PASS 医生入口按真实收录状态区分');
+
+assert.ok(d.filter({hospital:'1245',department:'神经外科学中心'}).some(x=>x.name==='杨新健'));
+assert.ok(d.filter(d.parseQuestion('地坛医院有哪些医生')).some(x=>x.name==='张福杰'));
+assert.ok(d.filter(d.parseQuestion('友谊医院有哪些神经内科医生')).some(x=>x.name==='张拥波'));
+assert.equal(directory.updated_on,'2026-10-22');
