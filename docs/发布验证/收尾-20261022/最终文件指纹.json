@@ -1,0 +1,7 @@
+{
+  "web/app.js": "9825d0db70f42dca212825212b3e73eef78a55ba68413c41c860559fde07f60b",
+  "web/templates/index.html": "174654a90860258c7e275373990de68d92f94290cfd8a18ab9cee9c864003526",
+  "web/dashboard_offline.html": "5e444db2c6be57ab0ff049310c71a0180fab11f5601916f0047371b62ff4bcdd",
+  "web/doctors_data.json": "d0719a29e764dd287abac598ecde34be7c5753c67b27609950bf85d5be3d0017",
+  "web/snapshot_data.json": "ab5fb6d853022f6b9e38dfc39e982b49b752fdecd45c0cbffac670e391c97af6"
+}

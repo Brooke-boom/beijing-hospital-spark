@@ -1,0 +1,122 @@
+[
+  {
+    "path": "/api/health",
+    "passed": true,
+    "seconds": 0.045
+  },
+  {
+    "path": "/api/meta/filters",
+    "passed": true,
+    "seconds": 0.017
+  },
+  {
+    "path": "/api/overview/districts",
+    "passed": true,
+    "seconds": 0.016
+  },
+  {
+    "path": "/api/overview/levels",
+    "passed": true,
+    "seconds": 0.018
+  },
+  {
+    "path": "/api/overview/depts",
+    "passed": true,
+    "seconds": 0.018
+  },
+  {
+    "path": "/api/specialty",
+    "passed": true,
+    "seconds": 0.019
+  },
+  {
+    "path": "/api/specialty/groups",
+    "passed": true,
+    "seconds": 0.023
+  },
+  {
+    "path": "/api/about",
+    "passed": true,
+    "seconds": 0.033
+  },
+  {
+    "path": "/api/nlq/lexicon",
+    "passed": true,
+    "seconds": 0.003
+  },
+  {
+    "path": "/api/institutions?level=%E4%B8%89%E7%BA%A7",
+    "passed": true,
+    "seconds": 0.029
+  },
+  {
+    "path": "/api/institutions?district=%E6%B5%B7%E6%B7%80%E5%8C%BA&level=%E4%B8%89%E7%BA%A7",
+    "passed": true,
+    "seconds": 0.031
+  },
+  {
+    "path": "/api/institutions/1150",
+    "passed": true,
+    "seconds": 0.022
+  },
+  {
+    "path": "/api/inst/1150/detail",
+    "passed": true,
+    "seconds": 0.023
+  },
+  {
+    "path": "/api/inst/compare?ids=1150,1498",
+    "passed": true,
+    "seconds": 0.022
+  },
+  {
+    "path": "/api/doctors",
+    "passed": true,
+    "seconds": 0.095
+  },
+  {
+    "path": "/api/inst/1150/doctors",
+    "passed": true,
+    "seconds": 0.163
+  },
+  {
+    "path": "/api/doctors/coverage",
+    "passed": true,
+    "seconds": 0.091
+  },
+  {
+    "path": "/api/statistics/overview",
+    "passed": true,
+    "seconds": 0.043
+  },
+  {
+    "path": "/api/statistics/district",
+    "passed": true,
+    "seconds": 0.039
+  },
+  {
+    "path": "/api/statistics/category",
+    "passed": true,
+    "seconds": 0.04
+  },
+  {
+    "path": "/api/statistics/level",
+    "passed": true,
+    "seconds": 0.063
+  },
+  {
+    "path": "/api/statistics/ownership",
+    "passed": true,
+    "seconds": 0.034
+  },
+  {
+    "path": "/api/statistics/source",
+    "passed": true,
+    "seconds": 0.05
+  },
+  {
+    "path": "/api/statistics/quality",
+    "passed": true,
+    "seconds": 0.056
+  }
+]

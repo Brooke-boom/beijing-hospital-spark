@@ -1,0 +1,66 @@
+{
+  "scope": "fresh MySQL volume + copied web source; no upstream ETL rebuild",
+  "isolated_python": true,
+  "python_prefix": "/Users/brooke/.workbuddy/binaries/python/envs/default",
+  "checks": [
+    {
+      "name": "database_export",
+      "passed": true,
+      "detail": {
+        "bytes": 12355742,
+        "sha256": "56ac213098e26635bcab907bdf2940551f665ca3b4ca32b2f5d6987f2a896c50"
+      }
+    },
+    {
+      "name": "fresh_database_health",
+      "passed": true,
+      "detail": {
+        "institutions": 9678,
+        "status": "ok"
+      }
+    },
+    {
+      "name": "tertiary_filter",
+      "passed": true,
+      "detail": {
+        "total": 180
+      }
+    },
+    {
+      "name": "district_grade_filter",
+      "passed": true,
+      "detail": {
+        "total": 28
+      }
+    },
+    {
+      "name": "doctor_api",
+      "passed": true,
+      "detail": {
+        "total": 565
+      }
+    },
+    {
+      "name": "homepage",
+      "passed": true,
+      "detail": {
+        "bytes": 11414630
+      }
+    },
+    {
+      "name": "restart_persistence",
+      "passed": true,
+      "detail": {
+        "institutions": 9678,
+        "status": "ok"
+      }
+    }
+  ],
+  "python": "3.13.12 (main, Feb  4 2026, 00:05:32) [Clang 21.1.4 ]",
+  "packages": {
+    "flask": "3.1.3",
+    "pymysql": "1.2.0",
+    "requests": "2.34.2"
+  },
+  "cleanup": "only uniquely named verification container and volume removed"
+}

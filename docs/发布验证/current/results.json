@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-22T02:55:10.533815+00:00",
+  "generated_at_utc": "2026-10-22T05:09:40.881773+00:00",
   "scope": "all JS/Python test entry files + optional read-only live HTTP; no production deployment",
   "snapshot_date": "2026-10-18",
   "fingerprint": "3825eec57b0e26b4c3d0b28e4f9fc9cd8c7294b685709db7c0dde878f4557980",
@@ -15,119 +15,119 @@
       "name": "test_analysis_charts.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.574,
+      "seconds": 0.417,
       "log": "logs/test_analysis_charts.js.log"
     },
     {
       "name": "test_chat_scope.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.185,
+      "seconds": 0.127,
       "log": "logs/test_chat_scope.js.log"
     },
     {
       "name": "test_chat_workflows.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.308,
+      "seconds": 0.199,
       "log": "logs/test_chat_workflows.js.log"
     },
     {
       "name": "test_dashboard_rendering.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.398,
+      "seconds": 0.256,
       "log": "logs/test_dashboard_rendering.js.log"
     },
     {
       "name": "test_direction_analysis.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.189,
+      "seconds": 0.123,
       "log": "logs/test_direction_analysis.js.log"
     },
     {
       "name": "test_doctor_import.py",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.206,
+      "seconds": 0.133,
       "log": "logs/test_doctor_import.py.log"
     },
     {
       "name": "test_doctors.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 3.733,
+      "seconds": 2.304,
       "log": "logs/test_doctors.js.log"
     },
     {
       "name": "test_doctors_api.py",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 46.926,
+      "seconds": 28.951,
       "log": "logs/test_doctors_api.py.log"
     },
     {
       "name": "test_filter_semantics.py",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 1.546,
+      "seconds": 1.017,
       "log": "logs/test_filter_semantics.py.log"
     },
     {
       "name": "test_lookup_audit.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.052,
+      "seconds": 0.035,
       "log": "logs/test_lookup_audit.js.log"
     },
     {
       "name": "test_metric_consistency.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.259,
+      "seconds": 0.165,
       "log": "logs/test_metric_consistency.js.log"
     },
     {
       "name": "test_product_workflows.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.977,
+      "seconds": 0.606,
       "log": "logs/test_product_workflows.js.log"
     },
     {
       "name": "test_project_metrics.py",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.054,
+      "seconds": 0.038,
       "log": "logs/test_project_metrics.py.log"
     },
     {
       "name": "test_release_validation.py",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.1,
+      "seconds": 0.067,
       "log": "logs/test_release_validation.py.log"
     },
     {
       "name": "test_research_topics.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 2.176,
+      "seconds": 0.871,
       "log": "logs/test_research_topics.js.log"
     },
     {
       "name": "test_six_display_fixes.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.435,
+      "seconds": 0.123,
       "log": "logs/test_six_display_fixes.js.log"
     },
     {
       "name": "test_validation_runner.py",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.412,
+      "seconds": 0.111,
       "log": "logs/test_validation_runner.py.log"
     },
     {
@@ -159,14 +159,14 @@
     "web/app.evidence.js": "2b5799dd258c98e7deda876b23d63e1dcca102c23d52a1951c145f5920653cf0",
     "web/diagnose.sh": "40e1e9540b03dbf0a759c560db5b0ee68b97af45391b1950bd8b0f7a676fc4c1",
     "web/campus_evidence.json": "95a5f9cd10ce768320bbb21e6b840338535fa8858225c783bd83f00c45c67e3f",
-    "web/project_metrics.json": "26541cd8c81abf56abd2aafe2af9d60befcb61bd0e96908a82d8fe50379a772d",
+    "web/project_metrics.json": "02b9187f624490635a97befec6980f45cc21277ee733ae034d5ec4b87b6d65dd",
     "web/build_spa.sh": "38ba4e3eb152001c86412912e01079c1a7d5890c896f2abcdb4e22c884f9de52",
     "web/app.nlq.js": "f072817d2b148b0ffea6c4d1e886407d823a11f2bdaef8bd55cd9bda35667ac1",
     "web/app.chat.js": "ba086571aab9289ea82eb64bd77d6b4aa3e5a2f22b804860deb67f457bcf6bd4",
-    "web/dashboard_offline.html": "9b9129ec2306575f1165d270e970e51bc9ac9632dde04ab185c32d34eb28697d",
+    "web/dashboard_offline.html": "5e444db2c6be57ab0ff049310c71a0180fab11f5601916f0047371b62ff4bcdd",
     "web/analysis_batch.json": "be18df7d186d0e69f00d5e588e03ada4f5672b3cc91be2ca2abf6684611cb5f9",
-    "web/dashboard_standalone.html": "edc81a4597dd70913218ec7231633db5731e54afbb2c1eb6684d91d47c45a815",
-    "web/dashboard.html": "490f740c3c8604a077632584bba59677a9f03452ea268b97603b4248b43164a6",
+    "web/dashboard_standalone.html": "174654a90860258c7e275373990de68d92f94290cfd8a18ab9cee9c864003526",
+    "web/dashboard.html": "2c3f770e116c0ff8834fd9f44a28ffa5b810ef07f4614c615ab71d292931c72c",
     "web/metric_definitions.json": "dbd5182b243814314fbd74e3c0114458aa921da0efa08175d272b95c2a6a86c4",
     "web/app.query.js": "ffe64bbdd6e72ab641874a8775be5ae4028dacf296594d57e055b1b8573f1918",
     "web/doctors_data.json": "d0719a29e764dd287abac598ecde34be7c5753c67b27609950bf85d5be3d0017",
@@ -175,12 +175,12 @@
     "web/ux.css": "359078c8e619c1edf5c8a760ecc812009db299d70276de20dfc7a0e33daedc7d",
     "web/nlq.py": "db849bf05b8a149df62d16e6225b6dcd30594a2aad905b45d3480bcfe801e892",
     "web/app.ux.js": "c8062ed2da0a81c572be410d41bf193ce57a38097e34b9b88e5e7c7363896ecd",
-    "web/snapshot_data.json": "72bec8965836ccae3dd224a36480a921d7de3433f26618133db534c3c9f0d3ab",
+    "web/snapshot_data.json": "ab5fb6d853022f6b9e38dfc39e982b49b752fdecd45c0cbffac670e391c97af6",
     "web/app.doctors.js": "e49597ccef1ffdce87b0bc10f5a47da20327ca83ae4c8828bfd771c1811c0335",
     "web/start.sh": "0a809d24f7a130b3bae522c6d426c96138d0bcde09a48e0f46bfe3dd02f2fb1c",
-    "web/app.js": "3e206031a08e99a7e5d48f9a7b84b0ac4d6250005d6c50fac0b4745110dddbb4",
+    "web/app.js": "9825d0db70f42dca212825212b3e73eef78a55ba68413c41c860559fde07f60b",
     "web/dist/index.html": "81aa31c8ceb6cfbd84c02ec3adb907a86294f38b46b6af6778feb181fd2e572b",
-    "web/templates/index.html": "edc81a4597dd70913218ec7231633db5731e54afbb2c1eb6684d91d47c45a815",
+    "web/templates/index.html": "174654a90860258c7e275373990de68d92f94290cfd8a18ab9cee9c864003526",
     "web/vendor/beijing_geo.json": "7a333e5737d1e69a7e90400874ec908d5cb5c6a8d8efead24c0f137345054d95",
     "web/vendor/echarts.min.js": "e84270bd0cd5bdf60fefc26d00c2a391cb2e81f4d26a7a9ee16185a54773a3cf",
     "web/static/css/style.css": "b451371d7af244e0c37068a4685e3f4d8820756534b12f5c15be74763c5b79c7",

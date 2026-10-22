@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "snapshot_date": "2026-10-18",
-  "generated_at_utc": "2026-10-22T02:54:10.192726+00:00",
+  "generated_at_utc": "2026-10-22T05:09:03.498361+00:00",
   "fingerprint": "3825eec57b0e26b4c3d0b28e4f9fc9cd8c7294b685709db7c0dde878f4557980",
   "evidence_status": "csv_verified_against_snapshot",
   "definitions": {

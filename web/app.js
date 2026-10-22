@@ -78,7 +78,7 @@ const LEVEL_RANK = { '三级': 4, '二级': 3, '一级': 2, '未定级': 1 };
 // 等级配色：全局唯一口径，禁止靠数组下标隐式配色（排序一变颜色就错位，把「一级」染成红色）
 // 取值由 loadTokens() 按当前主题生成（见下方）
 const W_LEVEL = 0.5, W_DIST = 0.3, W_DEPT = 0.2;
-const DASHBOARD_VERSION = 'v6.19-final-visual-20261021';
+const DASHBOARD_VERSION = 'v6.20-final-20261022';
 const GUAhAO_114 = 'https://www.114yygh.com/';
 
 // ---------- 全局状态 ----------
@@ -3798,6 +3798,7 @@ function clearPicks() {
 function renderPickBar() {
   const bar = $('cmpbar');
   $('cmp_n').textContent = PICKED.size;
+  if ($('pick_n')) $('pick_n').textContent = PICKED.size;
   bar.classList.toggle('show', PICKED.size > 0);
   $('cmp_list').innerHTML = Array.from(PICKED).map(id => {
     const r = DATA && DATA.institutions.find(x => String(x.id) === String(id));
@@ -4394,7 +4395,8 @@ function loadAbout() {
     '<div class="sd">' + esc(s.desc) + '</div>' +
     '<div class="su">' + esc(s.url) + '</div></a>').join('');
 
-  $('ab_log').innerHTML = [{date:'2026-10-21',desc:'v6.15：区域地图默认色块，医生筛选冲突提示，问答可连续提问；统一专科、坐标和治理口径。'},{date:DATA.snapshot_time,desc:'当前机构快照批次；历史更新日志为开发记录，不代表数据批次。'},...UPDATES].map(u =>
+  if ($('ab_version')) $('ab_version').textContent = DASHBOARD_VERSION;
+  $('ab_log').innerHTML = [{date:'2026-10-22',desc:'v6.20：医生目录565条；统一清空入口；问答排名意图说明；新增累计分布与成对点图；完成本轮链路和恢复部署复测。'},{date:'2026-10-21',desc:'v6.15：区域地图默认色块，医生筛选冲突提示，问答可连续提问；统一专科、坐标和治理口径。'},{date:DATA.snapshot_time,desc:'当前机构快照批次；历史更新日志为开发记录，不代表数据批次。'},...UPDATES].map(u =>
     '<div class="logrow"><span class="ld">' + esc(u.date) + '</span><span class="lx">' + esc(u.desc) + '</span></div>').join('');
 
   $('ab_tables').innerHTML = WAREHOUSE.map(t =>
