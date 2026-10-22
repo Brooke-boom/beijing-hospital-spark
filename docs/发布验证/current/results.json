@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-22T02:29:33.493484+00:00",
+  "generated_at_utc": "2026-10-22T02:44:11.870316+00:00",
   "scope": "all JS/Python test entry files + optional read-only live HTTP; no production deployment",
   "snapshot_date": "2026-10-18",
   "fingerprint": "3825eec57b0e26b4c3d0b28e4f9fc9cd8c7294b685709db7c0dde878f4557980",
@@ -15,119 +15,119 @@
       "name": "test_analysis_charts.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.74,
+      "seconds": 0.732,
       "log": "logs/test_analysis_charts.js.log"
     },
     {
       "name": "test_chat_scope.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.191,
+      "seconds": 0.194,
       "log": "logs/test_chat_scope.js.log"
     },
     {
       "name": "test_chat_workflows.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.318,
+      "seconds": 0.315,
       "log": "logs/test_chat_workflows.js.log"
     },
     {
       "name": "test_dashboard_rendering.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.41,
+      "seconds": 0.412,
       "log": "logs/test_dashboard_rendering.js.log"
     },
     {
       "name": "test_direction_analysis.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.189,
+      "seconds": 0.19,
       "log": "logs/test_direction_analysis.js.log"
     },
     {
       "name": "test_doctor_import.py",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.205,
+      "seconds": 0.207,
       "log": "logs/test_doctor_import.py.log"
     },
     {
       "name": "test_doctors.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 3.742,
+      "seconds": 5.448,
       "log": "logs/test_doctors.js.log"
     },
     {
       "name": "test_doctors_api.py",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 46.004,
+      "seconds": 53.86,
       "log": "logs/test_doctors_api.py.log"
     },
     {
       "name": "test_filter_semantics.py",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 1.517,
+      "seconds": 1.576,
       "log": "logs/test_filter_semantics.py.log"
     },
     {
       "name": "test_lookup_audit.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.048,
+      "seconds": 0.052,
       "log": "logs/test_lookup_audit.js.log"
     },
     {
       "name": "test_metric_consistency.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.248,
+      "seconds": 0.259,
       "log": "logs/test_metric_consistency.js.log"
     },
     {
       "name": "test_product_workflows.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.976,
+      "seconds": 1.014,
       "log": "logs/test_product_workflows.js.log"
     },
     {
       "name": "test_project_metrics.py",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.056,
+      "seconds": 0.064,
       "log": "logs/test_project_metrics.py.log"
     },
     {
       "name": "test_release_validation.py",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.101,
+      "seconds": 0.129,
       "log": "logs/test_release_validation.py.log"
     },
     {
       "name": "test_research_topics.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 1.652,
+      "seconds": 2.915,
       "log": "logs/test_research_topics.js.log"
     },
     {
       "name": "test_six_display_fixes.js",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.203,
+      "seconds": 0.921,
       "log": "logs/test_six_display_fixes.js.log"
     },
     {
       "name": "test_validation_runner.py",
       "status": "passed",
       "exit_code": 0,
-      "seconds": 0.176,
+      "seconds": 0.433,
       "log": "logs/test_validation_runner.py.log"
     },
     {
@@ -159,14 +159,14 @@
     "web/app.evidence.js": "2b5799dd258c98e7deda876b23d63e1dcca102c23d52a1951c145f5920653cf0",
     "web/diagnose.sh": "40e1e9540b03dbf0a759c560db5b0ee68b97af45391b1950bd8b0f7a676fc4c1",
     "web/campus_evidence.json": "95a5f9cd10ce768320bbb21e6b840338535fa8858225c783bd83f00c45c67e3f",
-    "web/project_metrics.json": "342d8be0e2f0d26bc67bf67db575a6cd9367113601acb244308df84d8777ee30",
+    "web/project_metrics.json": "81e51db26cd0d71c3fe11c25ebfafcb05a1084433f89695615a1ede0a4804deb",
     "web/build_spa.sh": "38ba4e3eb152001c86412912e01079c1a7d5890c896f2abcdb4e22c884f9de52",
     "web/app.nlq.js": "f072817d2b148b0ffea6c4d1e886407d823a11f2bdaef8bd55cd9bda35667ac1",
     "web/app.chat.js": "ba086571aab9289ea82eb64bd77d6b4aa3e5a2f22b804860deb67f457bcf6bd4",
-    "web/dashboard_offline.html": "a51f268f8c392f70728e63ec87a798310594eedcada27acf653e2067374e5dd3",
+    "web/dashboard_offline.html": "dff7405ef7737723f4ae91b87aa7d7edb64dafbd4523fbb8c57d4c6ea92e244f",
     "web/analysis_batch.json": "be18df7d186d0e69f00d5e588e03ada4f5672b3cc91be2ca2abf6684611cb5f9",
-    "web/dashboard_standalone.html": "55e646229711ec86323669eb4707beb8fdb4db980fc496dbe2341fed97335c06",
-    "web/dashboard.html": "800093801d60c1f7db2cc982c80db803edec74cb40a313b967f0a1cfdd45bc7c",
+    "web/dashboard_standalone.html": "179d3fd6ea821e6c73c233426327136e9ff702a84dcbb1bb52d3d8d1e00dd74c",
+    "web/dashboard.html": "3604b735b0cfba680000fab1cf6e20407a510aab9c560e852486e178f6b6bc85",
     "web/metric_definitions.json": "dbd5182b243814314fbd74e3c0114458aa921da0efa08175d272b95c2a6a86c4",
     "web/app.query.js": "ffe64bbdd6e72ab641874a8775be5ae4028dacf296594d57e055b1b8573f1918",
     "web/doctors_data.json": "d0719a29e764dd287abac598ecde34be7c5753c67b27609950bf85d5be3d0017",
@@ -175,12 +175,12 @@
     "web/ux.css": "dc10d9a0daaa325adad4aca7da48a1e5f9b2c00fedbfc6c28319085872241200",
     "web/nlq.py": "db849bf05b8a149df62d16e6225b6dcd30594a2aad905b45d3480bcfe801e892",
     "web/app.ux.js": "8147a18f861971a668aeece9e96934d2468d1880d92f373e1caf7a493a21f932",
-    "web/snapshot_data.json": "91ffbd3ebcde7daadb828a053be7d1669f0f7c5c5c50b693aa8fb2f7d91d5396",
+    "web/snapshot_data.json": "dea3114b802de76c23efdf2cc73be0964cb2f40e19446004fcb35bb698e72026",
     "web/app.doctors.js": "65ebfc2d9dbec729e0456f188e6e3fe831092916408217d7e45ed25edd2dca50",
     "web/start.sh": "0a809d24f7a130b3bae522c6d426c96138d0bcde09a48e0f46bfe3dd02f2fb1c",
-    "web/app.js": "787f9f4700c706d9b104b943e420fedbddbbe547842de6e30867dbfc092f6ead",
+    "web/app.js": "3e206031a08e99a7e5d48f9a7b84b0ac4d6250005d6c50fac0b4745110dddbb4",
     "web/dist/index.html": "81aa31c8ceb6cfbd84c02ec3adb907a86294f38b46b6af6778feb181fd2e572b",
-    "web/templates/index.html": "55e646229711ec86323669eb4707beb8fdb4db980fc496dbe2341fed97335c06",
+    "web/templates/index.html": "179d3fd6ea821e6c73c233426327136e9ff702a84dcbb1bb52d3d8d1e00dd74c",
     "web/vendor/beijing_geo.json": "7a333e5737d1e69a7e90400874ec908d5cb5c6a8d8efead24c0f137345054d95",
     "web/vendor/echarts.min.js": "e84270bd0cd5bdf60fefc26d00c2a391cb2e81f4d26a7a9ee16185a54773a3cf",
     "web/static/css/style.css": "b451371d7af244e0c37068a4685e3f4d8820756534b12f5c15be74763c5b79c7",
@@ -286,7 +286,7 @@
     "etl/verify_research_batch.py": "ae70567b9655e11537288f024e4220ea5b02815b5238db610c8404d9ab191cbe",
     "tests/test_release_validation.py": "af54465f9ca86bf02d0f18fa601e99b36f86e546ee503c444ff79e43d7958101",
     "tests/test_chat_workflows.js": "ca77c7e0ab3138579888bfe61127a87a25b001fc636753c28986bb6b59e7fddc",
-    "tests/test_analysis_charts.js": "668fc703b24011141c86826c9d952d8fbb1831c967497418703573dc05b8d07b",
+    "tests/test_analysis_charts.js": "0650b491bf1ff11d2d86b9a019aa96449510c7d25b1b10d07a2ad71d4a433513",
     "tests/test_direction_analysis.js": "150943b3e317d474363e48730f3034e7455b854f63df989bccaa283ae7c59b25",
     "tests/test_validation_runner.py": "0a257d832f26a388b2dc1ef74bad67effa628f1e16c01907819e4d2848e3085e",
     "tests/test_chat_scope.js": "7311f5a88215f9c743cc50652ea55ac8db5361c653e4c86da89268d9db4c9ca1",

@@ -2044,9 +2044,13 @@ function anCatOwnOpt(){
 // 换成帕累托后多了一根累计折线：柱子说「每档多少家」，折线说「前 N 档已经覆盖了多少家」，
 // 一眼能答出「头部两档就吃掉了 X% 的有专科机构」。
 function anSpDistOpt(F){
-  const bins=[['1–4 项',1,4],['5–9 项',5,9],['10–19 项',10,19],['20–29 项',20,29],['30 项及以上',30,Infinity]],sp=F.filter(r=>currentSpecialtyCount(r)>0);
-  if(!sp.length)return null;
-  return analysisColumns(bins.map(b=>b[0]),[{name:'机构记录',values:bins.map(b=>sp.filter(r=>currentSpecialtyCount(r)>=b[1]&&currentSpecialtyCount(r)<=b[2]).length),color:ACC}],'条');
+  const values=F.map(currentSpecialtyCount).filter(n=>n>0).sort((a,b)=>a-b);if(!values.length)return null;
+  const xs=[...new Set(values)],points=xs.map(x=>({value:[x,+(100*values.filter(v=>v<=x).length/values.length).toFixed(2)],count:values.filter(v=>v<=x).length}));
+  return {animation:false,aria:{enabled:true,label:{description:'专科名单名称数累计分布；横轴为名称数，纵轴为不超过该数量的机构占比。样本 '+values.length+' 条。'}},
+    tooltip:Object.assign({},TIP,{trigger:'item',confine:true,formatter:p=>'名称数不超过 '+p.value[0]+' 项<br>累计 '+p.data.count+' / '+values.length+' 条机构记录（'+p.value[1]+'%）'}),
+    grid:{left:60,right:30,top:35,bottom:50},xAxis:{type:'value',name:'专科名称数（项）',nameLocation:'middle',nameGap:30,min:0,minInterval:1,axisLabel:{color:INK},splitLine:{show:false}},
+    yAxis:{type:'value',name:'累计机构占比',min:0,max:100,axisLabel:{color:INK,formatter:'{value}%'},splitLine:{lineStyle:{color:EDGE}}},
+    series:[{name:'累计分布',type:'line',step:'end',showSymbol:true,symbolSize:6,lineStyle:{color:ACC,width:2},itemStyle:{color:ACC},areaStyle:{color:ACC,opacity:.08},data:points}]};
 }
 
 // ---------- 重点专科级别流向（100% 堆叠条形）----------
@@ -2059,7 +2063,12 @@ function anSpLvOpt(F){
   const definitions=[['三级',r=>r.level==='三级'],['二级',r=>r.level==='二级'],['一级',r=>r.level==='一级'],['未定级/不分级',r=>!['三级','二级','一级'].includes(r.level)]];
   const rows=definitions.map(([lv,pred])=>({lv,nat:sumBy(F.filter(pred),r=>specialtyMetrics(r).national.length),mun:sumBy(F.filter(pred),r=>specialtyMetrics(r).municipal.length)})).filter(r=>r.nat+r.mun>0);AN_SPLV_ROWS=rows;
   if(!rows.length)return null;
-  return analysisColumns(rows.map(r=>r.lv),[{name:'国家级',values:rows.map(r=>r.nat),color:CRIT},{name:'市级',values:rows.map(r=>r.mun),color:ACC}],'项');
+  return {animation:false,aria:{enabled:true,label:{description:rows.map(r=>r.lv+'国家级'+r.nat+'项，市级'+r.mun+'项').join('；')}},
+    tooltip:Object.assign({},TIP,{trigger:'item',confine:true,formatter:p=>esc(rows[p.dataIndex].lv)+' · '+esc(p.seriesName)+'：'+p.value[0]+' 项'}),
+    legend:Object.assign({},LEGEND,{bottom:0}),grid:{left:110,right:65,top:25,bottom:65},
+    xAxis:{type:'value',name:'名单名称条目（项）',nameLocation:'middle',nameGap:28,min:0,minInterval:1,axisLabel:{color:INK},splitLine:{lineStyle:{color:EDGE}}},
+    yAxis:{type:'category',inverse:true,data:rows.map(r=>r.lv),axisLabel:{color:INK},axisLine:{show:false},axisTick:{show:false}},
+    series:[['国家级','nat',CRIT],['市级','mun',ACC]].map(([name,key,color])=>({name,type:'scatter',symbolSize:13,itemStyle:{color},label:{show:true,position:key==='nat'?'top':'bottom',color:INK,formatter:p=>p.value[0]},data:rows.map((r,i)=>[r[key],i])}))};
 }
 
 // ---------- 区域资源禀赋矩阵（16 区 × 5 指标 · 列内归一热力图）----------
