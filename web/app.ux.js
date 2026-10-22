@@ -169,6 +169,7 @@
       const on=b.dataset.mobileView===shownView;b.classList.toggle('active',on);
       if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
     });
+    if(byId('ux_page_reset')){byId('ux_page_reset').textContent=view==='filter'?'清空对话':'一键清空';byId('ux_page_reset').setAttribute('aria-label',view==='filter'?'清空当前对话和输入':'一键清空当前页面条件');}
     resultsChanged();
     if(focus)byId('ux_page_title').focus({preventScroll:true});
   }
@@ -220,6 +221,17 @@
     if(typeof root.ResizeObserver==='function'){const chartObserver=new root.ResizeObserver(entries=>{entries.forEach(({target})=>{const chart=root.echarts?.getInstanceByDom?.(target);if(chart&&target.clientWidth&&target.clientHeight)chart.resize({width:'auto',height:'auto'});});});document.querySelectorAll('.achart,.direction-chart,#map,#ch1,#ch2,#ch3').forEach(node=>chartObserver.observe(node));}
     if(typeof root.ResizeObserver==='function'){const observer=new root.ResizeObserver(syncStickyOffsets);const header=document.querySelector('.topbar'),context=byId('ux_active_conditions');if(header)observer.observe(header);if(context)observer.observe(context);}syncStickyOffsets();
     document.addEventListener('click',event=>{const b=event.target.closest('[data-phone-copy]');if(b)clipboard(b.dataset.phoneCopy,'电话号码');});
+    byId('ux_page_reset').addEventListener('click',()=>{
+      if(CUR_VIEW==='filter'){
+        if(root.__CHAT__)root.__CHAT__.clear();
+        const input=byId('ai_in');if(input){input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();}
+        return;
+      }
+      if(CUR_VIEW==='doctors'&&root.Doctors){Doctors.reset();return;}
+      for(const [id,value] of [['an_region_focus','all'],['an_region_measure','count'],['an_region_metric','total']]){const sel=byId(id);if(sel){sel.value=value;if(sel.selectedIndex<0)sel.selectedIndex=0;}}
+      AN_REGION_METRIC='total';resetFilter();
+      toast('已清空筛选条件，恢复全部范围');
+    });
     byId('ux_menu').addEventListener('click',()=>navOpen(!document.body.classList.contains('ux-nav-open')));
     byId('ux_nav_backdrop').addEventListener('click',()=>navOpen(false));
     byId('ux_menu_close').addEventListener('click',()=>navOpen(false));

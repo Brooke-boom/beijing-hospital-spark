@@ -76,7 +76,8 @@
     });
     if(!directory&&/^https?:$/.test(location.protocol))fetch('doctors_data.json').then(r=>{if(!r.ok)throw Error('load');return r.json();}).then(d=>{directory=d;if(typeof CUR_VIEW!=='undefined'&&CUR_VIEW==='doctors')enter();}).catch(()=>{});
   }
+  function reset(){for(const k of ['name','district','hospital','department'])id('doctor_'+k).value='';id('doctor_aaa').checked=false;page=1;render();}
   function restoreState(st){enter();for(const k of ['name','district','hospital','department'])id('doctor_'+k).value=st['doc_'+k]||'';id('doctor_aaa').checked=st.doc_grade==='三甲';page=1;render();}
-  root.Doctors={entryLabel,coverageRows,state,restoreState,filter,parseQuestion,answer,paintHospital,enter,open,canonical,source};
+  root.Doctors={reset,entryLabel,coverageRows,state,restoreState,filter,parseQuestion,answer,paintHospital,enter,open,canonical,source};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })(window);
