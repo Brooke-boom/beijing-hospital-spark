@@ -395,3 +395,14 @@ body{overflow-x:clip}.maincol{min-width:0}.view{min-width:0}
 .analysis-secondary-direct{margin:20px var(--pad-x);padding:18px 24px;background:var(--panel);border-radius:8px}.analysis-secondary-direct>h4{margin:0 0 8px;font-size:14px}.analysis-secondary-direct>p{font-size:11px;line-height:1.8;color:var(--ink-2)}
 .analysis-existing .chart-reading,.analysis-existing .detail-finding,#an_reading_limit{font-size:11px;color:var(--ink-2)}.doctor-filters label{font-size:12px}.doctor-result-bar>span,.doctor-source-details>summary,#doctor_results .doctor-source-details{font-size:11px}.chat-input-meta,.chatbound{line-height:1.7}.doctor-summary{line-height:1.8}.analysis-existing #ch_own{height:300px!important}.analysis-existing #ch_lvown{height:300px!important}.analysis-existing #ch_coord{height:310px!important}
 @media(max-width:700px){.global-conditions{max-height:108px}.analysis-secondary-direct{padding:14px 10px}.analysis-existing .apanel h3{font-size:13px}.analysis-secondary-direct>h4{font-size:13px}}
+
+/* Explicit foreground prevents the legacy white text on pale question bubbles. */
+.chatmsg.user{color:var(--ink);background:rgba(var(--acc-rgb),.12)}
+.chatmsg.user .chatwho:empty{display:none}
+.chatmsg.user .chatwho{color:var(--dim)}
+.chatmsg.ai{color:var(--ink)}
+.chat-answer-title{margin:0 0 8px;font-size:16px;line-height:1.5}
+.chatbody p{margin:8px 0}
+.chatbody .chat-actions{display:flex;flex-wrap:wrap;gap:8px}
+.chat-results-list{display:flex;flex-direction:column;align-items:flex-start;margin-top:12px}
+.chat-query-scope{margin-top:12px}

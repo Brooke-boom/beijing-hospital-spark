@@ -36,7 +36,7 @@ var CHAT = (function () {
   function httpPage() { return location.protocol === 'http:' || location.protocol === 'https:'; }
   // 局部改名 hesc，避免遮蔽 app.js 的全局 esc；两套实现产出一致
   function hesc(s) { return String(s == null ? '' : s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
   // 科室词表（与 app.nlq.ui.js 的 deptNames 同口径：离线形态给快照 meta）
   function deptNames() {
@@ -163,26 +163,21 @@ var CHAT = (function () {
       return a.label + '：' + v;
     }).join('；');
     if (res.intent === 'stats') {
-      // st.summary 是引擎（nlq.py 同源）生成的统计摘要，直接复用，不另造口径
-      var s = res.st.summary || '';
       var valid = res.st.rows.filter(function (r) { return r.cnt; });
-      var rows = valid.slice(0, 8)
-        .map(function (r) { return ((r.name || r.label || r.key)) + ' ' + r.cnt + ' 家'; }).join('，');
-      return head + (condTxt?'按条件（'+condTxt+'）统计。\n':'') + (s ? s + '\n' : '') + '明细：' + rows +
-        (valid.length > 8 ? ' 等。' : '。') +
-        '\n以上数字来自平台对真实数据的本次查询。';
+      var rows = valid.slice(0, 8).map(function(r,i){return (i+1)+'. '+(r.name||r.label||r.key)+'：'+r.cnt+' 条';}).join('\n');
+      return head+'共找到 '+res.total+' 条机构记录，按'+(res.st.label||res.st.dimension)+'汇总。\n'+rows+(valid.length>8?'\n其余 '+(valid.length-8)+' 组未在此展开。':'')+'\n统计为机构记录数量，不代表医疗水平。';
     }
     var items = res.r.all || res.r.items || [];
     if (!res.total) {
       return head + '按' + (condTxt ? '条件（' + condTxt + '）' : '你的描述') + '没有查到匹配机构。' +
         '可以放宽条件试试：去掉行政区、放宽等级，或改用更常见的科室名。\n以上为平台真实查询结果。';
     }
-    var top = items.slice(0, 5).map(function (x, i) {
+    var top = items.slice(0, 3).map(function (x, i) {
       return (i + 1) + '. ' + x.name + '（' + (x.district || '—') + '·' + (x.level || '未定级') + '）';
-    }).join('　');
+    }).join('\n');
     return head + '按' + (condTxt ? '条件（' + condTxt + '）' : '你的描述') + '共命中 ' + res.total + ' 家。' +
       (res.r.sort && res.r.sort.indexOf('dist') === 0 ? '按距离从近到远，' : '') +
-      '按当前排序列出的有：' + top + '。\n以上数字与机构名来自平台真实查询，可点击下方按钮打开完整结果。';
+      '\n以下按当前查询顺序展示：\n' + top + '。\n以上数字与机构名来自平台真实查询，可点击下方按钮打开完整结果。';
   }
 
   // --------------------------------------------------------------------------
@@ -203,6 +198,12 @@ var CHAT = (function () {
     if(LOG.getAttribute&&LOG.getAttribute('data-empty')==='true')LOG.innerHTML='';
     LOG.setAttribute('data-empty','false');
     addMsg('user',multiline(q));setBusy(true);
+    // Resource counts cannot substantiate clinical hospital rankings.
+    if (/(排名|排行|最好|最强|最有名|top\s*\d*)/i.test(q) && !/按.{0,12}(数量|距离|科室数|专科数)/.test(q)) {
+      var lookup=q.replace(/排名|排行榜?|最好|最强|最有名|top\s*\d*/ig,'').trim();
+      addMsg('ai','<h4 class="chat-answer-title">可以查资源，暂不能评医疗水平</h4><p>系统没有疗效、手术质量或权威评审排名数据，不能据此给医院或医生排优劣。</p><p>你可以查看符合区域和科室条件的机构，或指定按距离、已收录科室数量比较。</p><div class="chat-actions"><button type="button" class="btn primary sm" data-q="'+hesc(lookup+'有哪些机构？')+'">查看符合条件的机构</button><button type="button" class="btn sm" data-q="'+hesc(lookup+'按距离从近到远')+'">按距离查询</button></div>','查询说明');
+      setBusy(false);return Promise.resolve({intent:'ranking_boundary'});
+    }
     if(window.Doctors){var doctorReply=Doctors.answer(q);if(doctorReply){addMsg('ai',doctorReply,'医生资料查询 · 医院官网');setBusy(false);return Promise.resolve({intent:'doctors'});}}
     var res;
     try{res=localRun(q);}catch(e){setBusy(false);addMsg('sys','暂时无法执行查询，请调整条件后重试。');return Promise.resolve(null);}
@@ -234,7 +235,7 @@ var CHAT = (function () {
       historyReply.content=reply;
     }
     // Data results are immediately usable; language generation never blocks the result handoff.
-    paint(multiline(answer),'真实查询结果 · 正在检查智能说明');
+    paint(multiline(answer),'查询已完成 · 可继续提问');
     setBusy(false); // 本地结果已完成，智能说明仅更新本条消息。
     if(window.updateFabBadge)updateFabBadge(res.total);
     var ready=httpPage()?probe():Promise.resolve(AI_ON=false);
@@ -245,8 +246,8 @@ var CHAT = (function () {
       return jsonPost('/api/ai/chat',{mode:'data',question:q,facts:buildFacts(res),history:historySnapshot}).then(function(j){
         if(j&&j.ok&&j.reply){finish(j.reply,'智能说明'+(j.cached?' · 已缓存':'')+' · 基于真实查询结果');return j;}
         AI_ON=false;setStatus();
-        if(j&&j.reason==='llm_rate_limited'){MODEL_COOLDOWN=Date.now()+30000;finish(answer,'本地查询结果 · 智能服务繁忙');}
-        else finish(answer,'本地查询结果 · 智能说明暂不可用');
+        if(j&&j.reason==='llm_rate_limited'){MODEL_COOLDOWN=Date.now()+30000;finish(answer,'查询已完成 · 智能说明繁忙，可继续提问');}
+        else finish(answer,'查询已完成 · 当前使用本地说明');
         return j;
       }).catch(function(){AI_ON=false;setStatus();finish(answer,'本地查询结果 · 智能说明连接失败');return null;});
     }).catch(function(){AI_ON=false;setStatus();finish(answer,'本地查询结果');return null;});
